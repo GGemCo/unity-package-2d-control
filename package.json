@@ -1,0 +1,20 @@
+{
+	"name": "com.ggemco.2d.control",
+	"version": "0.0.1",
+	"displayName": "GGemCo 2D Control",
+	"description": "조작 관련 패키지",
+	"unity": "2022.3",
+	"author": {
+		"name": "GGemCo",
+		"url": "https://github.com/GGemCo/unity-package-2d-control.git",
+		"email": "ggemco.master@gmail.com"
+	},
+	"dependencies": {
+		"com.ggemco.2d.core": "2.3.2" 
+	},
+	"samples": [
+	],
+	"keywords": [
+		"unity"
+	]
+}
