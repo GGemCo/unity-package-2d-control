@@ -2,7 +2,7 @@
 	"name": "com.ggemco.2d.control",
 	"version": "0.0.1",
 	"displayName": "GGemCo 2D Control",
-	"description": "조작 관련 패키지",
+	"description": "이동, 공격, 사다리 올라가기/내려가기, 오브젝트 밀기/끌기등의 조작 관련 패키지",
 	"unity": "2022.3",
 	"author": {
 		"name": "GGemCo",
