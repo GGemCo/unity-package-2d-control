@@ -31,6 +31,7 @@ namespace GGemCo2DControl
         
         // 공격 처리
         private ActionAttack _actionAttack;
+        private ActionJump _actionJump;
         
         private void Awake()
         {
@@ -54,6 +55,9 @@ namespace GGemCo2DControl
             
             _actionMove = new ActionMove();
             _actionMove.Initialize(this, _characterBase, _characterBaseController);
+            
+            _actionJump = new ActionJump();
+            _actionJump.Initialize(this, _characterBase, _characterBaseController);
         }
 
         private void InitializeInputPlayer()
@@ -64,23 +68,27 @@ namespace GGemCo2DControl
             _playerInput.actions.Enable();
             _playerInput.actions["Move"].Enable();
             _playerInput.actions["Attack"].Enable();
+            _playerInput.actions["Jump"].Enable(); // Jump 액션 활성화
+            
             _inputActionMove = _playerInput.actions["Move"];
             var attack = _playerInput.actions["Attack"];
             attack.started += OnAttack;
             // attack.performed += OnAttack;
             // attack.canceled += OnAttack;
+
+            var jump = _playerInput.actions["Jump"];
+            jump.started += OnJump;
+            
+            // _playerInput.SwitchCurrentControlScheme("sss");
+            _playerInput.onControlsChanged += OnControlsChanged;
         }
 
         private void OnDestroy()
         {
-            if (_actionAttack != null)
-            {
-                _actionAttack.OnDestroy();
-            }
-            if (_actionMove != null)
-            {
-                _actionMove.OnDestroy();
-            }
+            _actionAttack?.OnDestroy();
+            _actionMove?.OnDestroy();
+            _actionJump?.OnDestroy();
+            
             if (_playerInput)
             {
                 var attackAction = _playerInput.actions["Attack"];
@@ -94,6 +102,11 @@ namespace GGemCo2DControl
         {
             if (_characterBase.IsStatusAttack()) return;
             if (_characterBase.IsStatusAttackComboWait()) return;
+            if (_characterBase.IsStatusJump())
+            {
+                _actionJump.Update(); // 점프 상태 업데이트
+                return;
+            }
             
             Vector2 move = _inputActionMove.ReadValue<Vector2>();
             if (move != Vector2.zero)
@@ -114,6 +127,15 @@ namespace GGemCo2DControl
         public void OnAttack(InputAction.CallbackContext ctx)
         {
             _actionAttack.Attack(ctx);
+        }
+        public void OnJump(InputAction.CallbackContext ctx)
+        {
+            _actionJump.Jump(ctx);
+        }
+
+        private void OnControlsChanged(PlayerInput obj)
+        {
+            GcLogger.Log($"on controls changed. {obj.currentControlScheme}");
         }
     }
 }
