@@ -8,5 +8,12 @@
             Control = 1000,
             Auto = 2000
         }
+
+        public const string NameControlSchemePc = "PC";
+        public const string NameControlSchemeGamepad = "Gamepad";
+
+        public const string NameActionMove = "Move";
+        public const string NameActionAttack = "Attack";
+        public const string NameActionJump = "Jump";
     }
 }

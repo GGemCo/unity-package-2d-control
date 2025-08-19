@@ -66,21 +66,21 @@ namespace GGemCo2DControl
             if (!_playerInput) return;
             // ★ 반드시 필요
             _playerInput.actions.Enable();
-            _playerInput.actions["Move"].Enable();
-            _playerInput.actions["Attack"].Enable();
-            _playerInput.actions["Jump"].Enable(); // Jump 액션 활성화
+            _playerInput.actions[ConfigCommonControl.NameActionMove].Enable();
+            _playerInput.actions[ConfigCommonControl.NameActionAttack].Enable();
+            _playerInput.actions[ConfigCommonControl.NameActionJump].Enable(); // Jump 액션 활성화
             
-            _inputActionMove = _playerInput.actions["Move"];
-            var attack = _playerInput.actions["Attack"];
+            _inputActionMove = _playerInput.actions[ConfigCommonControl.NameActionMove];
+            var attack = _playerInput.actions[ConfigCommonControl.NameActionAttack];
             attack.started += OnAttack;
             // attack.performed += OnAttack;
             // attack.canceled += OnAttack;
 
-            var jump = _playerInput.actions["Jump"];
+            var jump = _playerInput.actions[ConfigCommonControl.NameActionJump];
             jump.started += OnJump;
             
             // _playerInput.SwitchCurrentControlScheme("sss");
-            _playerInput.onControlsChanged += OnControlsChanged;
+            _playerInput.onControlsChanged += OnChangeControlScheme;
         }
 
         private void OnDestroy()
@@ -91,7 +91,7 @@ namespace GGemCo2DControl
             
             if (_playerInput)
             {
-                var attackAction = _playerInput.actions["Attack"];
+                var attackAction = _playerInput.actions[ConfigCommonControl.NameActionAttack];
                 attackAction.started -= OnAttack;
                 // attackAction.performed -= OnAttack;
                 // attackAction.canceled -= OnAttack;
@@ -133,9 +133,12 @@ namespace GGemCo2DControl
             _actionJump.Jump(ctx);
         }
 
-        private void OnControlsChanged(PlayerInput obj)
+        private void OnChangeControlScheme(PlayerInput playerInput)
         {
-            GcLogger.Log($"on controls changed. {obj.currentControlScheme}");
+            // GcLogger.Log($"on controls changed. {playerInput.currentControlScheme}");
+            // var uiPanelControl = ControlPackageManager.Instance.GetUIPanelControl();
+            // if (!uiPanelControl) return;
+            // uiPanelControl.SetScheme(playerInput.currentControlScheme);
         }
     }
 }

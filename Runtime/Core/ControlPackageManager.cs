@@ -9,6 +9,7 @@ namespace GGemCo2DControl
     public class ControlPackageManager : MonoBehaviour
     {
         public static ControlPackageManager Instance { get; private set; }
+        private UIPanelOptionControl _uiPanelOptionControl;
         
         private void Awake()
         {
@@ -24,6 +25,15 @@ namespace GGemCo2DControl
                 return;
             }
             gameObject.AddComponent<BootstrapperAction>();
+        }
+
+        public void SetUIPanelControl(UIPanelOptionControl uiPanelOptionControl)
+        {
+            _uiPanelOptionControl = uiPanelOptionControl;
+        }
+        public UIPanelOptionControl GetUIPanelControl()
+        {
+            return _uiPanelOptionControl;
         }
     }
 }

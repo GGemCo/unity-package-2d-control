@@ -41,6 +41,7 @@ namespace GGemCo2DControl
                 playerInput.actions =
                     AddressableLoaderInputAction.Instance.GetInputAction(ConfigAddressableControl.InputAction.Key);
                 playerInput.notificationBehavior = PlayerNotifications.InvokeCSharpEvents;
+                // playerInput.neverAutoSwitchControlSchemes = true;
             }
             
             if (!ch.GetComponent<InputManager>())
