@@ -22,13 +22,15 @@ namespace GGemCo2DControl
         private int _bindingIndex;
         private PlayerInput _playerInput;
         private UIPanelOptionControl _uiPanelOptionControl;
+        private UIWindowOption _uiWindowOption;
 
-        public void Bind(InputAction action, InputBinding binding, UIPanelOptionControl uiPanelOptionControl)
+        public void Bind(InputAction action, InputBinding binding, UIPanelOptionControl uiPanelOptionControl, UIWindowOption uiWindowOption)
         {
             _action = action;
             _bindingIndex = action.bindings.IndexOf(b => b.id == binding.id);
             _uiPanelOptionControl = uiPanelOptionControl;
-
+            _uiWindowOption = uiWindowOption;
+            
             actionName.text = action.name;
             RefreshLabel();
 
@@ -67,7 +69,7 @@ namespace GGemCo2DControl
                 ShowConfirmButton = false,
                 ShowCancelButton = false
             };
-            _uiPanelOptionControl.uiWindowOption.popupManager.ShowPopup(popupMetadata);
+            _uiWindowOption.popupManager.ShowPopup(popupMetadata);
             
             var op = _action.PerformInteractiveRebinding(_bindingIndex)
                 .WithCancelingThrough("<Keyboard>/escape")
@@ -101,14 +103,14 @@ namespace GGemCo2DControl
                     if (wasEnabled) _action.Enable();
                     _uiPanelOptionControl.SetIsChange(true);
                     RefreshLabel();
-                    _uiPanelOptionControl.uiWindowOption.popupManager.Cancel();
+                    _uiWindowOption.popupManager.Cancel();
                 })
                 .OnCancel(o =>
                 {
                     o.Dispose();
                     if (wasEnabled) _action.Enable();
                     RefreshLabel();
-                    _uiPanelOptionControl.uiWindowOption.popupManager.Cancel();
+                    _uiWindowOption.popupManager.Cancel();
                 })
                 .Start();
         }

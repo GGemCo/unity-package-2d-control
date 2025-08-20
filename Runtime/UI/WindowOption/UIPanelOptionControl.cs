@@ -8,7 +8,7 @@ using UnityEngine.UI;
 namespace GGemCo2DControl
 {
     // 프리팹의 루트에 붙는 컴포넌트
-    public class UIPanelOptionControl : UIPanelOptionBase, IOptionsMenuProvider
+    public class UIPanelOptionControl : UIPanelOptionBase
     {
         [Header(UIWindowConstants.TitleHeaderIndividual)]
         // [SerializeField] private PlayerInput playerInput;           // 또는 InputActionAsset 직접 참조
@@ -26,10 +26,6 @@ namespace GGemCo2DControl
         private InputActionAsset _asset;
         private readonly List<UIElementOptionControlChangeKey> _items = new();
         private PlayerInput _playerInput;
-
-        public string SectionId => "controls";
-        public string DisplayName => "키 설정";
-        public int Order => 50;
 
         // 항목 메타
         private sealed class BindingViewEntry
@@ -62,6 +58,7 @@ namespace GGemCo2DControl
                 if (isOn)
                     ChangeGamePad();
             });
+            InitKeyBindingElement();
         }
         protected override void OnDestroy()
         {
@@ -70,78 +67,7 @@ namespace GGemCo2DControl
             toggleChangeGamePad?.onValueChanged.RemoveAllListeners();
         }
 
-        private void ChangeKeyboard()
-        {
-            if (_playerInput == null && SceneGame.Instance != null) 
-            {
-                _playerInput = SceneGame.Instance.player.GetComponent<PlayerInput>();
-            }
-
-            // 연결 가능한 디바이스 확인(Null 허용. 연결된 장치 자동 매칭됨)
-            var kbd = Keyboard.current;
-            var mouse = Mouse.current;
-            // 스킴 이름과 디바이스를 함께 지정하여 강제 전환
-            if (_playerInput)
-            {
-                _playerInput.SwitchCurrentControlScheme(ConfigCommonControl.NameControlSchemePc, kbd, mouse);
-            }
-
-            // UI 갱신 등
-            SetScheme(ConfigCommonControl.NameControlSchemePc);
-        }
-        private void ChangeGamePad()
-        {
-            if (_playerInput == null && SceneGame.Instance != null) 
-            {
-                _playerInput = SceneGame.Instance.player.GetComponent<PlayerInput>();
-            }
-            var pad = Gamepad.current;
-            if (pad == null)
-            {
-                Debug.LogWarning("연결된 Gamepad가 없습니다.");
-                return;
-            }
-
-            if (_playerInput)
-            {
-                _playerInput.SwitchCurrentControlScheme(ConfigCommonControl.NameControlSchemeGamepad, pad);
-            }
-
-            // UI 갱신 등
-            SetScheme(ConfigCommonControl.NameControlSchemeGamepad);
-        }
-        /// <summary>
-        /// UIWindowOption에 UIPanelControl 붙이기
-        /// </summary>
-        /// <param name="parent"></param>
-        /// <param name="puiWindowOption"></param>
-        /// <returns></returns>
-        public GameObject BuildSection(Transform parent, UIWindowOption puiWindowOption)
-        {
-            if (puiWindowOption == null) return null;
-            if (uiWindowOption == null)
-            {
-                uiWindowOption = puiWindowOption;
-            }
-            uiWindowOption.AddLayer(UIWindowOption.IndexTapButton.Control, this);
-            if (!popupManager)
-            {
-                popupManager = uiWindowOption.popupManager;
-            }
-            
-            gameObject.transform.SetParent(parent);
-            RectTransformHelper.SetMarginZero(gameObject);
-            var section = GetComponent<UIPanelOptionControl>();
-            section.Init();
-            if (ControlPackageManager.Instance)
-            {
-                ControlPackageManager.Instance.SetUIPanelControl(section);
-            }
-
-            return gameObject;
-        }
-
-        private void Init()
+        private void InitKeyBindingElement()
         {
             if (!AddressableLoaderInputAction.Instance) return;
             _asset = AddressableLoaderInputAction.Instance.GetInputAction(ConfigAddressableControl.InputAction.Key);
@@ -163,7 +89,7 @@ namespace GGemCo2DControl
             SetScheme(scheme);
         }
 
-        public void SetScheme(string scheme)
+        private void SetScheme(string scheme)
         {
             _currentScheme = scheme;
             ApplySchemeMask(_currentScheme);
@@ -220,7 +146,7 @@ namespace GGemCo2DControl
             var view = Instantiate(uiElementOptionControlChangeKeyPrefab, listParent);
             // 초기에는 전부 만들어 두고, 이후 스킴에 따라 Active만 토글
             var binding = action.bindings[bindingIndex];
-            view.Bind(action, binding, this);
+            view.Bind(action, binding, this, uiWindowOption);
 
             _items.Add(view);
 
@@ -331,7 +257,7 @@ namespace GGemCo2DControl
             }
             if (!isChanged)
             {
-                if (!base.Show(show)) return false;
+                if (!base.Show(false)) return false;
                 return true;
             }
             PopupMetadata popupMetadata = new PopupMetadata
@@ -365,6 +291,47 @@ namespace GGemCo2DControl
         private void LoadCurrentOptions()
         {
             LoadSaveRebindingFronPlayerPrefs();
+        }
+
+        private void ChangeKeyboard()
+        {
+            if (_playerInput == null && SceneGame.Instance != null) 
+            {
+                _playerInput = SceneGame.Instance.player.GetComponent<PlayerInput>();
+            }
+
+            // 스킴 이름과 디바이스를 함께 지정하여 강제 전환
+            if (_playerInput)
+            {
+                // 연결 가능한 디바이스 확인(Null 허용. 연결된 장치 자동 매칭됨)
+                var kbd = Keyboard.current;
+                var mouse = Mouse.current;
+                _playerInput.SwitchCurrentControlScheme(ConfigCommonControl.NameControlSchemePc, kbd, mouse);
+            }
+
+            // UI 갱신 등
+            SetScheme(ConfigCommonControl.NameControlSchemePc);
+        }
+        private void ChangeGamePad()
+        {
+            if (_playerInput == null && SceneGame.Instance != null) 
+            {
+                _playerInput = SceneGame.Instance.player.GetComponent<PlayerInput>();
+            }
+
+            if (_playerInput)
+            {
+                var pad = Gamepad.current;
+                if (pad == null)
+                {
+                    Debug.LogWarning("연결된 Gamepad가 없습니다.");
+                    return;
+                }
+                _playerInput.SwitchCurrentControlScheme(ConfigCommonControl.NameControlSchemeGamepad, pad);
+            }
+
+            // UI 갱신 등
+            SetScheme(ConfigCommonControl.NameControlSchemeGamepad);
         }
 
     }

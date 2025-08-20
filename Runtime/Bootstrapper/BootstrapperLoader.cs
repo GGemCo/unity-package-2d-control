@@ -26,7 +26,7 @@ namespace GGemCo2DControl
         {
             if (GameLoaderManager.Instance != null)
             {
-                GcLogger.Log($"ControlLoaderBootstrap RegisterSteps");
+                GcLogger.Log($"BootstrapperLoader RegisterSteps");
                 // 설정 스크립터블 오브젝트 
                 var addrSettings = Object.FindFirstObjectByType<AddressableLoaderSettingsControl>() ??
                                    new GameObject("AddressableLoaderSettingsControl")
