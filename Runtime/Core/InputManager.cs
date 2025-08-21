@@ -64,7 +64,7 @@ namespace GGemCo2DControl
         {
             _playerInput = GetComponent<PlayerInput>();
             if (!_playerInput) return;
-            // ★ 반드시 필요
+            // 반드시 필요
             _playerInput.actions.Enable();
             _playerInput.actions[ConfigCommonControl.NameActionMove].Enable();
             _playerInput.actions[ConfigCommonControl.NameActionAttack].Enable();

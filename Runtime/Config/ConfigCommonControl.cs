@@ -9,7 +9,7 @@
             Auto = 2000
         }
 
-        public const string NameControlSchemePc = "PC";
+        public const string NameControlSchemePc = "Keyboard&Mouse";
         public const string NameControlSchemeGamepad = "Gamepad";
 
         public const string NameActionMove = "Move";

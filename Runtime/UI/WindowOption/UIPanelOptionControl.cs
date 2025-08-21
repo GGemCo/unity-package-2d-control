@@ -7,11 +7,12 @@ using UnityEngine.UI;
 
 namespace GGemCo2DControl
 {
-    // 프리팹의 루트에 붙는 컴포넌트
+    /// <summary>
+    /// 조작 키 변경하기 패널
+    /// </summary>
     public class UIPanelOptionControl : UIPanelOptionBase
     {
         [Header(UIWindowConstants.TitleHeaderIndividual)]
-        // [SerializeField] private PlayerInput playerInput;           // 또는 InputActionAsset 직접 참조
         [Tooltip("키 Element가 들어갈 Panel")]
         [SerializeField] private Transform listParent;              // 항목이 그려질 부모(스크롤 콘텐츠)
         [Tooltip("키 Element 프리팹")]
@@ -26,7 +27,16 @@ namespace GGemCo2DControl
         private InputActionAsset _asset;
         private readonly List<UIElementOptionControlChangeKey> _items = new();
         private PlayerInput _playerInput;
-
+#if UNITY_EDITOR
+        private void OnValidate()
+        {
+            UIAssertionsChecker.Require(this, listParent, nameof(listParent));
+            UIAssertionsChecker.Require(this, uiElementOptionControlChangeKeyPrefab, nameof(uiElementOptionControlChangeKeyPrefab));
+            UIAssertionsChecker.Require(this, toggleGroupScheme, nameof(toggleGroupScheme));
+            UIAssertionsChecker.Require(this, toggleChangePc, nameof(toggleChangePc));
+            UIAssertionsChecker.Require(this, toggleChangeGamePad, nameof(toggleChangeGamePad));
+        }
+#endif
         // 항목 메타
         private sealed class BindingViewEntry
         {
@@ -37,28 +47,25 @@ namespace GGemCo2DControl
         }
 
         private readonly List<BindingViewEntry> _entries = new();
-        private bool _builtAllOnce;
+        private bool _createAllOnce;
         private string _currentScheme; // "Keyboard&Mouse" or "Gamepad"
         
         protected override void Awake()
         {
             base.Awake();
-            toggleChangePc.group = toggleGroupScheme;
-            toggleChangePc.SetIsOnWithoutNotify(false);
-            toggleChangePc.onValueChanged.AddListener(isOn =>
-            {
-                if (isOn)
-                    ChangeKeyboard();
-            });
             
+            // 토글 리스너 등록
+            if (toggleChangePc)
+                toggleChangePc.onValueChanged.AddListener(isOn =>
+                    OnSchemeToggleChanged(ConfigCommonControl.NameControlSchemePc, isOn));
+
+            if (toggleChangeGamePad)
+                toggleChangeGamePad.onValueChanged.AddListener(isOn =>
+                    OnSchemeToggleChanged(ConfigCommonControl.NameControlSchemeGamepad, isOn));
+
+            toggleChangePc.group = toggleGroupScheme;
             toggleChangeGamePad.group = toggleGroupScheme;
-            toggleChangeGamePad.SetIsOnWithoutNotify(false);
-            toggleChangeGamePad.onValueChanged.AddListener(isOn =>
-            {
-                if (isOn)
-                    ChangeGamePad();
-            });
-            InitKeyBindingElement();
+            Initialize();
         }
         protected override void OnDestroy()
         {
@@ -66,8 +73,12 @@ namespace GGemCo2DControl
             toggleChangePc?.onValueChanged.RemoveAllListeners();
             toggleChangeGamePad?.onValueChanged.RemoveAllListeners();
         }
-
-        private void InitKeyBindingElement()
+        /// <summary>
+        /// 초기 셋팅
+        /// 각각의 키 Element 만들기
+        /// 현재 적용중인 Scheme 셋팅하기
+        /// </summary>
+        private void Initialize()
         {
             if (!AddressableLoaderInputAction.Instance) return;
             _asset = AddressableLoaderInputAction.Instance.GetInputAction(ConfigAddressableControl.InputAction.Key);
@@ -78,24 +89,48 @@ namespace GGemCo2DControl
             }
 
             // 최초 1회: 모든 바인딩 항목 생성(풀)
-            if (!_builtAllOnce)
+            if (!_createAllOnce)
             {
-                BuildAllEntriesOnce();
-                _builtAllOnce = true;
+                CreateAllElementOnce();
+                _createAllOnce = true;
             }
 
             // 현재 스킴에 맞춰 보이기 토글
             var scheme = _playerInput ? _playerInput.currentControlScheme : ConfigCommonControl.NameControlSchemePc;
+            if (scheme == ConfigCommonControl.NameControlSchemePc)
+            {
+                toggleChangePc.SetIsOnWithoutNotify(true);
+                toggleChangeGamePad.SetIsOnWithoutNotify(false);
+            }
+            else if (scheme == ConfigCommonControl.NameControlSchemeGamepad)
+            {
+                toggleChangePc.SetIsOnWithoutNotify(false);
+                toggleChangeGamePad.SetIsOnWithoutNotify(true);
+            }
             SetScheme(scheme);
         }
-
+        /// <summary>
+        /// 현재 적용중인 Scheme 셋팅
+        /// </summary>
+        /// <param name="scheme"></param>
         private void SetScheme(string scheme)
         {
             _currentScheme = scheme;
             ApplySchemeMask(_currentScheme);
             UpdateVisibilityForScheme(_currentScheme);
         }
-        private void BuildAllEntriesOnce()
+        /// <summary>
+        /// 현재 적용중인 Scheme 가져오기
+        /// </summary>
+        /// <returns></returns>
+        public string GetScheme()
+        {
+            return _currentScheme;
+        }
+        /// <summary>
+        /// 키 Element 만들기
+        /// </summary>
+        private void CreateAllElementOnce()
         {
             _entries.Clear();
             _items.Clear();
@@ -146,7 +181,7 @@ namespace GGemCo2DControl
             var view = Instantiate(uiElementOptionControlChangeKeyPrefab, listParent);
             // 초기에는 전부 만들어 두고, 이후 스킴에 따라 Active만 토글
             var binding = action.bindings[bindingIndex];
-            view.Bind(action, binding, this, uiWindowOption);
+            view.Bind(action, binding);
 
             _items.Add(view);
 
@@ -158,7 +193,23 @@ namespace GGemCo2DControl
                 compositeRootIndex = compositeRootIndex
             });
         }
-
+        /// <summary>
+        /// UIWindowOption 셋팅하기
+        /// Element에서 UIWindowOption을 사용하기 위해, UIWindowOption 셋팅 후 Element에도 UIWindowOption을 넣어준다.
+        /// </summary>
+        /// <param name="puiWindowOption"></param>
+        public override void SetWindowOption(UIWindowOption puiWindowOption)
+        {
+            base.SetWindowOption(puiWindowOption);
+            foreach (var uiElementOptionControlChangeKey in _items)
+            {
+                uiElementOptionControlChangeKey.SetUIWindowOption(puiWindowOption, this);
+            }
+        }
+        /// <summary>
+        /// 현재 선택된 Scheme 에 맞는 키 Element만 보여주기
+        /// </summary>
+        /// <param name="schemeName"></param>
         private void UpdateVisibilityForScheme(string schemeName)
         {
             foreach (var e in _entries)
@@ -204,96 +255,72 @@ namespace GGemCo2DControl
             if (_asset == null) return;
             _asset.bindingMask = InputBinding.MaskByGroup(schemeName);
         }
-        
-        public void OnOpen()  { /* 필요 시 포커스/하이라이트 */ }
-        public void OnClose() { /* 필요 시 정리 */ }
-
-        // 저장/불러오기 버튼에서 호출
-        protected override void OnClickConfirm()
-        {
-            if (_asset == null) return;
-            var json = _asset.SaveBindingOverridesAsJson(); // 또는 playerInput.actions
-            PlayerPrefsManager.SaveKeyBinding(json);
-            SetIsChange(false);
-        }
-
-        protected override void OnClickCancel()
-        {
-            LoadSaveRebindingFronPlayerPrefs();
-            SetIsChange(false);
-        }
-
-        protected override void OnClickReset()
-        {
-            PopupMetadata popupMetadata = new PopupMetadata
-            {
-                PopupType = PopupManager.Type.Default,
-                MessageColor = Color.red,
-                Title = "되돌리기", //슬롯 삭제
-                Message = "디폴트 값으로 변경하시겠습니까?",
-                OnConfirm = OnConfirmResetByPopup,
-                ShowCancelButton = true
-            };
-            popupManager.ShowPopup(popupMetadata);
-        }
-
-        private void OnConfirmResetByPopup()
-        {
-            if (_asset == null) return;
-            _asset.RemoveAllBindingOverrides();
-            foreach (var i in _items) i.RefreshLabel();
-            SetIsChange(false);
-        }
         /// <summary>
-        /// 저장하지 않고 닫을 수 있기 때문에 옵션 창이 닫힐때 현재 설정값 다시 로드
+        /// 현재 저장되어있는 값으로 다시 셋팅하기
         /// </summary>
-        public override bool Show(bool show)
-        {
-            if (show)
-            {
-                base.Show(true);
-                LoadCurrentOptions();
-                return true;
-            }
-            if (!isChanged)
-            {
-                if (!base.Show(false)) return false;
-                return true;
-            }
-            PopupMetadata popupMetadata = new PopupMetadata
-            {
-                PopupType = PopupManager.Type.Default,
-                MessageColor = Color.red,
-                Title = "취소하기", //슬롯 삭제
-                Message = "변경한 내용을 저장하지 않았습니다.\n취소하시겠습니까?",
-                OnConfirm = OnConfirmByPopup,
-                ShowCancelButton = true
-            };
-            popupManager.ShowPopup(popupMetadata);
-            return false;
-        }
-        private void OnConfirmByPopup()
-        {
-            LoadCurrentOptions();
-            SetButtonInteractable(false);
-            // LoadCurrentOptions에서 최신으로 불러오기 때문에, 마지막에 _isChanged를 변경한다.
-            SetIsChange(false);
-        }
-
-        private void LoadSaveRebindingFronPlayerPrefs()
+        protected override void RefreshFromModel()
         {
             if (_asset == null) return;
             var json = PlayerPrefsManager.LoadKeyBinding();
             _asset.LoadBindingOverridesFromJson(json);
-            // UI 새로고침
+
+            RefreshAllLabels();
+        }
+        /// <summary>
+        /// 디폴트로 리셋
+        /// </summary>
+        protected override void ResetToDefault()
+        {
+            if (_asset == null) return;
+            _asset.RemoveAllBindingOverrides();
+
+            RefreshAllLabels();
+            MarkDirty(true);
+        }
+        /// <summary>
+        /// 옵션 설정 저장하기
+        /// </summary>
+        public override bool TryApply()
+        {
+            if (_asset == null) return false;
+            var json = _asset.SaveBindingOverridesAsJson(); // 또는 playerInput.actions
+            PlayerPrefsManager.SaveKeyBinding(json);
+            return true;
+        }
+        /// <summary>
+        /// 변경한 것이 있을때, 취소하기
+        /// </summary>
+        public override void Revert()
+        {
+            RefreshFromModel();
+        }
+        /// <summary>
+        /// Element에 각 key 텍스트 업데이트
+        /// </summary>
+        public void RefreshAllLabels()
+        {
             foreach (var i in _items) i.RefreshLabel();
         }
-        private void LoadCurrentOptions()
+        /// <summary>
+        /// 토글 클릭 시 호출되는 스킴 전환 처리
+        /// </summary>
+        private void OnSchemeToggleChanged(string scheme, bool isOn)
         {
-            LoadSaveRebindingFronPlayerPrefs();
-        }
+            if (!isOn) return;                  // Off 이벤트는 무시
 
-        private void ChangeKeyboard()
+            if (scheme == ConfigCommonControl.NameControlSchemePc)
+            {
+                ChangePc();
+            }
+            else if (scheme == ConfigCommonControl.NameControlSchemeGamepad)
+            {
+                ChangeGamePad();
+            }
+        }
+        /// <summary>
+        /// PC Scheme으로 변경하기
+        /// </summary>
+        private void ChangePc()
         {
             if (_playerInput == null && SceneGame.Instance != null) 
             {
@@ -312,6 +339,9 @@ namespace GGemCo2DControl
             // UI 갱신 등
             SetScheme(ConfigCommonControl.NameControlSchemePc);
         }
+        /// <summary>
+        /// 게임 패드 scheme으로 변경하기
+        /// </summary>
         private void ChangeGamePad()
         {
             if (_playerInput == null && SceneGame.Instance != null) 
@@ -333,6 +363,5 @@ namespace GGemCo2DControl
             // UI 갱신 등
             SetScheme(ConfigCommonControl.NameControlSchemeGamepad);
         }
-
     }
 }
