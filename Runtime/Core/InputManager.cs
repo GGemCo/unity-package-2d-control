@@ -102,6 +102,7 @@ namespace GGemCo2DControl
         {
             if (_characterBase.IsStatusAttack()) return;
             if (_characterBase.IsStatusAttackComboWait()) return;
+            if (_characterBase.IsStatusDamage()) return;
             if (_characterBase.IsStatusJump())
             {
                 _actionJump.Update(); // 점프 상태 업데이트

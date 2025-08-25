@@ -12,9 +12,7 @@ namespace GGemCo2DControl
         private int _currentCombo;
         private int _countCombo;
         private Coroutine _coroutineDonAttack;
-        
         private InputManager _inputManager;
-        
         private GGemCoAttackComboSettings _attackComboSettings;
 
         public void Initialize(InputManager inputManager, CharacterBase characterBase)
@@ -23,6 +21,7 @@ namespace GGemCo2DControl
             _characterBase = characterBase;
             _characterBase.AnimationCompleteAttack += OnAnimationCompleteAttack;
             _characterBase.AnimationCompleteAttackEnd += OnAnimationCompleteAttackEnd;
+            _characterBase.OnStop += OnStop;
             _attackComboSettings = AddressableLoaderSettingsControl.Instance.attackComboSettings;
             _countCombo = _attackComboSettings.GetCountCombo();
         }
@@ -32,6 +31,7 @@ namespace GGemCo2DControl
             if (!_characterBase) return;
             _characterBase.AnimationCompleteAttack -= OnAnimationCompleteAttack;
             _characterBase.AnimationCompleteAttackEnd -= OnAnimationCompleteAttackEnd;
+            _characterBase.OnStop -= OnStop;
         }
 
         private void ClearAttackCombo()
@@ -42,6 +42,10 @@ namespace GGemCo2DControl
         private void SetAttackCombo(int attackCombo)
         {
             _currentCombo = attackCombo;
+        }
+        public int GetAttackCombo()
+        {
+            return _currentCombo;
         }
         private bool IsLastAttackCombo()
         {
@@ -63,16 +67,19 @@ namespace GGemCo2DControl
         }
         private void MoveForward(string attackAnimName)
         {
-            float duration = _characterBase.CharacterAnimationController.GetCharacterAnimationDuration(attackAnimName, false);
+            float duration =
+                _characterBase.CharacterAnimationController.GetCharacterAnimationDuration(attackAnimName, false);
             float addMove = _attackComboSettings.GetMoveForwardDistance(_currentCombo);
+            float speed = _attackComboSettings.GetMoveForwardSpeed(_currentCombo);
             if (_characterBase.IsFlipped())
             {
                 addMove *= -1;
             }
-            _characterBase.AddMoveForce(addMove, 0, duration * 0.1f);
+            _characterBase.AddMoveForce(addMove, 0, duration * speed);
         }
         private IEnumerator CoroutinePlayAttackEndAnimation()
         {
+            // GcLogger.Log($"PlayAttackEndAnimation wait time:{_attackComboSettings.GetWaitTime(_currentCombo)}");
             yield return new WaitForSeconds(_attackComboSettings.GetWaitTime(_currentCombo));
             _characterBase.CharacterAnimationController?.PlayAttackEndAnimation();
         }
@@ -116,6 +123,9 @@ namespace GGemCo2DControl
             _characterBase.SetStatusAttack(); // 공격 중 상태 설정
             _characterBase.directionNormalize = Vector3.zero; // 움직임 멈춤
             string attackAnimName = _attackComboSettings.GetAnimationName(_currentCombo);
+            // 추가 데미지 적용
+            float percent = _attackComboSettings.GetAddAtk(_currentCombo);
+            _characterBase.AddStatus(ConfigCommon.StatusStatAtk, ConfigCommon.SuffixType.Increase, percent);
 
             // 공격시 앞으로 조금씩 이동하기
             MoveForward(attackAnimName);
@@ -134,6 +144,7 @@ namespace GGemCo2DControl
             if (e.Handled) return;
             
             // GcLogger.Log($"OnAnimationCompleteAttack");
+            
             sender.SetStatusAttackComboWait();
             StopCoroutineAttackWait();
             _coroutineDonAttack = _inputManager.StartCoroutine(CoroutinePlayAttackEndAnimation());
@@ -152,14 +163,25 @@ namespace GGemCo2DControl
             if (e.Handled) return;
             
             // GcLogger.Log($"OnAnimationCompleteAttackEnd");
-            if (IsLastAttackCombo())
-                ClearAttackCombo();
-            
             _characterBase.Stop();
             
             // 처리 완료 선언 (레거시 폴백 차단)
             e.Handled = true;
         }
 
+        private void OnStop(CharacterBase sender, EventArgsOnStop e)
+        {
+            // 이미 다른 상위 시스템이 처리했으면 패스
+            if (e.Handled) return;
+            
+            // 콤보 추가 데미지 적용 해제
+            float percent = _attackComboSettings.GetAddAtk(_currentCombo);
+            // 추가 데미지 적용
+            _characterBase.RemoveStatus(ConfigCommon.StatusStatAtk, ConfigCommon.SuffixType.Increase, percent);
+            ClearAttackCombo();
+            
+            // 처리 완료 선언 (레거시 폴백 차단)
+            e.Handled = true;
+        }
     }
 }

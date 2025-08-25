@@ -1,6 +1,5 @@
 ﻿using GGemCo2DCore;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace GGemCo2DControl
 {
@@ -19,6 +18,7 @@ namespace GGemCo2DControl
         public void Move(Vector2 direction)
         {
             _characterBase.directionNormalize = direction;
+            _characterBase.SetStatusRun();
             _characterBaseController.Run();
         }
 
