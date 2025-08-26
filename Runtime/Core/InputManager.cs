@@ -103,13 +103,19 @@ namespace GGemCo2DControl
             if (_characterBase.IsStatusAttack()) return;
             if (_characterBase.IsStatusAttackComboWait()) return;
             if (_characterBase.IsStatusDamage()) return;
+            
+            Vector2 move = _inputActionMove.ReadValue<Vector2>();
+            
             if (_characterBase.IsStatusJump())
             {
                 _actionJump.Update(); // 점프 상태 업데이트
+                if (move != Vector2.zero)
+                {
+                    OnJumpMoveContinuous(move);
+                }
                 return;
             }
             
-            Vector2 move = _inputActionMove.ReadValue<Vector2>();
             if (move != Vector2.zero)
             {
                 OnMoveContinuous(move);
@@ -118,6 +124,12 @@ namespace GGemCo2DControl
             {
                 _characterBase.Stop();
             }
+        }
+        private void OnJumpMoveContinuous(Vector2 direction)
+        {
+            // 방향키 누르고 있는 동안 계속 호출됨
+            // Debug.Log($"Moving: {direction}");
+            _actionMove.JumpMove(direction);
         }
         private void OnMoveContinuous(Vector2 direction)
         {

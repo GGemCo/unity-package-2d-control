@@ -1,4 +1,5 @@
-﻿using GGemCo2DCore;
+﻿using System.Collections.Generic;
+using GGemCo2DCore;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -6,10 +7,8 @@ namespace GGemCo2DControl
 {
     /// <summary>
     /// 점프 액션 (설정: 높이, 정점까지 시간)
-    /// 애니메이션 시퀀스:
-    ///   jump(1회, 이벤트) → jump_up(루프)
-    ///   정점 통과 시: jump_change_fall(1회, 이벤트) → jump_fall(루프)
-    ///   착지 시: jump_end(1회, 이벤트) → Stop()
+    /// - 일부 애니메이션 미보유 시에도 동작하도록 폴백 포함
+    /// - 1회성 단계는 Animation Event 미도착 시 워치독으로 자동 완료
     /// </summary>
     public class ActionJump
     {
@@ -21,6 +20,9 @@ namespace GGemCo2DControl
         // --- 캐시 ---
         private Rigidbody2D _rb;
         private Collider2D _col;
+
+        // Animator/클립 정보(폴백 판단 및 길이 계산용)
+        private Dictionary<string, float> _clipLength = new();
 
         // --- 파라미터(2개) ---
         private float _desiredJumpHeight = 3.0f; // 월드 유닛
@@ -35,14 +37,18 @@ namespace GGemCo2DControl
         private enum JumpPhase
         {
             None,
-            StartOneShot,   // jump (이벤트로 UpLoop 전환)
-            UpLoop,         // jump_up
-            ApexChange,     // jump_change_fall (이벤트로 FallLoop 전환)
-            FallLoop,       // jump_fall
-            LandOneShot     // jump_end (이벤트로 종료)
+            StartOneShot,   // jump        (이벤트 → UpLoop)
+            UpLoop,         // jump_up     (정점 감지 → ApexChange)
+            ApexChange,     // change_fall (이벤트 → FallLoop)
+            FallLoop,       // jump_fall   (착지 감지 → LandOneShot)
+            LandOneShot     // jump_end    (이벤트 → Stop)
         }
-
         private JumpPhase _phase = JumpPhase.None;
+
+        // 현재 1회성 단계에서 이벤트 대기 워치독
+        private JumpPhase _awaitingEventFor = JumpPhase.None;
+        private float _awaitingDeadline = 0f;
+        private const float DEFAULT_ONESHOT_TIMEOUT = 0.2f; // 클립 길이를 못 구하면 사용
 
         // --- 애니메이션 이름 ---
         private const string AnimJumpStart      = "jump";
@@ -54,20 +60,26 @@ namespace GGemCo2DControl
         // --- Ground Layer ---
         private LayerMask _groundMask;
 
+        // --- 보유 여부 캐시 ---
+        private bool _hasStart, _hasUp, _hasChangeFall, _hasFall, _hasEnd;
+
         public void Initialize(InputManager inputManager, CharacterBase characterBase, CharacterBaseController characterBaseController)
         {
             _inputManager = inputManager;
             _characterBase = characterBase;
             _characterBaseController = characterBaseController;
 
-            _rb  = _characterBase.GetComponent<Rigidbody2D>();
-            _col = _characterBase.GetComponent<Collider2D>();
+            _rb = _characterBase.characterRigidbody2D;
+            _col = _characterBase.colliderCheckMapObject;
 
             if (_rb == null || _col == null)
             {
                 GcLogger.LogError("[ActionJump] Rigidbody2D/Collider2D가 필요합니다.");
                 return;
             }
+
+            // Animator/클립 길이 수집
+            _clipLength = _characterBase.CharacterAnimationController.GetAnimationAllLength();
 
             // Ground Layer
             _groundMask = LayerMask.GetMask(ConfigLayer.GetValue(ConfigLayer.Keys.TileMapGround));
@@ -81,13 +93,20 @@ namespace GGemCo2DControl
             _timeToApex        = AddressableLoaderSettings.Instance.playerSettings.jumpSpeed;
 
             RecalculatePhysicsConstants(_desiredJumpHeight, _timeToApex);
-            
+
             _characterBase.OnAnimationEventJump += OnAnimationEventJump;
+            
+            // 보유 여부 캐시
+            _hasStart      = HasAnimation(AnimJumpStart);
+            _hasUp         = HasAnimation(AnimJumpUpLoop);
+            _hasChangeFall = HasAnimation(AnimJumpChangeFall);
+            _hasFall       = HasAnimation(AnimJumpFallLoop);
+            _hasEnd        = HasAnimation(AnimJumpEnd);
         }
 
-        public void OnDestroy()
+        public void OnDestroy() 
         {
-            // 외부 이벤트 구독 없음
+            _characterBase.OnAnimationEventJump -= OnAnimationEventJump;
         }
 
         public void Configure(float desiredJumpHeight, float timeToApex)
@@ -110,6 +129,7 @@ namespace GGemCo2DControl
         /// <summary>
         /// InputManager에서 Jump.started로 호출
         /// </summary>
+        /// <param name="ctx"></param>
         public void Jump(InputAction.CallbackContext ctx)
         {
             if (!ctx.started) return;
@@ -126,11 +146,10 @@ namespace GGemCo2DControl
             _prevGravityScale = _rb.gravityScale;
             _rb.gravityScale  = _baseGravityScale;
 
-            // 하강 중에도 충분히 끌어올림
             float vy = Mathf.Max(_rb.linearVelocity.y, _jumpVelocityY);
             _rb.linearVelocity = new Vector2(_rb.linearVelocity.x, vy);
 
-            // jump(1회) 시작 —> 끝 이벤트로 UpLoop 전환
+            // 시작 단계 진입: jump(있으면) → 없으면 즉시 UpLoop
             EnterPhase(JumpPhase.StartOneShot);
         }
 
@@ -138,58 +157,71 @@ namespace GGemCo2DControl
         /// 매 프레임 호출(Update)
         /// - 정점 통과 감지(UpLoop → ApexChange)
         /// - 하강 중 접지 감지(FallLoop → LandOneShot)
+        /// - 1회성 단계 워치독(이벤트 누락 대비)
         /// </summary>
         public void Update()
         {
             if (_rb == null) return;
             if (_phase == JumpPhase.None) return;
 
+            // 1) 물리 기반 전이
             float vy = _rb.linearVelocity.y;
 
             switch (_phase)
             {
                 case JumpPhase.UpLoop:
-                    // 상승 → 정점 통과
                     if (vy <= 0.0001f)
-                    {
                         EnterPhase(JumpPhase.ApexChange);
-                    }
                     break;
 
                 case JumpPhase.FallLoop:
-                    // 하강 중 접지
                     if (vy <= 0f && IsGroundedByCollision())
-                    {
                         EnterPhase(JumpPhase.LandOneShot);
-                    }
                     break;
+            }
+
+            // 2) 이벤트 워치독 (이벤트 미도착 시 자동 완료)
+            if (_awaitingEventFor != JumpPhase.None && Time.time >= _awaitingDeadline)
+            {
+                switch (_awaitingEventFor)
+                {
+                    case JumpPhase.StartOneShot:
+                        HandleJumpStartOneShotEnd();
+                        break;
+                    case JumpPhase.ApexChange:
+                        HandleJumpChangeFallOneShotEnd();
+                        break;
+                    case JumpPhase.LandOneShot:
+                        HandleJumpLandOneShotEnd();
+                        break;
+                }
             }
         }
 
         // -------------------------- Animation Event Entry Points --------------------------
 
-        /// <summary>jump(1회) 종료 이벤트</summary>
-        public void HandleJumpStartOneShotEnd()
+        private void HandleJumpStartOneShotEnd()
         {
             if (_phase != JumpPhase.StartOneShot) return;
-            // 상승 루프 진입
-            PlayAnimSafe(AnimJumpUpLoop);
+            ClearAwaiting();
+            // 상승 루프 진입 (없으면 전환만)
+            if (_hasUp) PlayAnimSafe(AnimJumpUpLoop);
             _phase = JumpPhase.UpLoop;
         }
 
-        /// <summary>jump_change_fall(1회) 종료 이벤트</summary>
-        public void HandleJumpChangeFallOneShotEnd()
+        private void HandleJumpChangeFallOneShotEnd()
         {
             if (_phase != JumpPhase.ApexChange) return;
-            // 하강 루프 진입
-            PlayAnimSafe(AnimJumpFallLoop);
+            ClearAwaiting();
+            // 하강 루프 진입 (없으면 전환만)
+            if (_hasFall) PlayAnimSafe(AnimJumpFallLoop);
             _phase = JumpPhase.FallLoop;
         }
 
-        /// <summary>jump_end(1회) 종료 이벤트</summary>
-        public void HandleJumpLandOneShotEnd()
+        private void HandleJumpLandOneShotEnd()
         {
             if (_phase != JumpPhase.LandOneShot) return;
+            ClearAwaiting();
             FinishAndStop();
         }
 
@@ -198,21 +230,78 @@ namespace GGemCo2DControl
         private void EnterPhase(JumpPhase next)
         {
             _phase = next;
+            ClearAwaiting();
 
             switch (next)
             {
                 case JumpPhase.StartOneShot:
-                    PlayAnimSafe(AnimJumpStart);
+                    if (_hasStart)
+                    {
+                        PlayAnimSafe(AnimJumpStart);
+                        StartAwaiting(next, AnimJumpStart);
+                    }
+                    else
+                    {
+                        // jump가 없으면 즉시 UpLoop로
+                        HandleJumpStartOneShotEnd();
+                    }
+                    break;
+
+                case JumpPhase.UpLoop:
+                    if (_hasUp) PlayAnimSafe(AnimJumpUpLoop);
+                    // 루프는 이벤트 대기 없음
                     break;
 
                 case JumpPhase.ApexChange:
-                    PlayAnimSafe(AnimJumpChangeFall);
+                    if (_hasChangeFall)
+                    {
+                        PlayAnimSafe(AnimJumpChangeFall);
+                        StartAwaiting(next, AnimJumpChangeFall);
+                    }
+                    else
+                    {
+                        // change_fall이 없으면 즉시 FallLoop로
+                        HandleJumpChangeFallOneShotEnd();
+                    }
+                    break;
+
+                case JumpPhase.FallLoop:
+                    if (_hasFall) PlayAnimSafe(AnimJumpFallLoop);
                     break;
 
                 case JumpPhase.LandOneShot:
-                    PlayAnimSafe(AnimJumpEnd);
+                    if (_hasEnd)
+                    {
+                        PlayAnimSafe(AnimJumpEnd);
+                        StartAwaiting(next, AnimJumpEnd);
+                    }
+                    else
+                    {
+                        // end가 없으면 즉시 종료
+                        HandleJumpLandOneShotEnd();
+                    }
                     break;
             }
+        }
+
+        private void StartAwaiting(JumpPhase phase, string clipName)
+        {
+            _awaitingEventFor = phase;
+            _awaitingDeadline = Time.time + GetClipDurationWithFallback(clipName);
+        }
+
+        private void ClearAwaiting()
+        {
+            _awaitingEventFor = JumpPhase.None;
+            _awaitingDeadline = 0f;
+        }
+
+        private float GetClipDurationWithFallback(string clipName)
+        {
+            // 클립 길이가 있으면 약간의 마진(+0.02s) 포함
+            if (_clipLength.TryGetValue(clipName, out var len) && len > 0f)
+                return len + 0.02f;
+            return DEFAULT_ONESHOT_TIMEOUT;
         }
 
         private void FinishAndStop()
@@ -236,6 +325,25 @@ namespace GGemCo2DControl
             return _col.IsTouchingLayers(_groundMask);
         }
 
+        private bool HasAnimation(string stateName)
+        {
+            // 1) 캐릭터 애니메이션 컨트롤러가 "존재 여부"를 제공한다면 우선 사용
+            if (_characterBase.CharacterAnimationController is { } ctrl)
+            {
+                // 선택: ctrl에 HasAnimation(string) API가 있다면 사용하도록 교체 가능
+                return ctrl.HasAnimation(stateName);
+            }
+
+            return false;
+
+            // // 2) Animator의 클립 이름으로 보수적 판단
+            // return _clipLength.ContainsKey(stateName);
+        }
+        /// <summary>
+        /// 애니메이션 event 처리
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void OnAnimationEventJump(CharacterBase sender, EventArgsOnAnimationEventJump e)
         {
             switch (e.EventName)

@@ -18,12 +18,21 @@ namespace GGemCo2DControl
         public void Move(Vector2 direction)
         {
             _characterBase.directionNormalize = direction;
-            _characterBase.SetStatusRun();
+            _characterBase.SetStatusRun();    
             _characterBaseController.Run();
         }
 
         public void OnDestroy()
         {
+        }
+        /// <summary>
+        /// 점프 중 이동하기
+        /// </summary>
+        /// <param name="direction"></param>
+        public void JumpMove(Vector2 direction)
+        {
+            _characterBase.directionNormalize = direction;
+            _characterBaseController.Run();
         }
     }
 }

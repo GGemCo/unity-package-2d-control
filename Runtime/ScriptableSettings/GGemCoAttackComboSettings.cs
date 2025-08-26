@@ -10,19 +10,29 @@ namespace GGemCo2DControl
         [Serializable]
         public class StruckAttackSetting : ISerializationCallbackReceiver
         {
-            [Header("애니메이션 이름")]
+            [Header("애니메이션 설정")]
+            [Tooltip("이 공격에서 재생될 애니메이션의 이름")]
             public string animationName;
-            [Header("공격시 앞으로 이동하는 거리")]
+
+            [Header("이동 설정")]
+            [Tooltip("공격 시 앞으로 이동하는 거리 (단위: 유닛)")]
             public float moveForwardDistance;
-            [Header("공격시 앞으로 이동하는 속도. 디폴트 1. 숫자가 작을수록 빠르게 이동합니다.")]
+
+            [Tooltip("공격 시 앞으로 이동하는 속도 (1이 기본값, 값이 낮을수록 더 빠름)")]
             public float moveForwardSpeed = 1f;
-            [Header("적용 Affect Uid")]
+
+            [Header("효과 설정")]
+            [Tooltip("플레이어에게 적용되는 효과 (Affect UID)")]
             public int affectUid;
-            [Header("공격 후 다음 공격할 수 있는 대기 시간(초)")]
+
+            [Tooltip("공격 후 다음 공격 입력이 가능해지기까지의 대기 시간 (단위: 초)")]
             public float waitTime;
-            [Header("몬스터가 피격시 뒤로 밀려나는 거리")]
+
+            [Header("몬스터 피격 반응")]
+            [Tooltip("몬스터가 공격에 맞았을 때 뒤로 밀려나는 거리 (단위: 유닛)")]
             public float knockBackDistance;
-            [Header("몬스터가 피격시 뒤로 밀려나는 시간(초)")]
+
+            [Tooltip("몬스터가 뒤로 밀려나는 데 걸리는 시간 (단위: 초)")]
             public float knockBackDuration;
             // 최초 초기화 여부를 표시 (인스펙터에는 숨김)
             [SerializeField, HideInInspector] private bool initialized;
