@@ -123,9 +123,14 @@ namespace GGemCo2DControl
             _characterBase.SetStatusAttack(); // 공격 중 상태 설정
             _characterBase.directionNormalize = Vector3.zero; // 움직임 멈춤
             string attackAnimName = _attackComboSettings.GetAnimationName(_currentCombo);
-            // 추가 데미지 적용
-            float percent = _attackComboSettings.GetAddAtk(_currentCombo);
-            _characterBase.AddStatus(ConfigCommon.StatusStatAtk, ConfigCommon.SuffixType.Increase, percent);
+            
+            // 추가 데미지 affect 적용
+            float duration = _characterBase.CharacterAnimationController.GetCharacterAnimationDuration(attackAnimName);
+            int affectUid = _attackComboSettings.GetAffectUid(_currentCombo);
+            if (affectUid > 0)
+            {
+                _characterBase.AddAffect(affectUid, duration);
+            }
 
             // 공격시 앞으로 조금씩 이동하기
             MoveForward(attackAnimName);
@@ -174,10 +179,6 @@ namespace GGemCo2DControl
             // 이미 다른 상위 시스템이 처리했으면 패스
             if (e.Handled) return;
             
-            // 콤보 추가 데미지 적용 해제
-            float percent = _attackComboSettings.GetAddAtk(_currentCombo);
-            // 추가 데미지 적용
-            _characterBase.RemoveStatus(ConfigCommon.StatusStatAtk, ConfigCommon.SuffixType.Increase, percent);
             ClearAttackCombo();
             
             // 처리 완료 선언 (레거시 폴백 차단)

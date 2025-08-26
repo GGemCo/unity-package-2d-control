@@ -6,9 +6,10 @@ namespace GGemCo2DControl
 {
     /// <summary>
     /// 점프 액션 (설정: 높이, 정점까지 시간)
-    /// - jump_start: 점프 시작 ~ 정점 도달까지 재생
-    /// - jump_wait : 정점에서 잠시 재생 (짧은 대기)
-    /// - jump_end  : 정점 이후 하강 시 재생
+    /// 애니메이션 시퀀스:
+    ///   jump(1회, 이벤트) → jump_up(루프)
+    ///   정점 통과 시: jump_change_fall(1회, 이벤트) → jump_fall(루프)
+    ///   착지 시: jump_end(1회, 이벤트) → Stop()
     /// </summary>
     public class ActionJump
     {
@@ -20,27 +21,37 @@ namespace GGemCo2DControl
         // --- 캐시 ---
         private Rigidbody2D _rb;
         private Collider2D _col;
-        // private Animator _anim;
 
-        // --- 디자이너 파라미터 (요구사항: 2개만 노출) ---
-        // 목표 점프 높이(월드 유닛)
-        private float _desiredJumpHeight = 3.0f;
-        // 지면→정점까지 걸리는 시간(초): 체감 상의 점프 "속도"
-        private float _timeToApex = 0.35f;
+        // --- 파라미터(2개) ---
+        private float _desiredJumpHeight = 3.0f; // 월드 유닛
+        private float _timeToApex = 0.35f;       // 지면→정점까지 시간(초)
 
         // --- 내부 계산치 ---
-        private float _baseGravityScale;      // 점프 중 적용할 중력 스케일
-        private float _jumpVelocityY;         // 초기 상승 속도
-        private float _prevGravityScale = 0; // 복구용
-        private bool _isJumping;              // 점프 중 여부
-        private bool _apexPassed;             // 정점 통과 여부
+        private float _baseGravityScale;
+        private float _jumpVelocityY;
+        private float _prevGravityScale;
 
-        // --- 애니메이션 이름 (상수) ---
-        private const string AnimJumpStart = "jump";
-        private const string AnimJumpWait  = "jump_wait";
-        private const string AnimJumpEnd   = "jump_end";
+        // --- Phase ---
+        private enum JumpPhase
+        {
+            None,
+            StartOneShot,   // jump (이벤트로 UpLoop 전환)
+            UpLoop,         // jump_up
+            ApexChange,     // jump_change_fall (이벤트로 FallLoop 전환)
+            FallLoop,       // jump_fall
+            LandOneShot     // jump_end (이벤트로 종료)
+        }
 
-        // --- Ground: 충돌 기반 체크 (TilemapCollider2D on Layer: GGemCo_TileMapGround) ---
+        private JumpPhase _phase = JumpPhase.None;
+
+        // --- 애니메이션 이름 ---
+        private const string AnimJumpStart      = "jump";
+        private const string AnimJumpUpLoop     = "jump_up";
+        private const string AnimJumpChangeFall = "jump_change_fall";
+        private const string AnimJumpFallLoop   = "jump_fall";
+        private const string AnimJumpEnd        = "jump_end";
+
+        // --- Ground Layer ---
         private LayerMask _groundMask;
 
         public void Initialize(InputManager inputManager, CharacterBase characterBase, CharacterBaseController characterBaseController)
@@ -51,35 +62,34 @@ namespace GGemCo2DControl
 
             _rb  = _characterBase.GetComponent<Rigidbody2D>();
             _col = _characterBase.GetComponent<Collider2D>();
-            // _anim = _characterBase.GetComponentInChildren<Animator>();
 
             if (_rb == null || _col == null)
             {
                 GcLogger.LogError("[ActionJump] Rigidbody2D/Collider2D가 필요합니다.");
                 return;
             }
-            // 바닥 레이어 마스크: GGemCo_TileMapGround (TilemapCollider2D가 이 레이어여야 함)
+
+            // Ground Layer
             _groundMask = LayerMask.GetMask(ConfigLayer.GetValue(ConfigLayer.Keys.TileMapGround));
             if (_groundMask == 0)
             {
-                GcLogger.LogWarning($"[ActionJump] Layer '{ConfigLayer.GetValue(ConfigLayer.Keys.TileMapGround)}'를 찾을 수 없습니다. Project Settings > Tags and Layers를 확인하세요.");
+                GcLogger.LogWarning($"[ActionJump] Layer '{ConfigLayer.GetValue(ConfigLayer.Keys.TileMapGround)}'를 찾을 수 없습니다. Project Settings > Tags and Layers 확인.");
             }
 
+            // 파라미터 로드
             _desiredJumpHeight = AddressableLoaderSettings.Instance.playerSettings.jumpHeight;
-            _timeToApex = AddressableLoaderSettings.Instance.playerSettings.jumpSpeed;
+            _timeToApex        = AddressableLoaderSettings.Instance.playerSettings.jumpSpeed;
 
-            // 기본값으로 물리 상수 계산
             RecalculatePhysicsConstants(_desiredJumpHeight, _timeToApex);
+            
+            _characterBase.OnAnimationEventJump += OnAnimationEventJump;
         }
 
         public void OnDestroy()
         {
-            // 현재 구조상, 외부 이벤트 구독 없음
+            // 외부 이벤트 구독 없음
         }
 
-        /// <summary>
-        /// 점프 파라미터 설정(필요 시 런타임에 호출 가능)
-        /// </summary>
         public void Configure(float desiredJumpHeight, float timeToApex)
         {
             RecalculatePhysicsConstants(desiredJumpHeight, timeToApex);
@@ -88,13 +98,13 @@ namespace GGemCo2DControl
         private void RecalculatePhysicsConstants(float desiredJumpHeight, float timeToApex)
         {
             _desiredJumpHeight = Mathf.Max(0.01f, desiredJumpHeight);
-            _timeToApex = Mathf.Max(0.05f, timeToApex);
+            _timeToApex        = Mathf.Max(0.05f,  timeToApex);
 
             // g = 2h / t^2, v0 = g * t
             float gDesired = (2f * _desiredJumpHeight) / (_timeToApex * _timeToApex);
-            float worldG = Mathf.Abs(Physics2D.gravity.y);
+            float worldG   = Mathf.Abs(Physics2D.gravity.y);
             _baseGravityScale = gDesired / worldG;
-            _jumpVelocityY = gDesired * _timeToApex;
+            _jumpVelocityY    = gDesired * _timeToApex;
         }
 
         /// <summary>
@@ -105,66 +115,113 @@ namespace GGemCo2DControl
             if (!ctx.started) return;
             if (_rb == null) return;
 
-            // 공격/사망/점프 중이면 무시 (현재 프로젝트 패턴과 동일한 방어로직)
+            // 상태 방어
             if (_characterBase.IsStatusAttack()) return;
             if (_characterBase.IsStatusAttackComboWait()) return;
-            // if (_characterBase.IsStatusDead?.Invoke() ?? false) return; // IsStatusDead가 메서드/프로퍼티 중 어떤 형태든 방어
+            if (_characterBase.IsStatusJump()) return;
 
-            if (_characterBase.IsStatusJump()) return; // 이미 점프 중
-            _characterBase.SetStatusJump();    // 점프 상태 진입 (프로젝트 내 구현에 따라 메서드 존재)
+            _characterBase.SetStatusJump();
 
             // 물리 적용
             _prevGravityScale = _rb.gravityScale;
-            _rb.gravityScale = _baseGravityScale;
+            _rb.gravityScale  = _baseGravityScale;
 
-            // 기존 수직속도와 비교해 더 큰 상승력을 부여(하강 중에도 확실히 들어 올림)
+            // 하강 중에도 충분히 끌어올림
             float vy = Mathf.Max(_rb.linearVelocity.y, _jumpVelocityY);
             _rb.linearVelocity = new Vector2(_rb.linearVelocity.x, vy);
 
-            // 애니메이션: 시작 ~ 정점까지
-            PlayAnimSafe(AnimJumpStart);
-
-            _isJumping = true;
-            _apexPassed = false;
+            // jump(1회) 시작 —> 끝 이벤트로 UpLoop 전환
+            EnterPhase(JumpPhase.StartOneShot);
         }
 
         /// <summary>
-        /// InputManager.Update에서 매 프레임 호출
+        /// 매 프레임 호출(Update)
+        /// - 정점 통과 감지(UpLoop → ApexChange)
+        /// - 하강 중 접지 감지(FallLoop → LandOneShot)
         /// </summary>
         public void Update()
         {
-            if (!_isJumping || _rb == null) return;
+            if (_rb == null) return;
+            if (_phase == JumpPhase.None) return;
 
             float vy = _rb.linearVelocity.y;
 
-            // 정점 통과 시점 감지: 양(상승)→0→음(하강)으로 넘어가는 순간
-            if (!_apexPassed && vy <= 0.0001f)
+            switch (_phase)
             {
-                // 정점에서 짧게 'wait'를 재생 (Animator 전이 조건에 따라 즉시 fall로 넘어가도 무방)
-                PlayAnimSafe(AnimJumpWait);
-                _apexPassed = true;
-            }
-            // 정점 이후 하강으로 전이되면 fall 애니메이션
-            if (_apexPassed && vy < -0.0001f)
-            {
-                PlayAnimSafe(AnimJumpEnd);
-            }
+                case JumpPhase.UpLoop:
+                    // 상승 → 정점 통과
+                    if (vy <= 0.0001f)
+                    {
+                        EnterPhase(JumpPhase.ApexChange);
+                    }
+                    break;
 
-            // 착지 판정
-            if (vy <= 0f && IsGroundedByCollision())
-            {
-                FinishJump();
+                case JumpPhase.FallLoop:
+                    // 하강 중 접지
+                    if (vy <= 0f && IsGroundedByCollision())
+                    {
+                        EnterPhase(JumpPhase.LandOneShot);
+                    }
+                    break;
             }
         }
 
-        private void FinishJump()
+        // -------------------------- Animation Event Entry Points --------------------------
+
+        /// <summary>jump(1회) 종료 이벤트</summary>
+        public void HandleJumpStartOneShotEnd()
         {
-            _isJumping = false;
-            _apexPassed = false;
+            if (_phase != JumpPhase.StartOneShot) return;
+            // 상승 루프 진입
+            PlayAnimSafe(AnimJumpUpLoop);
+            _phase = JumpPhase.UpLoop;
+        }
 
-            if (_rb != null) _rb.gravityScale = _prevGravityScale;
+        /// <summary>jump_change_fall(1회) 종료 이벤트</summary>
+        public void HandleJumpChangeFallOneShotEnd()
+        {
+            if (_phase != JumpPhase.ApexChange) return;
+            // 하강 루프 진입
+            PlayAnimSafe(AnimJumpFallLoop);
+            _phase = JumpPhase.FallLoop;
+        }
 
-            // 이동/대기 상태로 복귀 처리(프로젝트 표준: Stop()은 방향/속도/상태 초기화)
+        /// <summary>jump_end(1회) 종료 이벤트</summary>
+        public void HandleJumpLandOneShotEnd()
+        {
+            if (_phase != JumpPhase.LandOneShot) return;
+            FinishAndStop();
+        }
+
+        // -------------------------- Internal Helpers --------------------------
+
+        private void EnterPhase(JumpPhase next)
+        {
+            _phase = next;
+
+            switch (next)
+            {
+                case JumpPhase.StartOneShot:
+                    PlayAnimSafe(AnimJumpStart);
+                    break;
+
+                case JumpPhase.ApexChange:
+                    PlayAnimSafe(AnimJumpChangeFall);
+                    break;
+
+                case JumpPhase.LandOneShot:
+                    PlayAnimSafe(AnimJumpEnd);
+                    break;
+            }
+        }
+
+        private void FinishAndStop()
+        {
+            _phase = JumpPhase.None;
+
+            if (_rb != null)
+                _rb.gravityScale = _prevGravityScale;
+
             _characterBase.Stop();
         }
 
@@ -172,15 +229,27 @@ namespace GGemCo2DControl
         {
             _characterBase.CharacterAnimationController?.PlayCharacterAnimation(stateName);
         }
-        /// <summary>
-        /// 바닥 체크(충돌 기반):
-        /// - 캐릭터 Collider2D가 Layer 'GGemCo_TileMapGround'와 물리적으로 접촉 중인지 여부
-        /// - 캐릭터/타일맵 콜라이더 모두 Non-Trigger여야 하며, Physics 2D Collision Matrix에서 상호 충돌이 허용되어야 함
-        /// </summary>
+
         private bool IsGroundedByCollision()
         {
             if (_col == null) return false;
             return _col.IsTouchingLayers(_groundMask);
+        }
+
+        private void OnAnimationEventJump(CharacterBase sender, EventArgsOnAnimationEventJump e)
+        {
+            switch (e.EventName)
+            {
+                case AnimationConstants.EventNameJumpUp:
+                    HandleJumpStartOneShotEnd();
+                    break;
+                case AnimationConstants.EventNameJumpFall:
+                    HandleJumpChangeFallOneShotEnd();
+                    break;
+                case AnimationConstants.EventNameJumpEnd:
+                    HandleJumpLandOneShotEnd();
+                    break;
+            }
         }
     }
 }
