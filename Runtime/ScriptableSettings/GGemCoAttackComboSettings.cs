@@ -4,6 +4,9 @@ using UnityEngine;
 
 namespace GGemCo2DControl
 {
+    /// <summary>
+    /// 플레이어 콤보 공격 설정
+    /// </summary>
     [CreateAssetMenu(fileName = ConfigScriptableObjectControl.AttackCombo.FileName, menuName = ConfigScriptableObjectControl.AttackCombo.MenuName, order = ConfigScriptableObjectControl.AttackCombo.Ordering)]
     public class GGemCoAttackComboSettings : ScriptableObject
     {
@@ -21,19 +24,13 @@ namespace GGemCo2DControl
             [Tooltip("공격 시 앞으로 이동하는 속도 (1이 기본값, 값이 낮을수록 더 빠름)")]
             public float moveForwardSpeed = 1f;
 
-            [Header("효과 설정")]
+            [Header("플레이어 효과 설정")]
             [Tooltip("플레이어에게 적용되는 효과 (Affect UID)")]
             public int affectUid;
 
             [Tooltip("공격 후 다음 공격 입력이 가능해지기까지의 대기 시간 (단위: 초)")]
             public float waitTime;
 
-            [Header("몬스터 피격 반응")]
-            [Tooltip("몬스터가 공격에 맞았을 때 뒤로 밀려나는 거리 (단위: 유닛)")]
-            public float knockBackDistance;
-
-            [Tooltip("몬스터가 뒤로 밀려나는 데 걸리는 시간 (단위: 초)")]
-            public float knockBackDuration;
             // 최초 초기화 여부를 표시 (인스펙터에는 숨김)
             [SerializeField, HideInInspector] private bool initialized;
             
