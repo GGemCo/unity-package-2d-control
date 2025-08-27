@@ -12,8 +12,13 @@
 	"dependencies": {
 		"com.ggemco.2d.core": "2.3.2" 
 	},
-	"samples": [
-	],
+    "samples": [
+        {
+            "displayName": "UIWindows",
+            "description": "UI 윈도우 프리팹 샘플 리소스 입니다.\nAssets/GGemCo 폴더에 모든 파일을 이동 시킨 후 사용해주세요.\n디자인을 변경해서 사용할 수 있습니다.\n현재는 옵션 윈도우 조작 패널 샘플 리소스만 있습니다.\nAssets/GGemCo/UIWindows/Option 폴더 하위에 프리팹을 이동 시킨 후 사용해주세요.",
+            "path": "Samples~/UIWindows"
+        }
+    ],
 	"keywords": [
 		"unity"
 	]
