@@ -7,8 +7,9 @@ namespace GGemCo2DControlEditor
         public enum ToolOrdering
         {
             DefaultSetting = 1,
-            SettingAddressable = 2,
-            SettingInputAction = 3,
+            SettingAddressable,
+            SettingScenePreIntro,
+            SettingSceneGame,
             Development = 100,
             Test = 200,
             Etc = 900,
@@ -18,7 +19,8 @@ namespace GGemCo2DControlEditor
         private const string NameToolSettings = NameToolGGemCo + "설정하기/";
         public const string NameToolSettingDefault = NameToolSettings + "기본 셋팅하기";
         public const string NameToolSettingAddressable = NameToolSettings + "Addressable 셋팅하기";
-        public const string NameToolSettingInputAction = NameToolSettings + "Input Action 생성하기";
+        public const string NameToolSettingScenePreIntro = NameToolSettings + "Pre 인트로 씬 셋팅하기";
+        public const string NameToolSettingSceneGame = NameToolSettings + "게임 씬 셋팅하기";
         
         // 개발툴
         private const string NameToolDevelopment = NameToolGGemCo + "개발툴/";
