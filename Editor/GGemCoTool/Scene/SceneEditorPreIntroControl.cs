@@ -48,6 +48,10 @@ namespace GGemCo2DControlEditor
             // GGemCo2DCore.ScenePreIntro GameObject 만들기
             GGemCo2DControl.GameLoaderManagerControl gameLoaderManagerControl =
                 CreateOrAddComponent<GGemCo2DControl.GameLoaderManagerControl>(nameof(GGemCo2DControl.GameLoaderManagerControl));
+            
+            GGemCo2DCore.ScenePreIntro scene = CreateOrAddComponent<ScenePreIntro>(nameof(ScenePreIntro));
+            // 반드시 SetDirty 처리해야 저장됨
+            EditorUtility.SetDirty(scene);
         }
     }
 }

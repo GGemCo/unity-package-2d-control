@@ -45,12 +45,16 @@ namespace GGemCo2DControlEditor
         private void SetupRequiredObjects()
         {
             _objGGemCoCore = GetOrCreateRootPackageGameObject();
-            // GGemCo2DCore.ScenePreIntro GameObject 만들기
+            // GGemCo2DControl.ControlPackageManager GameObject 만들기
             GGemCo2DControl.ControlPackageManager controlPackageManager =
                 CreateOrAddComponent<GGemCo2DControl.ControlPackageManager>(nameof(GGemCo2DControl.ControlPackageManager));
             
             // ControlPackageManager 은 싱글톤으로 활용하고 있어 root 로 이동
             controlPackageManager.gameObject.transform.SetParent(null);
+            
+            GGemCo2DCore.SceneGame scene = CreateOrAddComponent<SceneGame>(nameof(SceneGame));
+            // 반드시 SetDirty 처리해야 저장됨
+            EditorUtility.SetDirty(scene);
         }
     }
 }
