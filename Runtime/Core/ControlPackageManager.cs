@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using GGemCo2DCore;
+using UnityEngine;
 
 namespace GGemCo2DControl
 {
@@ -13,6 +14,11 @@ namespace GGemCo2DControl
         
         private void Awake()
         {
+            // 게임씬이 로드 되지 않았다면 return;
+            if (TableLoaderManager.Instance == null)
+            {
+                return;
+            }
             // 게임 신 싱글톤으로 사용하기.
             if (Instance == null)
             {
