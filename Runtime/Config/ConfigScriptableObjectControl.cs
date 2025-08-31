@@ -11,7 +11,7 @@ namespace GGemCo2DControl
     {
         public static class AttackCombo
         {
-            public const string FileName = ConfigScriptableObject.BaseName + "AttackCombo";
+            public const string FileName = ConfigScriptableObject.BaseName + "AttackComboSettings";
             public const string MenuName = ConfigScriptableObject.BasePath + FileName;
             public const int Ordering = (int)ConfigScriptableObject.MenuOrdering.AttackComboSettings;
         }

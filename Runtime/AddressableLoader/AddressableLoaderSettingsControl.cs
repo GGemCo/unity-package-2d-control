@@ -57,7 +57,7 @@ namespace GGemCo2DControl
             try
             {
                 // 여러 개의 설정을 병렬적으로 로드
-                var taskAttackCombo = LoadSettingsAsync<GGemCoAttackComboSettings>(ConfigAddressableSettingControl.AttackCombo.Key);
+                var taskAttackCombo = LoadSettingsAsync<GGemCoAttackComboSettings>(ConfigAddressableSettingControl.AttackComboSettings.Key);
 
                 // 모든 작업이 완료될 때까지 대기
                 await Task.WhenAll(taskAttackCombo);
