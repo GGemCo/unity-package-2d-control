@@ -44,6 +44,13 @@ namespace GGemCo2DControlEditor
         /// </summary>
         private void SetupRequiredObjects()
         {
+            string sceneName = nameof(SceneGame);
+            GGemCo2DCore.SceneGame scene = CreateUIComponent.Find(sceneName, ConfigPackageInfo.PackageType.Core)?.GetComponent<SceneGame>();
+            if (scene == null) 
+            {
+                GcLogger.LogError($"{sceneName} 이 없습니다.\nGGemCoTool > 설정하기 > 게임 씬 셋팅하기에서 필수 항목 셋팅하기를 실행해주세요.");
+                return;
+            }
             _objGGemCoCore = GetOrCreateRootPackageGameObject();
             // GGemCo2DControl.ControlPackageManager GameObject 만들기
             GGemCo2DControl.ControlPackageManager controlPackageManager =
@@ -52,7 +59,6 @@ namespace GGemCo2DControlEditor
             // ControlPackageManager 은 싱글톤으로 활용하고 있어 root 로 이동
             controlPackageManager.gameObject.transform.SetParent(null);
             
-            GGemCo2DCore.SceneGame scene = CreateOrAddComponent<SceneGame>(nameof(SceneGame));
             // 반드시 SetDirty 처리해야 저장됨
             EditorUtility.SetDirty(scene);
         }

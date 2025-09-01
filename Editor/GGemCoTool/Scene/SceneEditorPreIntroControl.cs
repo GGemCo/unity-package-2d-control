@@ -44,12 +44,18 @@ namespace GGemCo2DControlEditor
         /// </summary>
         private void SetupRequiredObjects()
         {
+            string sceneName = nameof(ScenePreIntro);
+            GGemCo2DCore.ScenePreIntro scene = CreateUIComponent.Find(sceneName, ConfigPackageInfo.PackageType.Core)?.GetComponent<ScenePreIntro>();
+            if (scene == null) 
+            {
+                GcLogger.LogError($"{sceneName} 이 없습니다.\nGGemCoTool > 설정하기 > Pre인트로 씬 셋팅하기에서 필수 항목 셋팅하기를 실행해주세요.");
+                return;
+            }
             _objGGemCoCore = GetOrCreateRootPackageGameObject();
             // GGemCo2DCore.ScenePreIntro GameObject 만들기
             GGemCo2DControl.GameLoaderManagerControl gameLoaderManagerControl =
                 CreateOrAddComponent<GGemCo2DControl.GameLoaderManagerControl>(nameof(GGemCo2DControl.GameLoaderManagerControl));
-            
-            GGemCo2DCore.ScenePreIntro scene = CreateOrAddComponent<ScenePreIntro>(nameof(ScenePreIntro));
+
             // 반드시 SetDirty 처리해야 저장됨
             EditorUtility.SetDirty(scene);
         }
