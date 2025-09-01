@@ -70,7 +70,7 @@ namespace GGemCo2DControl
             _characterBaseController = characterBaseController;
 
             _rb = _characterBase.characterRigidbody2D;
-            _col = _characterBase.colliderCheckMapObject;
+            _col = _characterBase.colliderMapObject;
 
             if (_rb == null || _col == null)
             {
