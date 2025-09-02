@@ -125,11 +125,10 @@ namespace GGemCo2DControl
             string attackAnimName = _attackComboSettings.GetAnimationName(_currentCombo);
             
             // 추가 데미지 affect 적용
-            float duration = _characterBase.CharacterAnimationController.GetCharacterAnimationDuration(attackAnimName);
             int affectUid = _attackComboSettings.GetAffectUid(_currentCombo);
             if (affectUid > 0)
             {
-                _characterBase.AddAffect(affectUid, duration);
+                _characterBase.AddAffect(affectUid);
             }
 
             // 공격시 앞으로 조금씩 이동하기
