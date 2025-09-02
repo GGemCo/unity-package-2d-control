@@ -107,8 +107,8 @@ namespace GGemCo2DControl
             {
                 PopupType = PopupManager.Type.Default,
                 MessageColor = Color.red,
-                Title = "키 변경하기", //슬롯 삭제
-                Message = "변경하고 싶은 키를 눌러주세요.\n취소하고 싶은 경우 ESC키를 눌러주세요.",
+                Title = "Popup_Title_Change_Key", //슬롯 삭제
+                Message = "Popup_Message_Change_Key",
                 ShowConfirmButton = false,
                 ShowCancelButton = false
             };
