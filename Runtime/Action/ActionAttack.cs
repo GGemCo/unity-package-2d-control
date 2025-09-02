@@ -153,7 +153,7 @@ namespace GGemCo2DControl
             sender.SetStatusAttackComboWait();
             sender.CharacterAnimationController.PlayAttackWaitAnimation();
             StopCoroutineAttackWait();
-            _coroutineDonAttack = sender.StartCoroutine(CoroutinePlayAttackEndAnimation());
+            _coroutineDonAttack = _inputManager.StartCoroutine(CoroutinePlayAttackEndAnimation());
             
             // 처리 완료 선언 (레거시 폴백 차단)
             e.Handled = true;
