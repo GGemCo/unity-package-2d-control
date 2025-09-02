@@ -151,8 +151,9 @@ namespace GGemCo2DControl
             // GcLogger.Log($"OnAnimationCompleteAttack");
             
             sender.SetStatusAttackComboWait();
+            sender.CharacterAnimationController.PlayAttackWaitAnimation();
             StopCoroutineAttackWait();
-            _coroutineDonAttack = _inputManager.StartCoroutine(CoroutinePlayAttackEndAnimation());
+            _coroutineDonAttack = sender.StartCoroutine(CoroutinePlayAttackEndAnimation());
             
             // 처리 완료 선언 (레거시 폴백 차단)
             e.Handled = true;
