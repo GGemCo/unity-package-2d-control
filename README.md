@@ -2,14 +2,15 @@
 유니티에서 2D 게임을 만들기 위한 조작 관련 라이브러리 입니다.
 
 ## 기능
-- 콤보
+- 콤보 공격
+- 옵션 윈도우에서 컨트롤 키 변경
 
 ## 제작 환경
 - Unity : 2022.3.16f1 이상
 - 편집 프로그램 : Rider (https://www.jetbrains.com/ko-kr/lp/dotnet-unity/)
 
 ## 사용된 Package
-- GGemCo 2D Core (https://docs.unity3d.com/Packages/com.unity.addressables@2.3/manual/index.html)
+- GGemCo 2D Core (https://github.com/GGemCo/unity-package-2d-core)
 
 ## 관련 링크
 - 설명 동영상 : https://www.youtube.com/@ggemco
