@@ -97,8 +97,10 @@ namespace GGemCo2DControl
                 // attackAction.canceled -= OnAttack;
             }
         }
-        
-        private void Update()
+        /// <summary>
+        /// Rigidbody를 사용하므로 FixedUpdate로 처리
+        /// </summary>
+        private void FixedUpdate()
         {
             if (_characterBase.IsStatusAttack()) return;
             if (_characterBase.IsStatusAttackComboWait()) return;
