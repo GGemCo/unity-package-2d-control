@@ -10,7 +10,7 @@ namespace GGemCo2DControlEditor
     /// </summary>
     public class SceneEditorGameControl : DefaultSceneEditorControl
     {
-        private const string Title = "Pre 인트로 씬 셋팅하기";
+        private const string Title = "게임 씬 셋팅하기";
         private GameObject _objGGemCoCore;
         
         [MenuItem(ConfigEditorControl.NameToolSettingSceneGame, false, (int)ConfigEditorControl.ToolOrdering.SettingSceneGame)]

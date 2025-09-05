@@ -24,7 +24,35 @@ namespace GGemCo2DControl
         private Button clearButton;
         [SerializeField, Tooltip("현재 바인딩을 프로젝트 기본값으로 복원합니다.")]
         private Button resetButton;
-        [SerializeField] private InputBinding.DisplayStringOptions displayStringOptions;
+        
+        [SerializeField, Tooltip(
+             "InputBinding.DisplayStringOptions\n" +
+             "— GetBindingDisplayString에 표시 형식을 제어하는 [Flags]입니다.\n" +
+             "\n" +
+             "[기본 동작(체크 안 함) 요약]\n" +
+             "• 단축 이름 사용: 예) 'Left Mouse Button'→'LMB'\n" +
+             "• 장치명 생략: 예) 'A' (장치미표기)\n" +
+             "• 상호작용 표기 포함: 예) 'Hold A'\n" +
+             "• 바인딩 오버라이드 반영: overridePath가 있으면 그걸 사용\n" +
+             "\n" +
+             "[체크 시 비활성화되는 항목]\n" +
+             "■ DontUseShortDisplayNames: 단축 이름을 쓰지 않습니다. 'LMB' 대신 'Left Mouse Button'처럼 풀네임 표기.\n" +
+             "   - 권장: 튜토리얼/도움말처럼 처음 보는 유저에게 명확한 표기가 필요할 때.\n" +
+             "\n" +
+             "■ DontOmitDevice: 장치명을 생략하지 않습니다. 'A' 대신 'A [Gamepad]'처럼 장치까지 표기.\n" +
+             "   - 권장: 키보드/패드 혼합 스킴에서 'Enter' vs 'South(Button)' 등의 혼동을 줄이고 싶을 때.\n" +
+             "\n" +
+             "■ DontIncludeInteractions: 상호작용(홀드/탭 등) 표기를 제외합니다. 'Hold A' 대신 'A'만 표기.\n" +
+             "   - 권장: UI를 간결하게 유지하고 싶거나, 상호작용 안내를 별도 UI/툴팁으로 제공할 때.\n" +
+             "\n" +
+             "■ IgnoreBindingOverrides: 오버라이드 무시(원래 path 기준으로 표기). 사용자 재지정이 있어도 기본 바인딩을 표시.\n" +
+             "   - 권장: '기본값 미리보기' 같은 특수 화면에서만 사용. 일반 옵션 화면에서는 비권장.\n" +
+             "\n" +
+             "[팁]\n" +
+             "• 플래그는 | 연산으로 조합합니다. 예) DontOmitDevice | DontUseShortDisplayNames\n" +
+             "• 표시 문자열 생성: action.GetBindingDisplayString(index, displayStringOptions)\n"
+         )]
+        private InputBinding.DisplayStringOptions displayStringOptions;
 
         private InputAction _action;
         private int _bindingIndex;
