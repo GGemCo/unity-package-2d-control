@@ -42,7 +42,6 @@ namespace GGemCo2DControl
         private bool _canJumpPlayDashing;
         
         private bool _canDashPlayJumping;
-        private bool _canAttackPlayJumping;
         
         private void Awake()
         {
@@ -53,13 +52,16 @@ namespace GGemCo2DControl
                 return;
             }
 
-            _canMovePlayDashing = AddressableLoaderSettings.Instance.playerSettings.canMovePlayDashing;
-            _canJumpPlayDashing = AddressableLoaderSettings.Instance.playerSettings.canJumpPlayDashing;
-            _canAttackPlayDashing = AddressableLoaderSettings.Instance.playerSettings.canAttackPlayDashing;
-            
-            _canDashPlayJumping = AddressableLoaderSettings.Instance.playerSettings.canDashPlayJumping;
-            _canAttackPlayJumping = AddressableLoaderSettings.Instance.playerSettings.canAttackPlayJumping;
-            
+            var playerActionSettings = AddressableLoaderSettingsControl.Instance.playerActionSettings;
+            if (playerActionSettings)
+            {
+                _canMovePlayDashing = playerActionSettings.canMovePlayDashing;
+                _canJumpPlayDashing = playerActionSettings.canJumpPlayDashing;
+                _canAttackPlayDashing = playerActionSettings.canAttackPlayDashing;
+
+                _canDashPlayJumping = playerActionSettings.canDashPlayJumping;
+            }
+
             _characterBaseController = GetComponent<CharacterBaseController>();
 
             InitializeControls();
@@ -156,8 +158,8 @@ namespace GGemCo2DControl
             // 5) 대시 중 이동 처리
             if (_characterBase.IsStatusDash())
             {
-                // 이동 키를 조작했을 때
-                if (_canMovePlayDashing && move != Vector2.zero)
+                // 이동 키를 조작했을 때, 땅에 있을때만 이동하기
+                if (_canMovePlayDashing && move != Vector2.zero && _actionJump.IsGroundedByCollision())
                 {
                     // 피격/경직 등으로 즉시 끊고 싶을 때(애니메이션 스킵)
                     if (_actionDash.IsDashing)
@@ -206,17 +208,8 @@ namespace GGemCo2DControl
 
             if (_characterBase.IsStatusJump() && _actionJump.IsJumping)
             {
-                // 점프 중 공격이 가능하면
-                if (_canAttackPlayJumping)
-                {
-                    // _actionJump.CancelJump(true);
-                }
-                // 대시 중 공격이 불가능하면
-                else
-                {
-                    return;
-                }
-                
+                // 점프 중 공격 불가능
+                return;
             }
             _actionAttack.Attack(ctx);
         }

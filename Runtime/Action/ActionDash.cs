@@ -90,12 +90,12 @@ namespace GGemCo2DControl
             _blockMask = wall | ground;
 
             // 프로젝트 세팅에서 기본값 로드(있다면)
-            var playerSettings = AddressableLoaderSettings.Instance.playerSettings;
-            if (playerSettings)
+            var playerActionSettings = AddressableLoaderSettingsControl.Instance.playerActionSettings;
+            if (playerActionSettings)
             {
-                _dashDistance = playerSettings.dashDistance;
-                _dashDuration = playerSettings.dashDuration;
-                _easeType = playerSettings.dashEasing;
+                _dashDistance = playerActionSettings.dashDistance;
+                _dashDuration = playerActionSettings.dashDuration;
+                _easeType = playerActionSettings.dashEasing;
             }
             _customCurve  = null; // 기본은 미사용
 

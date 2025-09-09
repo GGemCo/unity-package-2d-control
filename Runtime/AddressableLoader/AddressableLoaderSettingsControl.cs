@@ -16,8 +16,9 @@ namespace GGemCo2DControl
         public static AddressableLoaderSettingsControl Instance { get; private set; }
 
         [HideInInspector] public GGemCoAttackComboSettings attackComboSettings;
+        [HideInInspector] public GGemCoPlayerActionSettings playerActionSettings;
 
-        public delegate void DelegateLoadSettings(GGemCoAttackComboSettings attackComboSettings);
+        public delegate void DelegateLoadSettings(GGemCoAttackComboSettings attackComboSettings, GGemCoPlayerActionSettings playerActionSettings);
         public event DelegateLoadSettings OnLoadSettings;
         
         private readonly HashSet<AsyncOperationHandle> _activeHandles = new HashSet<AsyncOperationHandle>();
@@ -58,15 +59,17 @@ namespace GGemCo2DControl
             {
                 // 여러 개의 설정을 병렬적으로 로드
                 var taskAttackCombo = LoadSettingsAsync<GGemCoAttackComboSettings>(ConfigAddressableSettingControl.AttackComboSettings.Key);
+                var taskPlayerSettings = LoadSettingsAsync<GGemCoPlayerActionSettings>(ConfigAddressableSettingControl.PlayerActionSettings.Key);
 
                 // 모든 작업이 완료될 때까지 대기
-                await Task.WhenAll(taskAttackCombo);
+                await Task.WhenAll(taskAttackCombo, taskPlayerSettings);
 
                 // 결과 저장
                 attackComboSettings = taskAttackCombo.Result;
+                playerActionSettings = taskPlayerSettings.Result;
 
                 // 이벤트 호출
-                OnLoadSettings?.Invoke(attackComboSettings);
+                OnLoadSettings?.Invoke(attackComboSettings, playerActionSettings);
             }
             catch (Exception ex)
             {

@@ -15,10 +15,17 @@ namespace GGemCo2DControl
             public const string MenuName = ConfigScriptableObject.BasePath + FileName;
             public const int Ordering = (int)ConfigScriptableObject.MenuOrdering.AttackComboSettings;
         }
+        public static class PlayerAction
+        {
+            public const string FileName = ConfigScriptableObject.BaseName + "PlayerActionSettings";
+            public const string MenuName = ConfigScriptableObject.BasePath + FileName;
+            public const int Ordering = (int)ConfigScriptableObject.MenuOrdering.PlayerActionSettings;
+        }
 
         public static readonly Dictionary<string, Type> SettingsTypes = new()
         {
             { AttackCombo.FileName, typeof(GGemCoAttackComboSettings) },
+            { PlayerAction.FileName, typeof(GGemCoPlayerActionSettings) },
         };
     }
 }

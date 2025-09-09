@@ -31,7 +31,7 @@ namespace GGemCo2DControl
 
         private void OnBeforeLoadStart(GameLoaderManager sender, GameLoaderManager.EventArgsBeforeLoadStart e)
         {
-            GcLogger.Log($"GameLoaderManagerControl RegisterSteps");
+            // GcLogger.Log($"GameLoaderManagerControl RegisterSteps");
             // 설정 스크립터블 오브젝트 
             var addrSettings = Object.FindFirstObjectByType<AddressableLoaderSettingsControl>() ??
                                new GameObject("AddressableLoaderSettingsControl")

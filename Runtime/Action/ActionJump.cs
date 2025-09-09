@@ -51,7 +51,7 @@ namespace GGemCo2DControl
         // 현재 1회성 단계에서 이벤트 대기 워치독
         private JumpPhase _awaitingEventFor = JumpPhase.None;
         private float _awaitingDeadline = 0f;
-        private const float DEFAULT_ONESHOT_TIMEOUT = 0.2f; // 클립 길이를 못 구하면 사용
+        private const float DefaultOneshotTimeout = 0.2f; // 클립 길이를 못 구하면 사용
 
         // --- 애니메이션 이름 ---
         private const string AnimJumpStart      = "jump";
@@ -104,8 +104,12 @@ namespace GGemCo2DControl
             }
 
             // 파라미터 로드
-            _desiredJumpHeight = AddressableLoaderSettings.Instance.playerSettings.jumpHeight;
-            _timeToApex        = AddressableLoaderSettings.Instance.playerSettings.jumpSpeed;
+            var playerActionSettings = AddressableLoaderSettingsControl.Instance.playerActionSettings;
+            if (playerActionSettings)
+            {
+                _desiredJumpHeight = playerActionSettings.jumpHeight;
+                _timeToApex        = playerActionSettings.jumpSpeed;
+            }
 
             RecalculatePhysicsConstants(_desiredJumpHeight, _timeToApex);
 
@@ -363,7 +367,7 @@ namespace GGemCo2DControl
             // 클립 길이가 있으면 약간의 마진(+0.02s) 포함
             if (_clipLength.TryGetValue(clipName, out var len) && len > 0f)
                 return len + 0.02f;
-            return DEFAULT_ONESHOT_TIMEOUT;
+            return DefaultOneshotTimeout;
         }
 
         private void FinishAndStop()
@@ -382,7 +386,7 @@ namespace GGemCo2DControl
             _characterBase.CharacterAnimationController?.PlayCharacterAnimation(stateName);
         }
 
-        private bool IsGroundedByCollision()
+        public bool IsGroundedByCollision()
         {
             if (_col == null) return false;
             return _col.IsTouchingLayers(_groundMask);
