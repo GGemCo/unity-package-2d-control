@@ -15,5 +15,6 @@
         public const string NameActionMove = "Move";
         public const string NameActionAttack = "Attack";
         public const string NameActionJump = "Jump";
+        public const string NameActionDash = "Dash";
     }
 }

@@ -12,6 +12,9 @@ namespace GGemCo2DControl
     /// </summary>
     public class ActionJump
     {
+        // 클래스 상단 필드/프로퍼티 섹션 인근
+        public bool IsJumping => _phase != JumpPhase.None;
+
         // --- 외부 참조 ---
         private InputManager _inputManager;
         private CharacterBase _characterBase;
@@ -72,7 +75,8 @@ namespace GGemCo2DControl
 
         // 점프 시에만 중력스케일 복구하도록 플래그 추가
         private bool _changedGravity; // Jump()에서 true, cliff-fall은 false
-
+        // 클래스 필드
+        private System.Func<bool> _isDashActive; // 외부(대시)에서 현재 대시 중인지 질의
         
         public void Initialize(InputManager inputManager, CharacterBase characterBase, CharacterBaseController characterBaseController)
         {
@@ -176,7 +180,18 @@ namespace GGemCo2DControl
         public void Update()
         {
             if (_rb == null) return;
-
+            
+            // --- 대시 중이면 점프 FSM의 '클리프 낙하 감지/상태 전환'을 잠시 중단 ---
+            //  - 점프 상태가 아니고(_phase == None), 대시 중일 때 불필요한 Jump 상태 진입을 차단
+            //  - 점프 중(원샷/루프 진행)인 상태에서도 대시가 개입했다면, 이벤트 워치독/전이 충돌을 방지
+            if (_isDashActive != null && _isDashActive())
+            {
+                // 낙하 누적 타이머를 초기화하여 대시가 끝난 즉시 Jump 전환이 폭발하지 않도록 함
+                _airborneTime = 0f;
+                _wasGrounded = IsGroundedByCollision();
+                return; // <-- 대시 중에는 Jump FSM 갱신을 스킵
+            }
+            
             bool grounded = IsGroundedByCollision();
 
             // --- [추가] 점프 FSM이 꺼져 있고(=입력 점프 아님), 지면을 잃었을 때 낙하 감지 ---
@@ -406,6 +421,48 @@ namespace GGemCo2DControl
                     HandleJumpLandOneShotEnd();
                     break;
             }
+        }
+        /// <summary>
+        /// 점프를 강제로 중단합니다.
+        /// - skipLandAnimation == false: 보유 시 'jump_end'를 재생하며 정상 종료 단계로 수렴(LandOneShot).
+        /// - skipLandAnimation == true : 애니메이션 스킵하고 즉시 종료.
+        /// - restoreGravity: 점프 입력으로 중력스케일을 변경한 경우(_changedGravity=true) 복구할지 여부(기본 true).
+        /// 어느 Phase에서 호출돼도 안전합니다.
+        /// </summary>
+        public void CancelJump(bool skipLandAnimation = false, bool restoreGravity = true)
+        {
+            if (_rb == null) return;
+
+            // 이미 종료 상태면 무시
+            if (_phase == JumpPhase.None)
+                return;
+
+            // 워치독/대기 상태 해제
+            ClearAwaiting();
+
+            // 즉시 종료 경로 (엔딩 애니메이션 스킵 또는 jump_end 미보유)
+            if (skipLandAnimation || !_hasEnd)
+            {
+                // 점프 입력으로 중력을 바꿨었다면 선택적으로 복구
+                if (restoreGravity && _changedGravity)
+                {
+                    _rb.gravityScale = _prevGravityScale;
+                }
+
+                _phase = JumpPhase.None;
+                _changedGravity = false; // 복구 처리 완료
+                _characterBase.Stop();   // 프로젝트 표준 상태 복귀(Idle/Run 등)
+                return;
+            }
+
+            // 엔딩 애니메이션을 재생하며 종료
+            // 현재 단계(시작/상승/전환/하강)가 무엇이든 LandOneShot로 수렴시킴
+            EnterPhase(JumpPhase.LandOneShot);
+        }
+        // 외부에서 연결할 API
+        public void SetDashActiveQuery(System.Func<bool> query)
+        {
+            _isDashActive = query;
         }
     }
 }
