@@ -25,8 +25,8 @@ namespace GGemCo2DControl
         private Dictionary<string, float> _clipLength = new();
 
         // --- 파라미터(2개) ---
-        private float _desiredJumpHeight = 3.0f; // 월드 유닛
-        private float _timeToApex = 0.35f;       // 지면→정점까지 시간(초)
+        private float _desiredJumpHeight; // 월드 유닛
+        private float _timeToApex;       // 지면→정점까지 시간(초)
 
         // --- 내부 계산치 ---
         private float _baseGravityScale;
@@ -62,7 +62,18 @@ namespace GGemCo2DControl
 
         // --- 보유 여부 캐시 ---
         private bool _hasStart, _hasUp, _hasChangeFall, _hasFall, _hasEnd;
+        
+        // Cliff-fall 감지용
+        private bool _wasGrounded;
+        private float _airborneTime;
+        // 플랫폼/경사/계단 등에서 불필요한 낙하 전환 방지
+        private const float CoyoteThreshold = 0.06f;  // 지면 상실 후 낙하로 인정까지의 지연
+        private const float MinFallSpeedY = -0.10f; // 이 속도 이하일 때만 낙하로 간주
 
+        // 점프 시에만 중력스케일 복구하도록 플래그 추가
+        private bool _changedGravity; // Jump()에서 true, cliff-fall은 false
+
+        
         public void Initialize(InputManager inputManager, CharacterBase characterBase, CharacterBaseController characterBaseController)
         {
             _inputManager = inputManager;
@@ -102,6 +113,10 @@ namespace GGemCo2DControl
             _hasChangeFall = HasAnimation(AnimJumpChangeFall);
             _hasFall       = HasAnimation(AnimJumpFallLoop);
             _hasEnd        = HasAnimation(AnimJumpEnd);
+            
+            _wasGrounded = IsGroundedByCollision();
+            _airborneTime = 0f;
+            _changedGravity = false;
         }
 
         public void OnDestroy() 
@@ -135,22 +150,21 @@ namespace GGemCo2DControl
             if (!ctx.started) return;
             if (_rb == null) return;
 
-            // 상태 방어
             if (_characterBase.IsStatusAttack()) return;
             if (_characterBase.IsStatusAttackComboWait()) return;
             if (_characterBase.IsStatusJump()) return;
 
             _characterBase.SetStatusJump();
 
-            // 물리 적용
+            // 점프 입력: 중력 스케일 변경 및 복구 대상 표시
             _prevGravityScale = _rb.gravityScale;
             _rb.gravityScale  = _baseGravityScale;
+            _changedGravity   = true;
 
             float vy = Mathf.Max(_rb.linearVelocity.y, _jumpVelocityY);
             _rb.linearVelocity = new Vector2(_rb.linearVelocity.x, vy);
 
-            // 시작 단계 진입: jump(있으면) → 없으면 즉시 UpLoop
-            EnterPhase(JumpPhase.StartOneShot);
+            EnterPhase(JumpPhase.StartOneShot); // jump(1회) 시작
         }
 
         /// <summary>
@@ -162,23 +176,56 @@ namespace GGemCo2DControl
         public void Update()
         {
             if (_rb == null) return;
-            if (_phase == JumpPhase.None) return;
 
-            // 1) 물리 기반 전이
+            bool grounded = IsGroundedByCollision();
+
+            // --- [추가] 점프 FSM이 꺼져 있고(=입력 점프 아님), 지면을 잃었을 때 낙하 감지 ---
+            if (_phase == JumpPhase.None)
+            {
+                if (!grounded)
+                {
+                    _airborneTime += Time.deltaTime;
+
+                    // 충분히 공중 상태가 지속되고, 실제로 하강 중일 때만 낙하 인정
+                    if (_airborneTime >= CoyoteThreshold && _rb.linearVelocity.y <= MinFallSpeedY)
+                    {
+                        // 전투 등 방해 상태는 존중
+                        if (!_characterBase.IsStatusAttack() && !_characterBase.IsStatusAttackComboWait())
+                        {
+                            // 공중 상태로 전환(프로젝트 표준에 맞춰 Jump 상태 사용)
+                            if (!_characterBase.IsStatusJump()) _characterBase.SetStatusJump();
+
+                            // Cliff-fall은 중력 스케일을 변경하지 않음 (복구 불필요)
+                            _changedGravity = false;
+
+                            // 곧바로 Fall 루프 진입 → jump_fall이 있으면 재생
+                            EnterPhase(JumpPhase.FallLoop);
+                        }
+                    }
+                }
+                else
+                {
+                    _airborneTime = 0f; // 지면 회복 시 초기화
+                }
+            }
+
+            // --- 기존 점프 FSM 로직 ---
+            if (_phase == JumpPhase.None) { _wasGrounded = grounded; return; }
+
             float vy = _rb.linearVelocity.y;
 
             switch (_phase)
             {
                 case JumpPhase.UpLoop:
-                    if (vy <= 0.0001f)
-                        EnterPhase(JumpPhase.ApexChange);
+                    if (vy <= 0.0001f) EnterPhase(JumpPhase.ApexChange);
                     break;
 
                 case JumpPhase.FallLoop:
-                    if (vy <= 0f && IsGroundedByCollision())
-                        EnterPhase(JumpPhase.LandOneShot);
+                    if (vy <= 0f && grounded) EnterPhase(JumpPhase.LandOneShot);
                     break;
             }
+
+            _wasGrounded = grounded;
 
             // 2) 이벤트 워치독 (이벤트 미도착 시 자동 완료)
             if (_awaitingEventFor != JumpPhase.None && Time.time >= _awaitingDeadline)
@@ -308,7 +355,8 @@ namespace GGemCo2DControl
         {
             _phase = JumpPhase.None;
 
-            if (_rb != null)
+            // 점프 입력으로만 중력을 바꿨을 때 복구
+            if (_changedGravity && _rb != null)
                 _rb.gravityScale = _prevGravityScale;
 
             _characterBase.Stop();

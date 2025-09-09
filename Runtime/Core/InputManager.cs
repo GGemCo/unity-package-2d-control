@@ -102,22 +102,29 @@ namespace GGemCo2DControl
         /// </summary>
         private void FixedUpdate()
         {
+            // 1) 점프/낙하 상태 전이 및 착지 처리: 항상 호출
+            //    - 점프 입력 유무와 관계없이 클리프 폴, 정점 전환, 착지 엔딩 등을 내부에서 처리
+            _actionJump.Update();
+
+            // 2) 전투/피격 등 제약 상태면 이동/입력 처리만 제한 (물리/낙하 전이는 위에서 이미 처리됨)
             if (_characterBase.IsStatusAttack()) return;
             if (_characterBase.IsStatusAttackComboWait()) return;
             if (_characterBase.IsStatusDamage()) return;
-            
+
+            // 3) 이동 입력 읽기
             Vector2 move = _inputActionMove.ReadValue<Vector2>();
-            
+
+            // 4) 점프/낙하 중 이동 처리
             if (_characterBase.IsStatusJump())
             {
-                _actionJump.Update(); // 점프 상태 업데이트
                 if (move != Vector2.zero)
                 {
                     OnJumpMoveContinuous(move);
                 }
                 return;
             }
-            
+
+            // 5) 지상 이동/정지 처리
             if (move != Vector2.zero)
             {
                 OnMoveContinuous(move);
