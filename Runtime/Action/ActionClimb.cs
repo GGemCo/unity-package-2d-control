@@ -14,16 +14,11 @@ namespace GGemCo2DControl
     /// - 좌/우 이동(옵션): canMoveSidePlayClimbing=true일 때 허용, 범위 이탈 예측 시 종료
     /// - 애니 이벤트 누락 대비 워치독 포함
     /// </summary>
-    public class ActionClimb
+    public class ActionClimb : ActionBase
     {
         // 외부 질의
         public bool IsClimbing => _phase != ClimbPhase.None;
         public event System.Action<IInteraction> InteractionEnded;
-
-        // --- 외부 참조 ---
-        private InputManager _inputManager;
-        private CharacterBase _characterBase;
-        private CharacterBaseController _characterBaseController;
 
         // --- 캐시 ---
         private Rigidbody2D _rigidbody;
@@ -42,7 +37,7 @@ namespace GGemCo2DControl
         private bool _canMoveSideWhileClimbing;  // 좌/우 이동 허용 여부
 
         // Ladder 참조 및 경계
-        private ObjectLadder _ladder;
+        private ObjectClimb _climb;
         private float _topY, _bottomY, _topSnap, _bottomSnap;
         private float _leftX, _rightX;           // 가로 경계
         private readonly float _sideExitMargin = 0.0f;    // 경계 예외 허용폭(필요 시 조정)
@@ -94,16 +89,14 @@ namespace GGemCo2DControl
         // 시작 위치 판정 마진(옵션)
         // private readonly float _startSideDetectMargin = 0.0f; // min/max에 여유치가 필요하면 조절
 
-        public void Initialize(InputManager inputManager, CharacterBase characterBase, CharacterBaseController characterBaseController)
+        public override void Initialize(InputManager inputManager, CharacterBase characterBase, CharacterBaseController characterBaseController)
         {
-            _inputManager = inputManager;
-            _characterBase = characterBase;
-            _characterBaseController = characterBaseController;
+            base.Initialize(inputManager, characterBase, characterBaseController);
 
-            _rigidbody  = _characterBase.characterRigidbody2D;
-            _colliderMapObject = _characterBase.colliderMapObject;
-            _colliderHitArea   = _characterBase.colliderHitArea;
-            _playerInput = _characterBase.GetComponent<PlayerInput>();
+            _rigidbody  = actionCharacterBase.characterRigidbody2D;
+            _colliderMapObject = actionCharacterBase.colliderMapObject;
+            _colliderHitArea   = actionCharacterBase.colliderHitArea;
+            _playerInput = actionCharacterBase.GetComponent<PlayerInput>();
 
             if (_rigidbody == null || _colliderMapObject == null)
             {
@@ -111,13 +104,8 @@ namespace GGemCo2DControl
                 return;
             }
 
-            // 파라미터 로드(설정 자산)
-            var playerActionSettings = AddressableLoaderSettingsControl.Instance.playerActionSettings;
-            _climbSpeed = playerActionSettings ? Mathf.Max(0.01f, playerActionSettings.climbSpeed) : 2.8f;
-            _canMoveSideWhileClimbing = playerActionSettings && playerActionSettings.canMoveSidePlayClimbing; // [NEW]
-
             // 애니 길이 수집(워치독용)
-            _clipLength = _characterBase.CharacterAnimationController.GetAnimationAllLength();
+            _clipLength = actionCharacterBase.CharacterAnimationController.GetAnimationAllLength();
 
             // 보유 여부 캐시
             _hasEnter       = HasAnimation(AnimLadderEnter);
@@ -134,36 +122,37 @@ namespace GGemCo2DControl
                 _moveAction = _playerInput.actions[ConfigCommonControl.NameActionMove];
         }
 
-        public void OnDestroy()
+        protected override void ApplySettings()
         {
-            // 이벤트 해제 지점이 있다면 정리
+            _climbSpeed = playerActionSettings ? Mathf.Max(0.01f, playerActionSettings.climbSpeed) : 2.8f;
+            _canMoveSideWhileClimbing = playerActionSettings && playerActionSettings.canMoveSidePlayClimbing; // [NEW]
         }
 
         /// <summary>InputManager.TryBeginLadder 에서 호출</summary>
-        public bool Begin(ObjectLadder ladder)
+        public bool Begin(ObjectClimb climb)
         {
             if (_rigidbody == null) return false;
             if (IsClimbing) return true;
 
-            _ladder = ladder;
-            _topY      = _ladder.GetTopY();
-            _bottomY   = _ladder.GetBottomY();
-            _topSnap   = _ladder.TopExitSnapOffset;
-            _bottomSnap= _ladder.BottomExitSnapOffset;
-            if (_ladder.ClimbSpeed > 0) _climbSpeed = _ladder.ClimbSpeed;
+            _climb = climb;
+            _topY      = _climb.GetTopY();
+            _bottomY   = _climb.GetBottomY();
+            _topSnap   = _climb.TopExitSnapOffset;
+            _bottomSnap= _climb.BottomExitSnapOffset;
+            if (_climb.ClimbSpeed > 0) _climbSpeed = _climb.ClimbSpeed;
 
             // 가로 경계 계산 (가능하면 Ladder의 콜라이더 바운즈 사용)
-            if (!TryGetLadderHorizontalBounds(_ladder, out _leftX, out _rightX))
+            if (!TryGetLadderHorizontalBounds(_climb, out _leftX, out _rightX))
             {
                 // 최소 안전값: 월드 중앙 ±0.3 (프로젝트 상황에 맞게 조정/교체)
-                float cx = _ladder.WorldCenterX;
+                float cx = _climb.WorldCenterX;
                 _leftX  = cx - 0.3f;
                 _rightX = cx + 0.3f;
             }
             
             // 시작 위치(아래/위) 판정
             {
-                float y = _characterBase.transform.position.y;
+                float y = actionCharacterBase.transform.position.y;
                 // 상/하단과의 거리 비교(마진이 있으면 상하단 근처로 인식)
                 // float distToBottom = Mathf.Abs(y - (_bottomY + _startSideDetectMargin));
                 // float distToTop    = Mathf.Abs(y - (_topY    - _startSideDetectMargin));
@@ -191,9 +180,9 @@ namespace GGemCo2DControl
             _changedGravity        = true;
 
             // 상태 전이
-            _characterBase.SetStatusClimb();
+            actionCharacterBase.SetStatusClimb();
             // X를 사다리 중앙으로 스냅
-            _characterBase.MoveTeleport(_ladder.WorldCenterX, _characterBase.transform.position.y);
+            actionCharacterBase.MoveTeleport(_climb.WorldCenterX, actionCharacterBase.transform.position.y);
 
             // 진입 애니 → 대기
             EnterPhase(ClimbPhase.EnterOneShot);
@@ -201,7 +190,7 @@ namespace GGemCo2DControl
         }
 
         /// <summary>InputManager.EndLadder 에서 호출</summary>
-        public void End(ObjectLadder ladder)
+        public void End(ObjectClimb climb)
         {
             if (!IsClimbing) return;
             _endKind = EndKind.Default;
@@ -435,9 +424,9 @@ namespace GGemCo2DControl
         private void MoveVertical(float v)
         {
             // 좌우는 별도 처리. 여기서는 v만 사용.
-            Vector3 current = _characterBase.transform.position;
-            Vector3 delta   = new Vector3(0f, v, 0f) * (_characterBase.currentMoveStep * _characterBase.GetCurrentMoveSpeed() * _climbSpeed * Time.deltaTime);
-            _characterBase.transform.position = current + delta;
+            Vector3 current = actionCharacterBase.transform.position;
+            Vector3 delta   = new Vector3(0f, v, 0f) * (actionCharacterBase.currentMoveStep * actionCharacterBase.GetCurrentMoveSpeed() * _climbSpeed * Time.deltaTime);
+            actionCharacterBase.transform.position = current + delta;
         }
 
         /// <summary>
@@ -445,8 +434,8 @@ namespace GGemCo2DControl
         /// </summary>
         private bool TryMoveHorizontalWithinBounds(float h)
         {
-            Vector3 current = _characterBase.transform.position;
-            float   step    = (_characterBase.currentMoveStep * _characterBase.GetCurrentMoveSpeed() * _climbSpeed * Time.deltaTime);
+            Vector3 current = actionCharacterBase.transform.position;
+            float   step    = (actionCharacterBase.currentMoveStep * actionCharacterBase.GetCurrentMoveSpeed() * _climbSpeed * Time.deltaTime);
             float   nextX   = current.x + h * step;
 
             // 경계 체크(예측): 벗어나면 종료 유도
@@ -454,7 +443,7 @@ namespace GGemCo2DControl
                 return false;
 
             current.x = Mathf.Clamp(nextX, _leftX, _rightX);
-            _characterBase.transform.position = current;
+            actionCharacterBase.transform.position = current;
             return true;
         }
 
@@ -462,18 +451,18 @@ namespace GGemCo2DControl
 
         private void Play(string stateName)
         {
-            _characterBase.CharacterAnimationController?.PlayCharacterAnimation(stateName);
+            actionCharacterBase.CharacterAnimationController?.PlayCharacterAnimation(stateName);
         }
 
         private void PlayIfHas(string stateName)
         {
             if (HasAnimation(stateName))
-                _characterBase.CharacterAnimationController?.PlayCharacterAnimation(stateName);
+                actionCharacterBase.CharacterAnimationController?.PlayCharacterAnimation(stateName);
         }
 
         private bool HasAnimation(string stateName)
         {
-            if (_characterBase.CharacterAnimationController is { } ctrl)
+            if (actionCharacterBase.CharacterAnimationController is { } ctrl)
                 return ctrl.HasAnimation(stateName);
             return _clipLength.ContainsKey(stateName);
         }
@@ -498,7 +487,7 @@ namespace GGemCo2DControl
 
         private void FinishAndStop()
         {
-            var endedTarget = _ladder;
+            var endedTarget = _climb;
             _phase = ClimbPhase.None;
 
             if (_changedGravity && _rigidbody != null)
@@ -510,8 +499,8 @@ namespace GGemCo2DControl
             _changedGravity = false;
             _endKind = EndKind.Default;
 
-            _characterBase.Stop(); // Idle/Run 등 표준 상태로 복귀
-            _ladder = null;
+            actionCharacterBase.Stop(); // Idle/Run 등 표준 상태로 복귀
+            _climb = null;
             InteractionEnded?.Invoke(endedTarget);
         }
 
@@ -525,7 +514,7 @@ namespace GGemCo2DControl
 
             if (skipEndAnimation || !_hasEnd)
             {
-                var endedTarget = _ladder;
+                var endedTarget = _climb;
                 if (restoreGravity && _changedGravity && _rigidbody != null)
                 {
                     _rigidbody.gravityScale   = _prevGravityScale;
@@ -536,8 +525,8 @@ namespace GGemCo2DControl
                 _endKind = EndKind.Default;
 
                 _phase = ClimbPhase.None;
-                _characterBase.Stop();
-                _ladder = null;
+                actionCharacterBase.Stop();
+                _climb = null;
                 InteractionEnded?.Invoke(endedTarget);
                 return;
             }
@@ -545,12 +534,12 @@ namespace GGemCo2DControl
             EnterPhase(ClimbPhase.EndOneShot);
         }
 
-        // --------- 경계 획득 유틸 --------- [NEW]
-        private static bool TryGetLadderHorizontalBounds(ObjectLadder ladder, out float left, out float right)
+        // --------- 경계 획득 유틸 --------- 
+        private static bool TryGetLadderHorizontalBounds(ObjectClimb climb, out float left, out float right)
         {
-            left = right = ladder.WorldCenterX;
+            left = right = climb.WorldCenterX;
             // 1) ObjectLadder가 전용 콜라이더를 제공하는 경우
-            if (ladder.TryGetAreaCollider(out var areaCol) && areaCol != null)
+            if (climb.TryGetAreaCollider(out var areaCol) && areaCol != null)
             {
                 var b = areaCol.bounds;
                 left = (float)b.min.x;
@@ -559,7 +548,7 @@ namespace GGemCo2DControl
             }
 
             // 2) 직접 Collider2D를 보유하고 있다면
-            var col = ladder.GetComponent<Collider2D>();
+            var col = climb.GetComponent<Collider2D>();
             if (col != null)
             {
                 var b = col.bounds;

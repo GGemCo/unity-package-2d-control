@@ -1,20 +1,14 @@
-﻿using GGemCo2DCore;
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace GGemCo2DControl
 {
-    public class ActionMove
+    public class ActionMove : ActionBase
     {
-        private InputManager _inputManager;
-        private CharacterBase _characterBase;
-        private CharacterBaseController _characterBaseController;
         private bool _canMoveVertical;
-        public void Initialize(InputManager inputManager, CharacterBase characterBase, CharacterBaseController characterBaseController)
+        
+        protected override void ApplySettings()
         {
-            _inputManager = inputManager;
-            _characterBase = characterBase;
-            _characterBaseController = characterBaseController;
-            _canMoveVertical = AddressableLoaderSettingsControl.Instance.playerActionSettings.canMoveVertical;
+            _canMoveVertical = playerActionSettings.canMoveVertical;
         }
 
         public void Move(Vector2 direction)
@@ -23,20 +17,17 @@ namespace GGemCo2DControl
             {
                 if (Mathf.Approximately(direction.y, 1) || Mathf.Approximately(direction.y, -1))
                 {
-                    _characterBase.Stop();
+                    actionCharacterBase.Stop();
                     return;
                 }
                 direction.y = 0;
             }
             
-            _characterBase.directionNormalize = direction.normalized;
-            _characterBase.SetStatusRun();    
-            _characterBaseController.Run();
+            actionCharacterBase.directionNormalize = direction.normalized;
+            actionCharacterBase.SetStatusRun();    
+            actionCharacterBaseController.Run();
         }
 
-        public void OnDestroy()
-        {
-        }
         /// <summary>
         /// 점프 중 이동하기
         /// </summary>
@@ -51,8 +42,8 @@ namespace GGemCo2DControl
                 }
                 direction.y = 0;
             }
-            _characterBase.directionNormalize = direction.normalized;
-            _characterBaseController.Run();
+            actionCharacterBase.directionNormalize = direction.normalized;
+            actionCharacterBaseController.Run();
         }
     }
 }

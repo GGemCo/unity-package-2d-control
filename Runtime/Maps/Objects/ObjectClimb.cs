@@ -5,7 +5,7 @@ using UnityEngine.Tilemaps;
 namespace GGemCo2DControl
 {
     [RequireComponent(typeof(TilemapCollider2D))]
-    public class ObjectLadder : DefaultMapObject, IInteraction
+    public class ObjectClimb : DefaultMapObject, IInteraction
     {
         [Header("Interaction")]
         [SerializeField] private int priority = 100;
@@ -18,7 +18,7 @@ namespace GGemCo2DControl
         [SerializeField] private float bottomExitSnapOffset = 0.2f;
 
         [Header("Climb Settings")]
-        [Tooltip("사다리에서의 이동 속도(유닛/초). 0이하이면 플레이어 설정값 사용")]
+        [Tooltip("0이면 GGemCoPlayerActionSettings의 climbSpeed 사용, 0보다 크면 이 값을 우선 사용")]
         [SerializeField] private float climbSpeed = 0f;
 
         [Header("Debug & Gizmos")]

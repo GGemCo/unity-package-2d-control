@@ -11,14 +11,10 @@ namespace GGemCo2DControl
     /// - AnimationCurve 주입 시 커브 우선, 없으면 GGemCo2DCore.Easing 사용
     /// - 애니메이션 폴백, 이벤트 워치독, 충돌 예측(Cast)로 조기 종료
     /// </summary>
-    public class ActionDash
+    public class ActionDash : ActionBase
     {
         // (선택) 외부에서 상태 조회용 프로퍼티
         public bool IsDashing => _phase != DashPhase.None;
-        // --- 외부 참조 ---
-        private InputManager _inputManager;
-        private CharacterBase _characterBase;
-        private CharacterBaseController _characterBaseController;
 
         // --- 캐시 ---
         private Rigidbody2D _rb;
@@ -68,14 +64,12 @@ namespace GGemCo2DControl
 
         #region 초기화/설정
 
-        public void Initialize(InputManager inputManager, CharacterBase characterBase, CharacterBaseController characterBaseController)
+        public override void Initialize(InputManager inputManager, CharacterBase characterBase, CharacterBaseController characterBaseController)
         {
-            _inputManager = inputManager;
-            _characterBase = characterBase;
-            _characterBaseController = characterBaseController;
+            base.Initialize(inputManager, characterBase, characterBaseController);
 
-            _rb  = _characterBase.characterRigidbody2D;
-            _col = _characterBase.colliderMapObject;
+            _rb  = actionCharacterBase.characterRigidbody2D;
+            _col = actionCharacterBase.colliderMapObject;
 
             if (_rb == null || _col == null)
             {
@@ -83,32 +77,35 @@ namespace GGemCo2DControl
                 return;
             }
 
-            _clipLength = _characterBase.CharacterAnimationController.GetAnimationAllLength();
+            _clipLength = actionCharacterBase.CharacterAnimationController.GetAnimationAllLength();
 
             int wall   = LayerMask.GetMask(ConfigLayer.GetValue(ConfigLayer.Keys.TileMapWall));
             int ground = LayerMask.GetMask(ConfigLayer.GetValue(ConfigLayer.Keys.TileMapGround));
             _blockMask = wall | ground;
-
-            // 프로젝트 세팅에서 기본값 로드(있다면)
-            var playerActionSettings = AddressableLoaderSettingsControl.Instance.playerActionSettings;
-            if (playerActionSettings)
-            {
-                _dashDistance = playerActionSettings.dashDistance;
-                _dashDuration = playerActionSettings.dashDuration;
-                _easeType = playerActionSettings.dashEasing;
-            }
+            
             _customCurve  = null; // 기본은 미사용
 
             _hasStart = HasAnimation(AnimDashStart);
             _hasPlay  = HasAnimation(AnimDashPlay);
             _hasEnd   = HasAnimation(AnimDashEnd);
 
-            _characterBase.OnAnimationEventDash += OnAnimationEventDash;
+            actionCharacterBase.OnAnimationEventDash += OnAnimationEventDash;
         }
 
-        public void OnDestroy()
+        public override void OnDestroy()
         {
-            _characterBase.OnAnimationEventDash -= OnAnimationEventDash;
+            base.OnDestroy();
+            actionCharacterBase.OnAnimationEventDash -= OnAnimationEventDash;
+        }
+        
+        protected override void ApplySettings()
+        {
+            _dashDistance = playerActionSettings.dashDistance;
+            _dashDuration = playerActionSettings.dashDuration;
+            _easeType = playerActionSettings.dashEasing;
+
+            // 진행 중 대시 러너(코루틴/트윈)가 있다면 갱신 로직 추가(선택)
+            // e.g. _runner?.UpdateDuration(_duration);
         }
 
         /// <summary>
@@ -133,11 +130,11 @@ namespace GGemCo2DControl
             if (_rb == null) return;
             if (_isBusy) return;
 
-            if (_characterBase.IsStatusAttack()) return;
-            if (_characterBase.IsStatusAttackComboWait()) return;
+            if (actionCharacterBase.IsStatusAttack()) return;
+            if (actionCharacterBase.IsStatusAttackComboWait()) return;
 
             // 필요 시 상태 전환: _characterBase.SetStatusDash() 등
-            _characterBase.SetStatusDash();
+            actionCharacterBase.SetStatusDash();
             
             _dashDir  = GetFacingDirection2();
             _isBusy   = true;
@@ -255,7 +252,7 @@ namespace GGemCo2DControl
             _phase  = DashPhase.None;
             _isBusy = false;
             RestoreGravityAfterDash(); // ← 중력 복구
-            _characterBase.Stop(); // 필요 시 상태 복귀 커스터마이즈
+            actionCharacterBase.Stop(); // 필요 시 상태 복귀 커스터마이즈
         }
 
         private void StartAwaiting(DashPhase phase, string clipName)
@@ -278,12 +275,12 @@ namespace GGemCo2DControl
 
         private void PlayAnimSafe(string stateName)
         {
-            _characterBase.CharacterAnimationController?.PlayCharacterAnimation(stateName);
+            actionCharacterBase.CharacterAnimationController?.PlayCharacterAnimation(stateName);
         }
 
         private bool HasAnimation(string stateName)
         {
-            if (_characterBase.CharacterAnimationController is { } ctrl) return ctrl.HasAnimation(stateName);
+            if (actionCharacterBase.CharacterAnimationController is { } ctrl) return ctrl.HasAnimation(stateName);
             return false;
         }
 
@@ -322,7 +319,7 @@ namespace GGemCo2DControl
 
         private Vector2 GetFacingDirection2()
         {
-            var facing = _characterBase.CurrentFacing;
+            var facing = actionCharacterBase.CurrentFacing;
             return facing == CharacterConstants.FacingDirection8.Left ? Vector2.left : Vector2.right;
         }
 
@@ -360,7 +357,7 @@ namespace GGemCo2DControl
                 _isBusy = false;
 
                 RestoreGravityAfterDash();        // ← 즉시 취소 시 바로 복구
-                _characterBase.Stop();
+                actionCharacterBase.Stop();
                 return;
             }
 

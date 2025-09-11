@@ -15,16 +15,11 @@ namespace GGemCo2DControl
     /// - 애니 이벤트 누락 대비 워치독 포함
     /// - 종료 시 InteractionEnded(IInteractable) 발행
     /// </summary>
-    public class ActionPushPull
+    public class ActionPushPull : ActionBase
     {
         // 외부 질의/이벤트
         public bool IsPushing { get; private set; }
         public event System.Action<IInteraction> InteractionEnded;
-
-        // --- 외부 참조 ---
-        private InputManager _inputManager;
-        private CharacterBase _characterBase;
-        private CharacterBaseController _characterBaseController;
 
         // --- 캐시 ---
         private Rigidbody2D _playerRb;
@@ -32,7 +27,7 @@ namespace GGemCo2DControl
         private PlayerInput _playerInput;
 
         // 박스 타겟
-        private ObjectBox _box;
+        private ObjectPushPull _pushPull;
         private Rigidbody2D _boxRb;
         private TilemapCollider2D _boxCol;
         // 캐릭터-박스 결합 정보
@@ -44,7 +39,9 @@ namespace GGemCo2DControl
         private ContactFilter2D _castFilter;
 
         // 이동/전이 파라미터
-        private float _moveSpeed;       // 박스 이동 속도(유닛/초)
+        private float _pushMoveSpeed;       // 박스 밀기 이동 속도(유닛/초)
+        private float _pullMoveSpeed;       // 박스 당기기 이동 속도(유닛/초)
+        
         private float _origPlayerDrag;  // 진입 시 플레이어 드래그/속도 백업(선택)
         private Vector2 _origPlayerVel;
 
@@ -81,15 +78,13 @@ namespace GGemCo2DControl
         // Ground 판정(선택: 밀기 중 점프 방지)
         private LayerMask _groundMask;
 
-        public void Initialize(InputManager inputManager, CharacterBase characterBase, CharacterBaseController characterBaseController)
+        public override void Initialize(InputManager inputManager, CharacterBase characterBase, CharacterBaseController characterBaseController)
         {
-            _inputManager = inputManager;
-            _characterBase = characterBase;
-            _characterBaseController = characterBaseController;
+            base.Initialize(inputManager, characterBase, characterBaseController);
 
-            _playerRb  = _characterBase.characterRigidbody2D;
-            _playerCol = _characterBase.colliderMapObject;
-            _playerInput = _characterBase.GetComponent<PlayerInput>();
+            _playerRb  = actionCharacterBase.characterRigidbody2D;
+            _playerCol = actionCharacterBase.colliderMapObject;
+            _playerInput = actionCharacterBase.GetComponent<PlayerInput>();
 
             if (_playerRb == null || _playerCol == null)
             {
@@ -97,12 +92,8 @@ namespace GGemCo2DControl
                 return;
             }
 
-            // 설정 로드
-            var playerActionSettings = AddressableLoaderSettingsControl.Instance.playerActionSettings;
-            _moveSpeed = playerActionSettings ? Mathf.Max(0.05f, playerActionSettings.pushMoveSpeed) : 1.0f;
-
             // 애니 길이 수집(워치독)
-            _clipLength = _characterBase.CharacterAnimationController.GetAnimationAllLength();
+            _clipLength = actionCharacterBase.CharacterAnimationController.GetAnimationAllLength();
 
             // 보유 여부 캐시
             _hasEnter = HasAnimation(AnimEnter);
@@ -124,23 +115,28 @@ namespace GGemCo2DControl
                 useLayerMask = false
             };
         }
-
-        public void OnDestroy()
+        protected override void ApplySettings()
         {
-            // 필요 시 이벤트 해제 등
+            _pushMoveSpeed = playerActionSettings ? Mathf.Max(0.05f, playerActionSettings.pushMoveSpeed) : 1.0f;
+            _pullMoveSpeed = playerActionSettings ? Mathf.Max(0.05f, playerActionSettings.pullMoveSpeed) : 1.0f;
         }
 
         /// <summary>InputManager.TryBeginPushPull 에서 호출(F 진입)</summary>
-        public bool Begin(ObjectBox target)
+        public bool Begin(ObjectPushPull target)
         {
             if (IsPushing) return true;
             if (target == null) return false;
 
-            _box = target;
+            _pushPull = target;
+            ApplySettings();
+            if (_pushPull.PushMoveSpeed > 0) 
+                _pushMoveSpeed = _pushPull.PushMoveSpeed;
+            if (_pushPull.PullMoveSpeed > 0) 
+                _pullMoveSpeed = _pushPull.PullMoveSpeed;
 
             // 박스 Rigidbody/Collider 확보
-            _boxRb = _box.GetComponent<Rigidbody2D>();
-            _boxCol = _box.GetComponent<TilemapCollider2D>();
+            _boxRb = _pushPull.GetComponent<Rigidbody2D>();
+            _boxCol = _pushPull.GetComponent<TilemapCollider2D>();
             if (_boxRb == null || _boxCol == null)
             {
                 GcLogger.LogError("[ActionPushPull] Box에 Rigidbody2D/Collider2D가 필요합니다.");
@@ -155,14 +151,14 @@ namespace GGemCo2DControl
             // 어느 쪽을 잡았는지 판정 후 스냅
             DecideGripSideAndSnapToEdge();
 
-            _characterBase.SetStatusPush();
+            actionCharacterBase.SetStatusPush();
             IsPushing = true;
             EnterPhase(Phase.EnterOneShot);
             return true;
         }
 
         /// <summary>InputManager.EndPushPull 에서 호출(F 종료)</summary>
-        public void End(ObjectBox target)
+        public void End(ObjectPushPull target)
         {
             if (!IsPushing) return;
             // 종료 애니 1회 재생 경로로 수렴
@@ -321,7 +317,9 @@ namespace GGemCo2DControl
             if (_boxRb == null || _boxCol == null) return;
 
             // 1) 프레임 이동량 계산 (프로젝트 표준 속도 합성 사용)
-            float step = _characterBase.currentMoveStep * _characterBase.GetCurrentMoveSpeed() * _moveSpeed * Time.deltaTime;
+
+            float step = actionCharacterBase.currentMoveStep * actionCharacterBase.GetCurrentMoveSpeed() *
+                         (_phase == Phase.PullLoop?_pullMoveSpeed:_pushMoveSpeed) * Time.deltaTime;
             float dx   = x * step;
             if (Mathf.Approximately(dx, 0f)) { DampVelocities(); return; }
 
@@ -375,18 +373,18 @@ namespace GGemCo2DControl
 
         private void Play(string stateName)
         {
-            _characterBase.CharacterAnimationController?.PlayCharacterAnimation(stateName);
+            actionCharacterBase.CharacterAnimationController?.PlayCharacterAnimation(stateName);
         }
 
         private void PlayIfHas(string stateName)
         {
             if (HasAnimation(stateName))
-                _characterBase.CharacterAnimationController?.PlayCharacterAnimation(stateName);
+                actionCharacterBase.CharacterAnimationController?.PlayCharacterAnimation(stateName);
         }
 
         private bool HasAnimation(string stateName)
         {
-            if (_characterBase.CharacterAnimationController is { } ctrl)
+            if (actionCharacterBase.CharacterAnimationController is { } ctrl)
                 return ctrl.HasAnimation(stateName);
             return _clipLength.ContainsKey(stateName);
         }
@@ -412,7 +410,7 @@ namespace GGemCo2DControl
 
         private void FinishAndStop()
         {
-            var ended = _box;
+            var ended = _pushPull;
 
             _phase = Phase.None;
             IsPushing = false;
@@ -423,9 +421,9 @@ namespace GGemCo2DControl
             
             _boxCol.isTrigger = true;
 
-            _characterBase.Stop();
+            actionCharacterBase.Stop();
 
-            _box = null;
+            _pushPull = null;
 
             // InputManager에 종료 알림
             InteractionEnded?.Invoke(ended);
@@ -486,12 +484,12 @@ namespace GGemCo2DControl
                 targetX = boxB.max.x + _gripGap + plyHalfW;
             }
 
-            Vector3 p = _characterBase.transform.position;
+            Vector3 p = actionCharacterBase.transform.position;
             p.x = targetX;
-            _characterBase.transform.position = p;
+            actionCharacterBase.transform.position = p;
 
             // 캐릭터 바라보는 방향(선택)
-            // _characterBase.FaceTo(side == GripSide.Left ? +1 : -1); // 프로젝트 기준에 맞게 좌/우 플립
+            // actionCharacterBase.FaceTo(side == GripSide.Left ? +1 : -1); // 프로젝트 기준에 맞게 좌/우 플립
         }
     }
 }

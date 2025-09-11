@@ -10,15 +10,10 @@ namespace GGemCo2DControl
     /// - 일부 애니메이션 미보유 시에도 동작하도록 폴백 포함
     /// - 1회성 단계는 Animation Event 미도착 시 워치독으로 자동 완료
     /// </summary>
-    public class ActionJump
+    public class ActionJump : ActionBase
     {
         // 클래스 상단 필드/프로퍼티 섹션 인근
         public bool IsJumping => _phase != JumpPhase.None;
-
-        // --- 외부 참조 ---
-        private InputManager _inputManager;
-        private CharacterBase _characterBase;
-        private CharacterBaseController _characterBaseController;
 
         // --- 캐시 ---
         private Rigidbody2D _rb;
@@ -50,7 +45,7 @@ namespace GGemCo2DControl
 
         // 현재 1회성 단계에서 이벤트 대기 워치독
         private JumpPhase _awaitingEventFor = JumpPhase.None;
-        private float _awaitingDeadline = 0f;
+        private float _awaitingDeadline;
         private const float DefaultOneshotTimeout = 0.2f; // 클립 길이를 못 구하면 사용
 
         // --- 애니메이션 이름 ---
@@ -78,14 +73,12 @@ namespace GGemCo2DControl
         // 클래스 필드
         private System.Func<bool> _isDashActive; // 외부(대시)에서 현재 대시 중인지 질의
         
-        public void Initialize(InputManager inputManager, CharacterBase characterBase, CharacterBaseController characterBaseController)
+        public override void Initialize(InputManager inputManager, CharacterBase characterBase, CharacterBaseController characterBaseController)
         {
-            _inputManager = inputManager;
-            _characterBase = characterBase;
-            _characterBaseController = characterBaseController;
+            base.Initialize(inputManager, characterBase, characterBaseController);
 
-            _rb = _characterBase.characterRigidbody2D;
-            _col = _characterBase.colliderMapObject;
+            _rb = actionCharacterBase.characterRigidbody2D;
+            _col = actionCharacterBase.colliderMapObject;
 
             if (_rb == null || _col == null)
             {
@@ -94,7 +87,7 @@ namespace GGemCo2DControl
             }
 
             // Animator/클립 길이 수집
-            _clipLength = _characterBase.CharacterAnimationController.GetAnimationAllLength();
+            _clipLength = actionCharacterBase.CharacterAnimationController.GetAnimationAllLength();
 
             // Ground Layer
             _groundMask = LayerMask.GetMask(ConfigLayer.GetValue(ConfigLayer.Keys.TileMapGround));
@@ -103,17 +96,7 @@ namespace GGemCo2DControl
                 GcLogger.LogWarning($"[ActionJump] Layer '{ConfigLayer.GetValue(ConfigLayer.Keys.TileMapGround)}'를 찾을 수 없습니다. Project Settings > Tags and Layers 확인.");
             }
 
-            // 파라미터 로드
-            var playerActionSettings = AddressableLoaderSettingsControl.Instance.playerActionSettings;
-            if (playerActionSettings)
-            {
-                _desiredJumpHeight = playerActionSettings.jumpHeight;
-                _timeToApex        = playerActionSettings.jumpSpeed;
-            }
-
-            RecalculatePhysicsConstants(_desiredJumpHeight, _timeToApex);
-
-            _characterBase.OnAnimationEventJump += OnAnimationEventJump;
+            actionCharacterBase.OnAnimationEventJump += OnAnimationEventJump;
             
             // 보유 여부 캐시
             _hasStart      = HasAnimation(AnimJumpStart);
@@ -127,9 +110,21 @@ namespace GGemCo2DControl
             _changedGravity = false;
         }
 
-        public void OnDestroy() 
+        public override void OnDestroy() 
         {
-            _characterBase.OnAnimationEventJump -= OnAnimationEventJump;
+            base.OnDestroy();
+            actionCharacterBase.OnAnimationEventJump -= OnAnimationEventJump;
+        }
+
+        protected override void ApplySettings()
+        {
+            if (playerActionSettings)
+            {
+                _desiredJumpHeight = playerActionSettings.jumpHeight;
+                _timeToApex        = playerActionSettings.jumpSpeed;
+            }
+
+            RecalculatePhysicsConstants(_desiredJumpHeight, _timeToApex);
         }
 
         public void Configure(float desiredJumpHeight, float timeToApex)
@@ -158,11 +153,11 @@ namespace GGemCo2DControl
             if (!ctx.started) return;
             if (_rb == null) return;
 
-            if (_characterBase.IsStatusAttack()) return;
-            if (_characterBase.IsStatusAttackComboWait()) return;
-            if (_characterBase.IsStatusJump()) return;
+            if (actionCharacterBase.IsStatusAttack()) return;
+            if (actionCharacterBase.IsStatusAttackComboWait()) return;
+            if (actionCharacterBase.IsStatusJump()) return;
 
-            _characterBase.SetStatusJump();
+            actionCharacterBase.SetStatusJump();
 
             // 점프 입력: 중력 스케일 변경 및 복구 대상 표시
             _prevGravityScale = _rb.gravityScale;
@@ -209,10 +204,10 @@ namespace GGemCo2DControl
                     if (_airborneTime >= CoyoteThreshold && _rb.linearVelocity.y <= MinFallSpeedY)
                     {
                         // 전투 등 방해 상태는 존중
-                        if (!_characterBase.IsStatusAttack() && !_characterBase.IsStatusAttackComboWait())
+                        if (!actionCharacterBase.IsStatusAttack() && !actionCharacterBase.IsStatusAttackComboWait())
                         {
                             // 공중 상태로 전환(프로젝트 표준에 맞춰 Jump 상태 사용)
-                            if (!_characterBase.IsStatusJump()) _characterBase.SetStatusJump();
+                            if (!actionCharacterBase.IsStatusJump()) actionCharacterBase.SetStatusJump();
 
                             // Cliff-fall은 중력 스케일을 변경하지 않음 (복구 불필요)
                             _changedGravity = false;
@@ -378,12 +373,12 @@ namespace GGemCo2DControl
             if (_changedGravity && _rb != null)
                 _rb.gravityScale = _prevGravityScale;
 
-            _characterBase.Stop();
+            actionCharacterBase.Stop();
         }
 
         private void PlayAnimSafe(string stateName)
         {
-            _characterBase.CharacterAnimationController?.PlayCharacterAnimation(stateName);
+            actionCharacterBase.CharacterAnimationController?.PlayCharacterAnimation(stateName);
         }
 
         public bool IsGroundedByCollision()
@@ -395,7 +390,7 @@ namespace GGemCo2DControl
         private bool HasAnimation(string stateName)
         {
             // 1) 캐릭터 애니메이션 컨트롤러가 "존재 여부"를 제공한다면 우선 사용
-            if (_characterBase.CharacterAnimationController is { } ctrl)
+            if (actionCharacterBase.CharacterAnimationController is { } ctrl)
             {
                 // 선택: ctrl에 HasAnimation(string) API가 있다면 사용하도록 교체 가능
                 return ctrl.HasAnimation(stateName);
@@ -455,7 +450,7 @@ namespace GGemCo2DControl
 
                 _phase = JumpPhase.None;
                 _changedGravity = false; // 복구 처리 완료
-                _characterBase.Stop();   // 프로젝트 표준 상태 복귀(Idle/Run 등)
+                actionCharacterBase.Stop();   // 프로젝트 표준 상태 복귀(Idle/Run 등)
                 return;
             }
 

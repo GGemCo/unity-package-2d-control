@@ -99,7 +99,7 @@ namespace GGemCo2DControl
         private void InitializeControls()
         {
             _actionAttack = new ActionAttack();
-            _actionAttack.Initialize(this, _characterBase);
+            _actionAttack.Initialize(this, _characterBase, _characterBaseController);
             
             _actionMove = new ActionMove();
             _actionMove.Initialize(this, _characterBase, _characterBaseController);
@@ -409,7 +409,7 @@ namespace GGemCo2DControl
 
         // === ActionLadder/PushPull 과의 연결 API ===
 
-        public bool TryBeginLadder(ObjectLadder ladder)
+        public bool TryBeginLadder(ObjectClimb climb)
         {
             // 상충 상태 정리
             if (_actionDash.IsDashing) _actionDash.CancelDash(true);
@@ -426,16 +426,16 @@ namespace GGemCo2DControl
                 }
             }
 
-            return _actionClimb.Begin(ladder);
+            return _actionClimb.Begin(climb);
         }
 
-        public void EndLadder(ObjectLadder ladder)
+        public void EndLadder(ObjectClimb climb)
         {
-            _actionClimb.End(ladder);
-            if ((ObjectLadder)_currentInteraction == ladder) _currentInteraction = null; // 안전망
+            _actionClimb.End(climb);
+            if ((ObjectClimb)_currentInteraction == climb) _currentInteraction = null; // 안전망
         }
 
-        public bool TryBeginPushPull(ObjectBox target)
+        public bool TryBeginPushPull(ObjectPushPull target)
         {
             if (_actionDash.IsDashing) _actionDash.CancelDash(true);
             // 점프 중에는 밀기/당기기 금지(필요 시 조건 수정)
@@ -444,10 +444,10 @@ namespace GGemCo2DControl
             return _actionPushPull.Begin(target);
         }
 
-        public void EndPushPull(ObjectBox target)
+        public void EndPushPull(ObjectPushPull target)
         {
             _actionPushPull.End(target);
-            if ((ObjectBox)_currentInteraction == target) _currentInteraction = null; // 안전망
+            if ((ObjectPushPull)_currentInteraction == target) _currentInteraction = null; // 안전망
         }
         private void OnChangeControlScheme(PlayerInput playerInput)
         {

@@ -5,33 +5,35 @@ using UnityEngine.InputSystem;
 
 namespace GGemCo2DControl
 {
-    public class ActionAttack
+    public class ActionAttack : ActionBase
     {
-        private CharacterBase _characterBase;
-        private CharacterBaseController _characterBaseController;
         private int _currentCombo;
         private int _countCombo;
         private Coroutine _coroutineDonAttack;
-        private InputManager _inputManager;
         private GGemCoAttackComboSettings _attackComboSettings;
 
-        public void Initialize(InputManager inputManager, CharacterBase characterBase)
+        public override void Initialize(InputManager inputManager, CharacterBase characterBase, CharacterBaseController characterBaseController)
         {
-            _inputManager = inputManager;
-            _characterBase = characterBase;
-            _characterBase.AnimationCompleteAttack += OnAnimationCompleteAttack;
-            _characterBase.AnimationCompleteAttackEnd += OnAnimationCompleteAttackEnd;
-            _characterBase.OnStop += OnStop;
+            // ApplySettings 에서 사용해야 하기때문에 먼저 선언
             _attackComboSettings = AddressableLoaderSettingsControl.Instance.attackComboSettings;
+            base.Initialize(inputManager, characterBase, characterBaseController);
+            
+            actionCharacterBase.AnimationCompleteAttack += OnAnimationCompleteAttack;
+            actionCharacterBase.AnimationCompleteAttackEnd += OnAnimationCompleteAttackEnd;
+            actionCharacterBase.OnStop += OnStop;
+        }
+        protected override void ApplySettings()
+        {
             _countCombo = _attackComboSettings.GetCountCombo();
         }
 
-        public void OnDestroy()
+        public override void OnDestroy()
         {
-            if (!_characterBase) return;
-            _characterBase.AnimationCompleteAttack -= OnAnimationCompleteAttack;
-            _characterBase.AnimationCompleteAttackEnd -= OnAnimationCompleteAttackEnd;
-            _characterBase.OnStop -= OnStop;
+            base.OnDestroy();
+            if (!actionCharacterBase) return;
+            actionCharacterBase.AnimationCompleteAttack -= OnAnimationCompleteAttack;
+            actionCharacterBase.AnimationCompleteAttackEnd -= OnAnimationCompleteAttackEnd;
+            actionCharacterBase.OnStop -= OnStop;
         }
 
         private void ClearAttackCombo()
@@ -62,26 +64,26 @@ namespace GGemCo2DControl
         private void StopCoroutineAttackWait()
         {
             if (_coroutineDonAttack == null) return;
-            _inputManager.StopCoroutine(_coroutineDonAttack);
+            actionInputManager.StopCoroutine(_coroutineDonAttack);
             _coroutineDonAttack = null;
         }
         private void MoveForward(string attackAnimName)
         {
             float duration =
-                _characterBase.CharacterAnimationController.GetCharacterAnimationDuration(attackAnimName, false);
+                actionCharacterBase.CharacterAnimationController.GetCharacterAnimationDuration(attackAnimName, false);
             float addMove = _attackComboSettings.GetMoveForwardDistance(_currentCombo);
             float speed = _attackComboSettings.GetMoveForwardSpeed(_currentCombo);
-            if (_characterBase.IsFlipped())
+            if (actionCharacterBase.IsFlipped())
             {
                 addMove *= -1;
             }
-            _characterBase.AddMoveForce(addMove, 0, duration * speed);
+            actionCharacterBase.AddMoveForce(addMove, 0, duration * speed);
         }
         private IEnumerator CoroutinePlayAttackEndAnimation()
         {
             // GcLogger.Log($"PlayAttackEndAnimation wait time:{_attackComboSettings.GetWaitTime(_currentCombo)}");
             yield return new WaitForSeconds(_attackComboSettings.GetWaitTime(_currentCombo));
-            _characterBase.CharacterAnimationController?.PlayAttackEndAnimation();
+            actionCharacterBase.CharacterAnimationController?.PlayAttackEndAnimation();
         }
 
         public void Attack(InputAction.CallbackContext ctx)
@@ -93,8 +95,8 @@ namespace GGemCo2DControl
             // else if (ctx.canceled) 
             //     GcLogger.Log($"on attack Release");
             
-            if (_characterBase.IsStatusAttack()) return;
-            if (_characterBase.IsStatusDead()) return;
+            if (actionCharacterBase.IsStatusAttack()) return;
+            if (actionCharacterBase.IsStatusDead()) return;
             if (_countCombo <= 0) return;
 
             // 콤보 리스트가 1개 초과 일때만 콤보 처리 
@@ -103,7 +105,7 @@ namespace GGemCo2DControl
                 // 마지막 모션이면 처리하지 않기
                 if (IsLastAttackCombo()) return;
             
-                if (_characterBase.IsStatusAttackComboWait())
+                if (actionCharacterBase.IsStatusAttackComboWait())
                 {
                     StopCoroutineAttackWait();
                     NextAttackCombo();
@@ -116,25 +118,25 @@ namespace GGemCo2DControl
             else
             {
                 // wait 타임이 있을때는 대기 한다.
-                if (_characterBase.IsStatusAttackComboWait()) return;
+                if (actionCharacterBase.IsStatusAttackComboWait()) return;
                 SetAttackCombo(0);
             }
             
-            _characterBase.SetStatusAttack(); // 공격 중 상태 설정
-            _characterBase.directionNormalize = Vector3.zero; // 움직임 멈춤
+            actionCharacterBase.SetStatusAttack(); // 공격 중 상태 설정
+            actionCharacterBase.directionNormalize = Vector3.zero; // 움직임 멈춤
             string attackAnimName = _attackComboSettings.GetAnimationName(_currentCombo);
             
             // 추가 데미지 affect 적용
             int affectUid = _attackComboSettings.GetAffectUid(_currentCombo);
             if (affectUid > 0)
             {
-                _characterBase.AddAffect(affectUid);
+                actionCharacterBase.AddAffect(affectUid);
             }
 
             // 공격시 앞으로 조금씩 이동하기
             MoveForward(attackAnimName);
 
-            _characterBase.CharacterAnimationController?.PlayAttackAnimation(attackAnimName);
+            actionCharacterBase.CharacterAnimationController?.PlayAttackAnimation(attackAnimName);
         }
         /// <summary>
         /// 공격 애니메이션 종료 되었을때,
@@ -152,7 +154,7 @@ namespace GGemCo2DControl
             sender.SetStatusAttackComboWait();
             sender.CharacterAnimationController.PlayAttackWaitAnimation();
             StopCoroutineAttackWait();
-            _coroutineDonAttack = _inputManager.StartCoroutine(CoroutinePlayAttackEndAnimation());
+            _coroutineDonAttack = actionInputManager.StartCoroutine(CoroutinePlayAttackEndAnimation());
             
             // 처리 완료 선언 (레거시 폴백 차단)
             e.Handled = true;
@@ -168,7 +170,7 @@ namespace GGemCo2DControl
             if (e.Handled) return;
             
             // GcLogger.Log($"OnAnimationCompleteAttackEnd");
-            _characterBase.Stop();
+            actionCharacterBase.Stop();
             
             // 처리 완료 선언 (레거시 폴백 차단)
             e.Handled = true;
