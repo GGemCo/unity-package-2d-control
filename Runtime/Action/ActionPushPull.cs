@@ -41,6 +41,9 @@ namespace GGemCo2DControl
         // 이동/전이 파라미터
         private float _pushMoveSpeed;       // 박스 밀기 이동 속도(유닛/초)
         private float _pullMoveSpeed;       // 박스 당기기 이동 속도(유닛/초)
+        // 밀기 / 당기기 제한
+        private bool _canPush;
+        private bool _canPull;
         
         private float _origPlayerDrag;  // 진입 시 플레이어 드래그/속도 백업(선택)
         private Vector2 _origPlayerVel;
@@ -133,6 +136,8 @@ namespace GGemCo2DControl
                 _pushMoveSpeed = _pushPull.PushMoveSpeed;
             if (_pushPull.PullMoveSpeed > 0) 
                 _pullMoveSpeed = _pushPull.PullMoveSpeed;
+            _canPush = _pushPull.CanPush;
+            _canPull = _pushPull.CanPull;
 
             // 박스 Rigidbody/Collider 확보
             _boxRb = _pushPull.GetComponent<Rigidbody2D>();
@@ -194,10 +199,20 @@ namespace GGemCo2DControl
                 {
                     if (x < -0.1f)
                     {
+                        if (!_canPull)
+                        {
+                            GcLogger.Log($"당기기가 제한되어 있습니다.");
+                            return;
+                        }
                         EnterPhase(Phase.PullLoop);
                     }
                     else if (x > 0.1f)
                     {
+                        if (!_canPush)
+                        {
+                            GcLogger.Log($"밀기가 제한되어 있습니다.");
+                            return;
+                        }
                         EnterPhase(Phase.PushLoop);
                     }
                     else
