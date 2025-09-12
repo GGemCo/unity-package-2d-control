@@ -25,15 +25,16 @@ namespace GGemCo2DControl
 
         // 실제로 밀릴 박스의 Rigidbody2D
         private Rigidbody2D _targetBody;
-        private TilemapCollider2D _col;
+        private Collider2D _col;
         
         public Rigidbody2D TargetBody => _targetBody;
+        public Collider2D TargetCollider => _col;
         public int Priority => priority;
 
         protected override void Awake()
         {
             base.Awake();
-            _col = GetComponent<TilemapCollider2D>();
+            _col = GetComponent<Collider2D>();
             _col.isTrigger = true;
             _targetBody = GetComponent<Rigidbody2D>();
             _targetBody.gravityScale = 0f;

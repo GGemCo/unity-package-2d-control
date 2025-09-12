@@ -14,9 +14,9 @@ namespace GGemCo2DControl
 
         private void OnTriggerEnter2D(Collider2D other)
         {
-            CharacterHitArea hitArea = other.GetComponentInChildren<CharacterHitArea>();
+            CharacterHitArea hitArea = other.GetComponent<CharacterHitArea>();
             if (!hitArea) return;
-            // GcLogger.Log($"death zone. OnTriggerEnter2D. damage:{damage}");
+            GcLogger.Log($"death zone. OnTriggerEnter2D. damage:{damage}");
             MetadataDamage metadataDamage = new MetadataDamage
             {
                 damage = damage,

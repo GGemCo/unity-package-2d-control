@@ -4,7 +4,6 @@ using UnityEngine.Tilemaps;
 
 namespace GGemCo2DControl
 {
-    [RequireComponent(typeof(TilemapCollider2D))]
     public class ObjectClimb : DefaultMapObject, IInteraction
     {
         [Header("Interaction")]
@@ -30,7 +29,7 @@ namespace GGemCo2DControl
         [SerializeField] private Color offsetBoundsColor = new Color(1f, 0.9f, 0.1f, 0.45f);
         [SerializeField] private Color snapLineColor = new Color(1f, 0.4f, 0.1f, 0.9f);
 
-        private TilemapCollider2D _col;
+        private Collider2D _col;
 
         public int Priority => priority;
         public string GetHint() => hint;
@@ -38,7 +37,7 @@ namespace GGemCo2DControl
         protected override void Awake()
         {
             base.Awake();
-            _col = GetComponent<TilemapCollider2D>();
+            _col = GetComponent<Collider2D>();
             _col.isTrigger = true; // 사다리 감지 용도
         }
 
