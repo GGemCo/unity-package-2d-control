@@ -34,11 +34,13 @@ namespace GGemCo2DControl
         protected override void Awake()
         {
             base.Awake();
+            _targetBody = GetComponent<Rigidbody2D>();
+            _targetBody.bodyType = RigidbodyType2D.Dynamic;
+            _targetBody.gravityScale = 0f;
+            _targetBody.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+            _targetBody.freezeRotation = true;
             _col = GetComponent<Collider2D>();
             _col.isTrigger = true;
-            _targetBody = GetComponent<Rigidbody2D>();
-            _targetBody.gravityScale = 0f;
-            _targetBody.freezeRotation = true;
         }
         public bool IsAvailable(GameObject interactor)
         {
