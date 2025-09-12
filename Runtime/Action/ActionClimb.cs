@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using GGemCo2DCore;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -152,23 +153,13 @@ namespace GGemCo2DControl
             
             // 시작 위치(아래/위) 판정
             {
-                float y = actionCharacterBase.transform.position.y;
-                // 상/하단과의 거리 비교(마진이 있으면 상하단 근처로 인식)
-                // float distToBottom = Mathf.Abs(y - (_bottomY + _startSideDetectMargin));
-                // float distToTop    = Mathf.Abs(y - (_topY    - _startSideDetectMargin));
-                // _startSide = (distToTop < distToBottom) ? StartSide.Top : StartSide.Bottom;
-                
-                // 탑/바텀 근처 임계치(비율 또는 절대 거리)로 판정
+                float yCenter = GetHitCenterY();
                 float height = _topY - _bottomY;
-                float nearThreshold = Mathf.Max(0.1f, height * 0.15f); // 전체 높이의 15% 구간을 탑/바텀 근처로 간주
-                if (y >= _topY - nearThreshold)      _startSide = StartSide.Top;
-                else if (y <= _bottomY + nearThreshold) _startSide = StartSide.Bottom;
-                else
-                {
-                    // 중간 지점 → 공통 시작 애니(또는 바로 wait로)
-                    _startSide = StartSide.Bottom; // 임의 값
-                    // 그리고 EnterOneShot에서 _hasStartBottom/_hasStartTop이 없으면 AnimLadderEnter로 폴백됨
-                }
+                float nearThreshold = Mathf.Max(0.1f, height * 0.15f); // 상/하 15% 구간을 근접으로 간주
+
+                if (yCenter >= _topY - nearThreshold)         _startSide = StartSide.Top;
+                else if (yCenter <= _bottomY + nearThreshold) _startSide = StartSide.Bottom;
+                else _startSide = StartSide.Bottom; // 중간 지점 → 공통 시작 혹은 wait로 폴백
             }
 
             // 물리 고정
@@ -233,7 +224,8 @@ namespace GGemCo2DControl
 
                     if (v > 0.1f)
                     {
-                        if (y >= _topY - _topSnap)
+                        float hitTop = GetHitTopY();
+                        if (hitTop >= _topY - _topSnap)
                         {
                             _endKind = EndKind.Top;
                             EnterPhase(ClimbPhase.EndOneShot);
@@ -243,7 +235,8 @@ namespace GGemCo2DControl
                     }
                     else if (v < -0.1f)
                     {
-                        if (y <= _bottomY + _bottomSnap)
+                        float hitBottom = GetHitBottomY();
+                        if (hitBottom <= _bottomY + _bottomSnap)
                         {
                             _endKind = EndKind.Bottom;
                             EnterPhase(ClimbPhase.EndOneShot);
@@ -261,7 +254,8 @@ namespace GGemCo2DControl
 
                 case ClimbPhase.UpLoop:
                 {
-                    if (y >= _topY - _topSnap)
+                    float hitTop = GetHitTopY();
+                    if (hitTop >= _topY - _topSnap)
                     {
                         _endKind = EndKind.Top;
                         EnterPhase(ClimbPhase.EndOneShot);
@@ -289,7 +283,8 @@ namespace GGemCo2DControl
 
                 case ClimbPhase.DownLoop:
                 {
-                    if (y <= _bottomY + _bottomSnap)
+                    float hitBottom = GetHitBottomY();
+                    if (hitBottom <= _bottomY + _bottomSnap)
                     {
                         _endKind = EndKind.Bottom;
                         EnterPhase(ClimbPhase.EndOneShot);
@@ -559,6 +554,24 @@ namespace GGemCo2DControl
 
             // 실패
             return false;
+        }// --- 상단/하단 Y 좌표 취득 유틸 ---
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private float GetHitTopY()
+        {
+            // _colliderHitArea가 없으면 위치 y로 폴백
+            return _colliderHitArea ? _colliderHitArea.bounds.max.y : actionCharacterBase.transform.position.y;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private float GetHitBottomY()
+        {
+            return _colliderHitArea ? _colliderHitArea.bounds.min.y : actionCharacterBase.transform.position.y;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private float GetHitCenterY()
+        {
+            return _colliderHitArea ? _colliderHitArea.bounds.center.y : actionCharacterBase.transform.position.y;
         }
     }
 }
