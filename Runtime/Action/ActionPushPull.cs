@@ -2,7 +2,6 @@
 using GGemCo2DCore;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.Tilemaps;
 
 namespace GGemCo2DControl
 {
@@ -28,8 +27,8 @@ namespace GGemCo2DControl
 
         // 박스 타겟
         private ObjectPushPull _pushPull;
-        private Rigidbody2D _boxRb;
-        private TilemapCollider2D _boxCol;
+        private Rigidbody2D _objectPushPullRigidbody2D;
+        private Collider2D _objectPushPullCollider2D;
         // 캐릭터-박스 결합 정보
         private enum GripSide { Left, Right }
         private GripSide _gripSide;
@@ -140,15 +139,15 @@ namespace GGemCo2DControl
             _canPull = _pushPull.CanPull;
 
             // 박스 Rigidbody/Collider 확보
-            _boxRb = _pushPull.GetComponent<Rigidbody2D>();
-            _boxCol = _pushPull.GetComponent<TilemapCollider2D>();
-            if (_boxRb == null || _boxCol == null)
+            _objectPushPullRigidbody2D = _pushPull.TargetBody;
+            _objectPushPullCollider2D = _pushPull.TargetCollider;
+            if (_objectPushPullRigidbody2D == null || _objectPushPullCollider2D == null)
             {
                 GcLogger.LogError("[ActionPushPull] Box에 Rigidbody2D/Collider2D가 필요합니다.");
                 return false;
             }
 
-            _boxCol.isTrigger = false;
+            _objectPushPullCollider2D.isTrigger = false;
             
             _origPlayerDrag = _playerRb.linearDamping;
             _origPlayerVel  = _playerRb.linearVelocity;
@@ -329,7 +328,7 @@ namespace GGemCo2DControl
 
         private void MoveHorizontal(float x)
         {
-            if (_boxRb == null || _boxCol == null) return;
+            if (_objectPushPullRigidbody2D == null || _objectPushPullCollider2D == null) return;
 
             // 1) 프레임 이동량 계산 (프로젝트 표준 속도 합성 사용)
 
@@ -339,19 +338,19 @@ namespace GGemCo2DControl
             if (Mathf.Approximately(dx, 0f)) { DampVelocities(); return; }
 
             // 2) 박스 이동 시도: 충돌 예측(Cast) → 가능하면 MovePosition
-            Vector2 boxPos   = _boxRb.position;
+            Vector2 boxPos   = _objectPushPullRigidbody2D.position;
             Vector2 toDir    = new Vector2(Mathf.Sign(dx), 0f);
             float   dist     = Mathf.Abs(dx);
 
             bool canMoveBox = true;
-            int hitCount = _boxRb.Cast(toDir, _castFilter, _castHits, dist);
+            int hitCount = _objectPushPullRigidbody2D.Cast(toDir, _castFilter, _castHits, dist);
             for (int i = 0; i < hitCount; i++)
             {
                 var h = _castHits[i];
                 if (h.collider == null) continue;
 
                 // 자기 자신/플레이어와의 충돌은 무시
-                if (h.collider == _boxCol || h.collider == _playerCol) continue;
+                if (h.collider == _objectPushPullCollider2D || h.collider == _playerCol) continue;
 
                 // 벽/장애물에 부딪히면 이동 불가
                 canMoveBox = false;
@@ -360,12 +359,12 @@ namespace GGemCo2DControl
 
             if (canMoveBox)
             {
-                _boxRb.MovePosition(new Vector2(boxPos.x + dx, boxPos.y));
+                _objectPushPullRigidbody2D.MovePosition(new Vector2(boxPos.x + dx, boxPos.y));
             }
             else
             {
                 // 이동 불가 시 박스 속도 감쇠
-                _boxRb.linearVelocity = new Vector2(0f, _boxRb.linearVelocity.y);
+                _objectPushPullRigidbody2D.linearVelocity = new Vector2(0f, _objectPushPullRigidbody2D.linearVelocity.y);
             }
 
             // 3) 박스 최신 바운즈 기준으로 플레이어를 모서리에 스냅(항상 붙여 유지)
@@ -379,11 +378,11 @@ namespace GGemCo2DControl
         {
             // GcLogger.Log($"DampVelocities");
             // 박스/플레이어의 수평 속도 제거하여 정지 안정화
-            if (_boxRb != null)     _boxRb.linearVelocity     = new Vector2(0f, _boxRb.linearVelocity.y);
+            if (_objectPushPullRigidbody2D != null)     _objectPushPullRigidbody2D.linearVelocity     = new Vector2(0f, _objectPushPullRigidbody2D.linearVelocity.y);
             if (_playerRb != null)  _playerRb.linearVelocity  = new Vector2(0f, _playerRb.linearVelocity.y);
 
             // 플레이어는 모서리에 계속 스냅
-            if (_boxCol != null) SnapPlayerToBoxEdge(_gripSide);
+            if (_objectPushPullCollider2D != null) SnapPlayerToBoxEdge(_gripSide);
         }
 
         private void Play(string stateName)
@@ -434,7 +433,7 @@ namespace GGemCo2DControl
             _playerRb.linearDamping = _origPlayerDrag;
             _playerRb.linearVelocity = _origPlayerVel;
             
-            _boxCol.isTrigger = true;
+            _objectPushPullCollider2D.isTrigger = true;
 
             actionCharacterBase.Stop();
 
@@ -471,7 +470,7 @@ namespace GGemCo2DControl
         private void DecideGripSideAndSnapToEdge()
         {
             // 플레이어가 박스 어느 쪽에 가까운지로 결정
-            Bounds boxB = _boxCol.bounds;
+            Bounds boxB = _objectPushPullCollider2D.bounds;
             Bounds plyB = _playerCol.bounds;
 
             float distToLeft  = Mathf.Abs(plyB.center.x - boxB.min.x);
@@ -483,7 +482,7 @@ namespace GGemCo2DControl
 
         private void SnapPlayerToBoxEdge(GripSide side)
         {
-            Bounds boxB = _boxCol.bounds;
+            Bounds boxB = _objectPushPullCollider2D.bounds;
             Bounds plyB = _playerCol.bounds;
 
             float plyHalfW = plyB.extents.x;

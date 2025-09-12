@@ -2,7 +2,6 @@
 using System.IO;
 using GGemCo2DControl;
 using GGemCo2DCore;
-using GGemCo2DCoreEditor;
 using UnityEditor;
 using UnityEngine;
 

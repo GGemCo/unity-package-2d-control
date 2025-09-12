@@ -9,8 +9,9 @@ namespace GGemCo2DControl
     {
         private int _currentCombo;
         private int _countCombo;
-        private Coroutine _coroutineDonAttack;
         private GGemCoAttackComboSettings _attackComboSettings;
+        private Coroutine _coroutineDontAttack;
+        private Coroutine _coroutineWaitEnd;
 
         public override void Initialize(InputManager inputManager, CharacterBase characterBase, CharacterBaseController characterBaseController)
         {
@@ -63,9 +64,9 @@ namespace GGemCo2DControl
 
         private void StopCoroutineAttackWait()
         {
-            if (_coroutineDonAttack == null) return;
-            actionInputManager.StopCoroutine(_coroutineDonAttack);
-            _coroutineDonAttack = null;
+            if (_coroutineDontAttack == null) return;
+            actionInputManager.StopCoroutine(_coroutineDontAttack);
+            _coroutineDontAttack = null;
         }
         private void MoveForward(string attackAnimName)
         {
@@ -154,7 +155,7 @@ namespace GGemCo2DControl
             sender.SetStatusAttackComboWait();
             sender.CharacterAnimationController.PlayAttackWaitAnimation();
             StopCoroutineAttackWait();
-            _coroutineDonAttack = actionInputManager.StartCoroutine(CoroutinePlayAttackEndAnimation());
+            _coroutineDontAttack = actionInputManager.StartCoroutine(CoroutinePlayAttackEndAnimation());
             
             // 처리 완료 선언 (레거시 폴백 차단)
             e.Handled = true;
@@ -176,11 +177,20 @@ namespace GGemCo2DControl
             e.Handled = true;
         }
 
+        private void StopWaitEnd()
+        {
+            if (_coroutineWaitEnd != null)
+            {
+                actionInputManager.StopCoroutine(_coroutineWaitEnd);
+                _coroutineWaitEnd = null;
+            }
+        }
         private void OnStop(CharacterBase sender, EventArgsOnStop e)
         {
             // 이미 다른 상위 시스템이 처리했으면 패스
             if (e.Handled) return;
             
+            StopWaitEnd();
             ClearAttackCombo();
             
             // 처리 완료 선언 (레거시 폴백 차단)
