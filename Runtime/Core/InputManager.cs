@@ -54,8 +54,9 @@ namespace GGemCo2DControl
         
         // === 추가 필드 ===
         private InteractionScanner2D _scanner;
-        private InputAction _inputActionInteract; // F 키 등
+        private InputAction _inputActionInteraction; // F 키 등
         private IInteraction _currentInteraction;
+        private GGemCoPlayerActionSettings _playerActionSettings;
         
         private void Awake()
         {
@@ -66,20 +67,14 @@ namespace GGemCo2DControl
                 return;
             }
 
-            var playerActionSettings = AddressableLoaderSettingsControl.Instance.playerActionSettings;
-            if (playerActionSettings)
+            _playerActionSettings = AddressableLoaderSettingsControl.Instance.playerActionSettings;
+            if (_playerActionSettings)
             {
-                // _canMovePlayDashing = playerActionSettings.canMovePlayDashing;
-                // true 일 경우 방향키를 누른 상태로 대시를 사용하면 대시를 하지 못 한다.
-                _canMovePlayDashing = false;
-                _canJumpPlayDashing = playerActionSettings.canJumpPlayDashing;
-                _canAttackPlayDashing = playerActionSettings.canAttackPlayDashing;
-
-                _canDashPlayJumping = playerActionSettings.canDashPlayJumping;
-                
-                _canClimbingPlayJumping = playerActionSettings.canClimbingPlayJumping;
-                _canJumpPlayClimbing = playerActionSettings.canJumpPlayClimbing;
-                _canDashPlayClimbing = playerActionSettings.canDashPlayClimbing;
+                ApplySettings();
+#if UNITY_EDITOR
+                // 플레이 중 인스펙터 수정 → 즉시 반영
+                _playerActionSettings.Changed += ApplySettings;
+#endif
             }
 
             _characterBaseController = GetComponent<CharacterBaseController>();
@@ -96,6 +91,21 @@ namespace GGemCo2DControl
             InitializeInputPlayer();
         }
 
+        private void ApplySettings()
+        {
+            // _canMovePlayDashing = playerActionSettings.canMovePlayDashing;
+            // true 일 경우 방향키를 누른 상태로 대시를 사용하면 대시를 하지 못 한다.
+            _canMovePlayDashing = false;
+            _canJumpPlayDashing = _playerActionSettings.canJumpPlayDashing;
+            _canAttackPlayDashing = _playerActionSettings.canAttackPlayDashing;
+
+            _canDashPlayJumping = _playerActionSettings.canDashPlayJumping;
+                
+            _canClimbingPlayJumping = _playerActionSettings.canClimbingPlayJumping;
+            _canJumpPlayClimbing = _playerActionSettings.canJumpPlayClimbing;
+            _canDashPlayClimbing = _playerActionSettings.canDashPlayClimbing;
+        }
+
         private void InitializeControls()
         {
             _actionAttack = new ActionAttack();
@@ -110,51 +120,66 @@ namespace GGemCo2DControl
             _actionDash = new ActionDash();
             _actionDash.Initialize(this, _characterBase, _characterBaseController);
             
-            // 신규 액션들 초기화
             _actionClimb = new ActionClimb();
             _actionClimb.Initialize(this, _characterBase, _characterBaseController);
-            // 종료 이벤트 구독
             _actionClimb.InteractionEnded += OnInteractionEnded;
 
             _actionPushPull = new ActionPushPull();
             _actionPushPull.Initialize(this, _characterBase, _characterBaseController);
-            // 종료 이벤트 구독
             _actionPushPull.InteractionEnded += OnInteractionEnded;
             
             // 대시 진행 여부를 점프에 전달
             _actionJump.SetDashActiveQuery(() => _actionDash.IsDashing);
         }
 
+        private InputAction _inputActionAttack;
+        private InputAction _inputActionJump;
+        private InputAction _inputActionDash;
         private void InitializeInputPlayer()
         {
             _playerInput = GetComponent<PlayerInput>();
             if (!_playerInput) return;
             // 반드시 필요
             _playerInput.actions.Enable();
-            _playerInput.actions[ConfigCommonControl.NameActionMove].Enable();
-            _playerInput.actions[ConfigCommonControl.NameActionAttack].Enable();
-            _playerInput.actions[ConfigCommonControl.NameActionJump].Enable(); // Jump 액션 활성화
-            _playerInput.actions[ConfigCommonControl.NameActionDash].Enable(); // Dash 액션 활성화
-            // Input Action Asset에 "Interact" 액션(F키) 추가되어 있다고 가정
-            _playerInput.actions[ConfigCommonControl.NameActionInteraction].Enable();
             
-            _inputActionMove = _playerInput.actions[ConfigCommonControl.NameActionMove];
-            var attack = _playerInput.actions[ConfigCommonControl.NameActionAttack];
-            attack.started += OnAttack;
-            // attack.performed += OnAttack;
-            // attack.canceled += OnAttack;
+            // 이동 액션
+            _inputActionMove = _playerInput.actions.FindAction(ConfigCommonControl.NameActionMove);
+            _inputActionMove?.Enable();
 
-            var jump = _playerInput.actions[ConfigCommonControl.NameActionJump];
-            jump.started += OnJump;
+            // 공격 액션
+            _inputActionAttack = _playerInput.actions.FindAction(ConfigCommonControl.NameActionAttack);
+            if (_inputActionAttack != null)
+            {
+                _inputActionAttack.Enable();
+                _inputActionAttack.started += OnAttack;
+                // attack.performed += OnAttack;
+                // attack.canceled += OnAttack;
+            }
             
-            var dash = _playerInput.actions[ConfigCommonControl.NameActionDash];
-            dash.started += OnDash;
-            
-            _inputActionInteract = _playerInput.actions[ConfigCommonControl.NameActionInteraction];
-            _inputActionInteract.started += OnInteract;
+            // Jump 액션
+            _inputActionJump = _playerInput.actions.FindAction(ConfigCommonControl.NameActionJump);
+            if (_inputActionJump != null)
+            {
+                _inputActionJump.Enable();
+                _inputActionJump.started += OnJump;
+            }
+            // Dash 액션 활성화
+            _inputActionDash = _playerInput.actions.FindAction(ConfigCommonControl.NameActionDash);
+            if (_inputActionDash != null)
+            {
+                _inputActionDash.Enable();
+                _inputActionDash.started += OnDash;
+            }
+            // 맵 오브젝트 상호작용 활성화
+            _inputActionInteraction = _playerInput.actions.FindAction(ConfigCommonControl.NameActionInteraction);
+            if (_inputActionInteraction != null)
+            {
+                _inputActionInteraction.started += OnInteraction;
+            }
             
             // _playerInput.SwitchCurrentControlScheme("sss");
-            _playerInput.onControlsChanged += OnChangeControlScheme;
+            if (_playerInput != null)
+                _playerInput.onControlsChanged += OnChangeControlScheme;
         }
 
         private void OnDestroy()
@@ -163,23 +188,34 @@ namespace GGemCo2DControl
             _actionMove?.OnDestroy();
             _actionJump?.OnDestroy();
             _actionDash?.OnDestroy();
-            _actionClimb.OnDestroy();
-            _actionPushPull.OnDestroy();
-            
-            _actionClimb.InteractionEnded -= OnInteractionEnded;
-            _actionPushPull.InteractionEnded -= OnInteractionEnded;
-            
-            if (_playerInput)
-            {
-                var attackAction = _playerInput.actions[ConfigCommonControl.NameActionAttack];
-                attackAction.started -= OnAttack;
-                // attackAction.performed -= OnAttack;
-                // attackAction.canceled -= OnAttack;
 
-                if (_inputActionInteract != null)
-                {
-                    _inputActionInteract.started -= OnInteract;
-                }
+            if (_actionClimb != null)
+            {
+                _actionClimb.OnDestroy();
+                _actionClimb.InteractionEnded -= OnInteractionEnded;
+            }
+
+            if (_actionPushPull != null)
+            {
+                _actionPushPull.OnDestroy();
+                _actionPushPull.InteractionEnded -= OnInteractionEnded;
+            }
+
+            if (_inputActionAttack != null)
+                _inputActionAttack.started -= OnAttack;
+            if (_inputActionJump != null)
+                _inputActionJump.started -= OnJump;
+            if (_inputActionDash != null)
+                _inputActionDash.started -= OnDash;
+            if (_inputActionInteraction != null)
+                _inputActionInteraction.started -= OnInteraction;
+            
+            if (_playerActionSettings)
+            {
+#if UNITY_EDITOR
+                // 플레이 중 인스펙터 수정 → 즉시 반영
+                _playerActionSettings.Changed -= ApplySettings;
+#endif
             }
         }
         /// <summary>
@@ -371,7 +407,7 @@ namespace GGemCo2DControl
         /// <summary>
         /// F 입력 처리: 가장 우선순위 높은 상호작용 대상 선택 → Begin/End 토글
         /// </summary>
-        private void OnInteract(InputAction.CallbackContext ctx)
+        private void OnInteraction(InputAction.CallbackContext ctx)
         {
             // 0) 대시/점프/공격 중 상호작용을 제한하고 싶다면 여기서 리턴
             if (_characterBase.IsStatusDash() || _characterBase.IsStatusAttack())
