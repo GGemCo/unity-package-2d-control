@@ -503,7 +503,15 @@ namespace GGemCo2DControl
             actionCharacterBase.transform.position = p;
 
             // 캐릭터 바라보는 방향(선택)
-            // actionCharacterBase.FaceTo(side == GripSide.Left ? +1 : -1); // 프로젝트 기준에 맞게 좌/우 플립
+            if (side == GripSide.Left && actionCharacterBase.CurrentFacing == CharacterConstants.FacingDirection8.Left)
+            {
+                actionCharacterBase.SetFacing(CharacterConstants.FacingDirection8.Right);
+            }
+            else if (side == GripSide.Right &&
+                     actionCharacterBase.CurrentFacing == CharacterConstants.FacingDirection8.Right)
+            {
+                actionCharacterBase.SetFacing(CharacterConstants.FacingDirection8.Left);
+            }
         }
     }
 }
