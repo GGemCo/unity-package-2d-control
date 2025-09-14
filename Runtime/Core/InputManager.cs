@@ -5,16 +5,6 @@ using UnityEngine.InputSystem;
 
 namespace GGemCo2DControl
 {
-    /*
-     * Action
-     *  - move   이동
-     *  - attack 공격
-     *  - dash   대시
-     *  - climb  등반 올라가기/내려가기
-     *  - push   밀기, 끌기
-     *  -        특정 위치에 걸쇠 걸기
-     */
-
     /// <summary>
     /// Player Input Asset에 등록한 키보드, 마우스, 게임 패드등의 입력 처리
     /// Player 에 AddComponent 된다.
@@ -54,9 +44,13 @@ namespace GGemCo2DControl
         
         // === 추가 필드 ===
         private InteractionScanner2D _scanner;
-        private InputAction _inputActionInteraction; // F 키 등
+        private InputAction _inputActionInteraction;
         private IInteraction _currentInteraction;
         private GGemCoPlayerActionSettings _playerActionSettings;
+        
+        private InputAction _inputActionAttack;
+        private InputAction _inputActionJump;
+        private InputAction _inputActionDash;
         
         private void Awake()
         {
@@ -86,6 +80,8 @@ namespace GGemCo2DControl
                 // 스캐너가 없으면 자동 추가(프로파일 편의를 위해)
                 _scanner = _characterBase.colliderHitArea.gameObject.AddComponent<InteractionScanner2D>();
             }
+            Player player = _characterBase as Player;
+            player?.onEventDeadByEndGround.AddListener(OnDeadGround);
             
             InitializeControls();
             InitializeInputPlayer();
@@ -132,9 +128,6 @@ namespace GGemCo2DControl
             _actionJump.SetDashActiveQuery(() => _actionDash.IsDashing);
         }
 
-        private InputAction _inputActionAttack;
-        private InputAction _inputActionJump;
-        private InputAction _inputActionDash;
         private void InitializeInputPlayer()
         {
             _playerInput = GetComponent<PlayerInput>();
@@ -217,6 +210,9 @@ namespace GGemCo2DControl
                 _playerActionSettings.Changed -= ApplySettings;
 #endif
             }
+            
+            Player player = _characterBase as Player;
+            player?.onEventDeadByEndGround.RemoveAllListeners();
         }
         /// <summary>
         /// Rigidbody를 사용하므로 FixedUpdate로 처리
@@ -492,12 +488,22 @@ namespace GGemCo2DControl
             // if (!uiPanelControl) return;
             // uiPanelControl.SetScheme(playerInput.currentControlScheme);
         }
+        
         private void OnInteractionEnded(IInteraction ended)
         {
             // 현재 상호작용 중인 대상과 같다면 초기화
             if (_currentInteraction == ended)
                 _currentInteraction = null;
         }
-
+        /// <summary>
+        /// 캐릭터가 바닥을 벗어나서 사망했을 때
+        /// </summary>
+        private void OnDeadGround()
+        {
+            _actionJump?.CancelJump(true);
+            _actionDash?.CancelDash(true);
+            _actionClimb?.CancelClimb();
+            _actionPushPull?.Cancel();
+        }
     }
 }
