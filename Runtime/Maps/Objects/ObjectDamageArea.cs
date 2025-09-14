@@ -11,12 +11,19 @@ namespace GGemCo2DControl
         public SkillConstants.DamageType damageType;
         public long damage;
         public int affectUid;
+        private Collider2D _col;
 
+        protected override void Awake()
+        {
+            base.Awake();
+            _col = GetComponent<Collider2D>();
+            _col.isTrigger = true;
+        }
         private void OnTriggerEnter2D(Collider2D other)
         {
             CharacterHitArea hitArea = other.GetComponent<CharacterHitArea>();
             if (!hitArea) return;
-            GcLogger.Log($"death zone. OnTriggerEnter2D. damage:{damage}");
+            // GcLogger.Log($"death zone. OnTriggerEnter2D. damage:{damage}");
             MetadataDamage metadataDamage = new MetadataDamage
             {
                 damage = damage,
