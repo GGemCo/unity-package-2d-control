@@ -10,10 +10,10 @@ namespace GGemCo2DControl
         [SerializeField] private int priority = 100;
         [SerializeField] private string hint = "F: 사다리 오르기/내리기";
 
-        [Header("Exit Snap Offsets (World)")]
-        [Tooltip("상단에서 종료할 때 살짝 위로 스냅할 오프셋(+Y)")]
+        [Header("Exit Snap Offsets")]
+        [Tooltip("상단에서 종료할 때 체크할 위치 오프셋")]
         [SerializeField] private float topExitSnapOffset = 0.2f;
-        [Tooltip("하단에서 종료할 때 살짝 아래로 스냅할 오프셋(-Y)")]
+        [Tooltip("하단에서 종료할 때 체크할 위치 오프셋")]
         [SerializeField] private float bottomExitSnapOffset = 0.2f;
 
         [Header("Climb Settings")]
