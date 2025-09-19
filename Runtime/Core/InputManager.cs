@@ -219,6 +219,8 @@ namespace GGemCo2DControl
         /// </summary>
         private void FixedUpdate()
         {
+            if (_characterBase.IsStatusDead()) return;
+            
             // 1) 점프/낙하 상태 전이 및 착지 처리: 항상 호출
             //    - 점프 입력 유무와 관계없이 클리프 폴, 정점 전환, 착지 엔딩 등을 내부에서 처리
             _actionJump.Update();
@@ -273,18 +275,21 @@ namespace GGemCo2DControl
         }
         private void OnJumpMoveContinuous(Vector2 direction)
         {
+            if (_characterBase.IsStatusDead()) return;
             // 방향키 누르고 있는 동안 계속 호출됨
             // Debug.Log($"Moving: {direction}");
             _actionMove.JumpMove(direction);
         }
         private void OnMoveContinuous(Vector2 direction)
         {
+            if (_characterBase.IsStatusDead()) return;
             // 방향키 누르고 있는 동안 계속 호출됨
             // Debug.Log($"Moving: {direction}");
             _actionMove.Move(direction);
         }
         public void OnAttack(InputAction.CallbackContext ctx)
         {
+            if (_characterBase.IsStatusDead()) return;
             if (_characterBase.IsStatusDash() && _actionDash.IsDashing)
             {
                 // 대시 중 공격 가능
@@ -321,6 +326,7 @@ namespace GGemCo2DControl
         }
         public void OnJump(InputAction.CallbackContext ctx)
         {
+            if (_characterBase.IsStatusDead()) return;
             if (_characterBase.IsStatusDash() && _actionDash.IsDashing)
             {
                 // 대시 중 점프 가능
@@ -359,6 +365,7 @@ namespace GGemCo2DControl
         }
         public void OnDash(InputAction.CallbackContext ctx)
         {
+            if (_characterBase.IsStatusDead()) return;
             if (_characterBase.IsStatusJump())
             {
                 // 점프 중 대시 가능
@@ -405,6 +412,7 @@ namespace GGemCo2DControl
         /// </summary>
         private void OnInteraction(InputAction.CallbackContext ctx)
         {
+            if (_characterBase.IsStatusDead()) return;
             // 0) 대시/점프/공격 중 상호작용을 제한하고 싶다면 여기서 리턴
             if (_characterBase.IsStatusDash() || _characterBase.IsStatusAttack())
             {
@@ -443,6 +451,7 @@ namespace GGemCo2DControl
 
         public bool TryBeginLadder(ObjectClimb climb)
         {
+            if (_characterBase.IsStatusDead()) return false;
             // 상충 상태 정리
             if (_actionDash.IsDashing) _actionDash.CancelDash(true);
             if (_characterBase.IsStatusJump() && _actionJump.IsJumping)
@@ -469,6 +478,7 @@ namespace GGemCo2DControl
 
         public bool TryBeginPushPull(ObjectPushPull target)
         {
+            if (_characterBase.IsStatusDead()) return false;
             if (_actionDash.IsDashing) _actionDash.CancelDash(true);
             // 점프 중에는 밀기/당기기 금지(필요 시 조건 수정)
             if (_characterBase.IsStatusJump()) return false;
