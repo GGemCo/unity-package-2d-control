@@ -7,7 +7,7 @@ namespace GGemCo2DControl
         // Input Action
         public static readonly AddressableAssetInfo InputAction = new(
             $"{ConfigDefine.NameSDK}_InputAction",
-            $"{GGemCo2DCore.ConfigAddressables.Path}/InputAction/ControlsMain.inputactions",
+            $"{GGemCo2DCore.ConfigAddressablePath.Root}/InputAction/ControlsMain.inputactions",
             $"{ConfigDefine.NameSDK}_InputAction"
         );
 
