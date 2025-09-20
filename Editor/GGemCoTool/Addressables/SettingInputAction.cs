@@ -20,7 +20,7 @@ namespace GGemCo2DControlEditor
         public SettingInputAction(AddressableEditorControl addressableEditorControlWindow)
         {
             _addressableEditorControl = addressableEditorControlWindow;
-            TargetGroupName = $"{ConfigAddressableGroupName.InputAction}";
+            targetGroupName = $"{ConfigAddressableGroupName.InputAction}";
         }
         public void OnGUI()
         {
@@ -53,7 +53,7 @@ namespace GGemCo2DControlEditor
             }
 
             // GGemCo_Tables 그룹 가져오기 또는 생성
-            AddressableAssetGroup groupMonster = GetOrCreateGroup(settings, TargetGroupName);
+            AddressableAssetGroup groupMonster = GetOrCreateGroup(settings, targetGroupName);
 
             string key = ConfigAddressableControl.InputAction.Key;
             string assetPath = ConfigAddressableControl.InputAction.Path;

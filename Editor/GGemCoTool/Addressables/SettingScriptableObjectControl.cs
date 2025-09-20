@@ -19,7 +19,7 @@ namespace GGemCo2DControlEditor
         public SettingScriptableObjectControl(AddressableEditorControl addressableEditorControlWindow)
         {
             _addressableEditorControl = addressableEditorControlWindow;
-            TargetGroupName = ConfigAddressableGroupName.Common;
+            targetGroupName = ConfigAddressableGroupName.Common;
         }
 
         public void OnGUI()
@@ -45,11 +45,11 @@ namespace GGemCo2DControlEditor
             }
 
             // 그룹 가져오기 또는 생성
-            AddressableAssetGroup group = GetOrCreateGroup(settings, TargetGroupName);
+            AddressableAssetGroup group = GetOrCreateGroup(settings, targetGroupName);
 
             if (!group)
             {
-                Debug.LogError($"'{TargetGroupName}' 그룹을 설정할 수 없습니다.");
+                Debug.LogError($"'{targetGroupName}' 그룹을 설정할 수 없습니다.");
                 return;
             }
 
