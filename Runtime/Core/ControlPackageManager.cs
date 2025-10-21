@@ -7,6 +7,7 @@ namespace GGemCo2DControl
     /// Control 패키지의 메인 메니저
     /// SceneGame 과 같은 개념
     /// </summary>
+    [DefaultExecutionOrder((int)ConfigCommon.ExecutionOrdering.Control)]
     public class ControlPackageManager : MonoBehaviour
     {
         public static ControlPackageManager Instance { get; private set; }
