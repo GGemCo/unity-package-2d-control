@@ -17,5 +17,6 @@
         public const string NameActionJump = "Jump";
         public const string NameActionDash = "Dash";
         public const string NameActionInteraction = "Interaction";
+        public const string NameActionSimulationTool = "SimulationTool";
     }
 }

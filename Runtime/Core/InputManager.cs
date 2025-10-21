@@ -1,6 +1,7 @@
 ﻿using System.Linq;
 using GGemCo2DCore;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 
 namespace GGemCo2DControl
@@ -20,17 +21,23 @@ namespace GGemCo2DControl
         // 이동 처리
         private InputAction _inputActionMove;
         private ActionMove _actionMove;
-        
         // 공격 처리
+        private InputAction _inputActionAttack;
         private ActionAttack _actionAttack;
         // 점프
+        private InputAction _inputActionJump;
         private ActionJump _actionJump;
         // 대시
+        private InputAction _inputActionDash;
         private ActionDash _actionDash;
         // 올라가기/내려가기
         private ActionClimb _actionClimb;
         // 밀기/당기기
         private ActionPushPull _actionPushPull;
+        
+        // 시뮬레이션 툴 사용
+        private IToolAction _toolAction;
+        private InputAction _inputActionSimulationTool;
 
         private bool _canAttackPlayDashing;
         private bool _canMovePlayDashing;
@@ -48,9 +55,9 @@ namespace GGemCo2DControl
         private IInteraction _currentInteraction;
         private GGemCoPlayerActionSettings _playerActionSettings;
         
-        private InputAction _inputActionAttack;
-        private InputAction _inputActionJump;
-        private InputAction _inputActionDash;
+        // UI 클릭시 툴 사용 금지용
+        private bool _pendingSimulationTool;
+        private InputAction.CallbackContext _pendingSimCtx;
         
         private void Awake()
         {
@@ -73,13 +80,16 @@ namespace GGemCo2DControl
 
             _characterBaseController = GetComponent<CharacterBaseController>();
 
-            
-            _scanner = _characterBase.colliderHitArea.gameObject.GetComponent<InteractionScanner2D>();
-            if (_scanner == null)
+            if (_characterBase.colliderHitArea)
             {
-                // 스캐너가 없으면 자동 추가(프로파일 편의를 위해)
-                _scanner = _characterBase.colliderHitArea.gameObject.AddComponent<InteractionScanner2D>();
+                _scanner = _characterBase.colliderHitArea.gameObject.GetComponent<InteractionScanner2D>();
+                if (_scanner == null)
+                {
+                    // 스캐너가 없으면 자동 추가(프로파일 편의를 위해)
+                    _scanner = _characterBase.colliderHitArea.gameObject.AddComponent<InteractionScanner2D>();
+                }
             }
+
             Player player = _characterBase as Player;
             player?.onEventDeadByEndGround.AddListener(OnDeadGround);
             
@@ -169,8 +179,12 @@ namespace GGemCo2DControl
             {
                 _inputActionInteraction.started += OnInteraction;
             }
+            _inputActionSimulationTool = _playerInput.actions.FindAction(ConfigCommonControl.NameActionSimulationTool);
+            if (_inputActionSimulationTool != null)
+            {
+                _inputActionSimulationTool.performed += OnSimulationTool;
+            }
             
-            // _playerInput.SwitchCurrentControlScheme("sss");
             if (_playerInput != null)
                 _playerInput.onControlsChanged += OnChangeControlScheme;
         }
@@ -203,6 +217,13 @@ namespace GGemCo2DControl
             if (_inputActionInteraction != null)
                 _inputActionInteraction.started -= OnInteraction;
             
+            if (_inputActionSimulationTool != null)
+                _inputActionSimulationTool.performed -= OnSimulationTool;
+
+            _toolAction?.Cancel();
+            _toolAction?.OnDestroy();
+            _toolAction = null;
+            
             if (_playerActionSettings)
             {
 #if UNITY_EDITOR
@@ -213,6 +234,40 @@ namespace GGemCo2DControl
             
             Player player = _characterBase as Player;
             player?.onEventDeadByEndGround.RemoveAllListeners();
+        }
+        private void Update()
+        {
+            if (_pendingSimulationTool)
+            {
+                _pendingSimulationTool = false;
+                if (!IsPointerOverUI() && _toolAction != null)
+                {
+                    _toolAction.UseTool(_pendingSimCtx);
+                }
+            }
+        }
+        /// <summary>UI 위인지 판정(마우스/터치 대응)</summary>
+        private static bool IsPointerOverUI()
+        {
+            if (EventSystem.current == null) return false;
+
+            // 데스크톱(마우스)
+            if (Mouse.current != null && EventSystem.current.IsPointerOverGameObject(Mouse.current.deviceId))
+                return true;
+
+            // 모바일(터치)
+            if (Touchscreen.current != null)
+            {
+                foreach (var t in Touchscreen.current.touches)
+                {
+                    if (t.isInProgress &&
+                        EventSystem.current.IsPointerOverGameObject(t.touchId.ReadValue()))
+                        return true;
+                }
+            }
+
+            // 최후의 보루(플랫폼에 따라 동작)
+            return EventSystem.current.IsPointerOverGameObject();
         }
         /// <summary>
         /// Rigidbody를 사용하므로 FixedUpdate로 처리
@@ -240,6 +295,7 @@ namespace GGemCo2DControl
             if (_characterBase.IsStatusDamage()) return;
             if (_characterBase.IsStatusClimb()) return;
             if (_characterBase.IsStatusPush()) return;
+            if (_characterBase.IsStatusSimulationTool()) return;
 
             // 4) 점프/낙하 중 이동 처리
             if (_characterBase.IsStatusJump())
@@ -446,6 +502,44 @@ namespace GGemCo2DControl
                 _currentInteraction = best;
             }
         }
+        /// <summary>
+        /// 시뮬레이션 툴 사용
+        /// </summary>
+        private void OnSimulationTool(InputAction.CallbackContext ctx)
+        {
+            if (!ctx.performed) return;
+            if (_toolAction == null)
+            {
+                GcLogger.Log("Simulation ToolAction 이 주입되지 않았습니다. (SimulationActionInstaller 확인)");
+                return;
+            }
+
+            if (_characterBase.IsStatusDead()) return;
+            if (_characterBase.IsStatusDash() && _actionDash.IsDashing)
+            {
+                GcLogger.Log("대시 중 시뮬레이션 툴사용은 불가능 합니다.");
+                return;
+            }
+            else if (_characterBase.IsStatusJump() && _actionJump.IsJumping)
+            {
+                GcLogger.Log("점프 중 시뮬레이션 툴사용은 불가능 합니다.");
+                return;
+            }
+            else if (_characterBase.IsStatusClimb() && _actionClimb.IsClimbing)
+            {
+                GcLogger.Log("등반 중 시뮬레이션 툴사용은 불가능 합니다.");
+                return;
+            }
+            else if (_characterBase.IsStatusPush() && _actionPushPull.IsPushing)
+            {
+                GcLogger.Log("밀기 중 시뮬레이션 툴사용은 불가능 합니다.");
+                return;
+            }
+
+            // 다음 프레임에서 UI 위 여부 확인 후 실행
+            _pendingSimCtx = ctx;
+            _pendingSimulationTool = true;
+        }
 
         // === ActionLadder/PushPull 과의 연결 API ===
 
@@ -514,6 +608,22 @@ namespace GGemCo2DControl
             _actionDash?.CancelDash(true);
             _actionClimb?.CancelClimb();
             _actionPushPull?.Cancel();
+
+            _toolAction?.Cancel(); //  툴 지속 상태 강제 종료
+        }
+        public void SetToolAction(IToolAction toolAction)
+        {
+            // 기존 액션 정리
+            if (_toolAction != null)
+            {
+                _toolAction.OnDestroy();
+                _toolAction = null;
+            }
+
+            _toolAction = toolAction;
+
+            if (_toolAction != null)
+                _toolAction.Initialize(this, _characterBase, _characterBaseController);
         }
     }
 }

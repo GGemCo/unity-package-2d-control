@@ -70,5 +70,10 @@ namespace GGemCo2DControl
         public float pushMoveSpeed;
         [Tooltip("기본 당기기 속도 비율 (플레이어 이동 속도 기준)\n예: 1=100%, 0.5=50%\n※ 오브젝트 값이 0보다 크면 그 값을 우선 사용")]
         public float pullMoveSpeed;
+
+        private void Reset()
+        {
+            canMoveVertical = true;
+        }
     }
 }

@@ -151,9 +151,14 @@ namespace GGemCo2DControl
             if (e.Handled) return;
             
             // GcLogger.Log($"OnAnimationCompleteAttack");
-            
             sender.SetStatusAttackComboWait();
-            sender.CharacterAnimationController.PlayAttackWaitAnimation();
+            // wait 애니메이션이 없으면 바로 stop 처리
+            var result = sender.CharacterAnimationController.PlayAttackWaitAnimation();
+            if (!result)
+            {
+                actionCharacterBase.Stop();
+                return;
+            }
             StopCoroutineAttackWait();
             _coroutineDontAttack = actionInputManager.StartCoroutine(CoroutinePlayAttackEndAnimation());
             

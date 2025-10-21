@@ -52,6 +52,11 @@ namespace GGemCo2DControl
         
         protected override void Awake()
         {
+            if (!AddressableLoaderInputAction.Instance)
+            {
+                enabled = false;
+                return;
+            }
             base.Awake();
             
             // 토글 리스너 등록
@@ -80,7 +85,11 @@ namespace GGemCo2DControl
         /// </summary>
         private void Initialize()
         {
-            if (!AddressableLoaderInputAction.Instance) return;
+            if (!AddressableLoaderInputAction.Instance)
+            {
+                GcLogger.LogError($"{nameof(AddressableLoaderInputAction)} 싱글톤이 생성되지 않았습니다.");
+                return;
+            }
             _asset = AddressableLoaderInputAction.Instance.GetInputAction(ConfigAddressableControl.InputAction.Key);
             if (_asset == null)
             {
