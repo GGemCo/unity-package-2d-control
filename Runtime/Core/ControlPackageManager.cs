@@ -34,6 +34,21 @@ namespace GGemCo2DControl
             gameObject.AddComponent<BootstrapperAction>();
         }
 
+        private void Start()
+        {
+            if (SceneGame.Instance)
+                SceneGame.Instance.OnSceneGameDestroyed += OnDestroyBySceneGame;
+        }
+
+        private void OnDestroyBySceneGame()
+        {
+            Destroy(gameObject);
+        }
+        private void OnDestroy()
+        {
+            if (SceneGame.Instance) 
+                SceneGame.Instance.OnSceneGameDestroyed -= OnDestroyBySceneGame;
+        }
         public void SetUIPanelControl(UIPanelOptionControl uiPanelOptionControl)
         {
             _uiPanelOptionControl = uiPanelOptionControl;
