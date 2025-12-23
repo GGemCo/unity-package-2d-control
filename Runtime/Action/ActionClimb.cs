@@ -164,9 +164,9 @@ namespace GGemCo2DControl
 
             // 물리 고정
             _prevGravityScale      = _rigidbody.gravityScale;
-            _velocityCache         = _rigidbody.linearVelocity;
             _rigidbody.gravityScale= 0f;
-            _rigidbody.linearVelocity = Vector2.zero;
+            _velocityCache         = _rigidbody.GetLinearVelocity();
+            _rigidbody.SetLinearVelocity(Vector2.zero);
             _rigidbody.bodyType    = RigidbodyType2D.Kinematic;
             _changedGravity        = true;
 
@@ -218,7 +218,7 @@ namespace GGemCo2DControl
                             break;
                         }
                         PlayIfHas(AnimLadderWait);
-                        _rigidbody.linearVelocity = Vector2.zero;
+                        _rigidbody.SetLinearVelocity(Vector2.zero);
                         break;
                     }
 
@@ -247,7 +247,7 @@ namespace GGemCo2DControl
                     else
                     {
                         PlayIfHas(AnimLadderWait);
-                        _rigidbody.linearVelocity = Vector2.zero;
+                        _rigidbody.SetLinearVelocity(Vector2.zero);
                     }
                     break;
                 }
@@ -358,7 +358,7 @@ namespace GGemCo2DControl
 
                 case ClimbPhase.WaitLoop:
                     if (_hasWait) PlayIfHas(AnimLadderWait);
-                    _rigidbody.linearVelocity = Vector2.zero;
+                    _rigidbody.SetLinearVelocity(Vector2.zero);
                     break;
 
                 case ClimbPhase.UpLoop:
@@ -488,7 +488,7 @@ namespace GGemCo2DControl
             if (_changedGravity && _rigidbody != null)
             {
                 _rigidbody.gravityScale   = _prevGravityScale;
-                _rigidbody.linearVelocity = _velocityCache;
+                _rigidbody.SetLinearVelocity(_velocityCache);
                 _rigidbody.bodyType       = RigidbodyType2D.Dynamic;
             }
             _changedGravity = false;
@@ -513,7 +513,7 @@ namespace GGemCo2DControl
                 if (restoreGravity && _changedGravity && _rigidbody != null)
                 {
                     _rigidbody.gravityScale   = _prevGravityScale;
-                    _rigidbody.linearVelocity = _velocityCache;
+                    _rigidbody.SetLinearVelocity(_velocityCache);
                     _rigidbody.bodyType       = RigidbodyType2D.Dynamic;
                 }
                 _changedGravity = false;

@@ -164,8 +164,8 @@ namespace GGemCo2DControl
             _rb.gravityScale  = _baseGravityScale;
             _changedGravity   = true;
 
-            float vy = Mathf.Max(_rb.linearVelocity.y, _jumpVelocityY);
-            _rb.linearVelocity = new Vector2(_rb.linearVelocity.x, vy);
+            float vy = Mathf.Max(_rb.GetLinearVelocity().y, _jumpVelocityY);
+            _rb.SetLinearVelocity(new Vector2(_rb.GetLinearVelocity().x, vy));
 
             EnterPhase(JumpPhase.StartOneShot); // jump(1회) 시작
         }
@@ -201,7 +201,7 @@ namespace GGemCo2DControl
                     _airborneTime += Time.deltaTime;
 
                     // 충분히 공중 상태가 지속되고, 실제로 하강 중일 때만 낙하 인정
-                    if (_airborneTime >= CoyoteThreshold && _rb.linearVelocity.y <= MinFallSpeedY)
+                    if (_airborneTime >= CoyoteThreshold && _rb.GetLinearVelocity().y <= MinFallSpeedY)
                     {
                         // 전투 등 방해 상태는 존중
                         if (!actionCharacterBase.IsStatusAttack() && !actionCharacterBase.IsStatusAttackComboWait())
@@ -226,7 +226,7 @@ namespace GGemCo2DControl
             // --- 기존 점프 FSM 로직 ---
             if (_phase == JumpPhase.None) { _wasGrounded = grounded; return; }
 
-            float vy = _rb.linearVelocity.y;
+            float vy = _rb.GetLinearVelocity().y;
 
             switch (_phase)
             {

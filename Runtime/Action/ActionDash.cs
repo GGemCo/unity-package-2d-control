@@ -175,9 +175,9 @@ namespace GGemCo2DControl
 
                 if (dt > 0f)
                 {
-                    var v = _rb.linearVelocity;
+                    var v = _rb.GetLinearVelocity();
                     v.x = _dashDir.x * (deltaDist / dt);
-                    _rb.linearVelocity = new Vector2(v.x, 0);
+                    _rb.SetLinearVelocity(new Vector2(v.x, 0));
                 }
 
                 _moved += deltaDist;
@@ -221,7 +221,7 @@ namespace GGemCo2DControl
 
                 case DashPhase.EndOneShot:
                     // 여기서는 중력 원복을 하지 않습니다. (엔딩 재생 후 FinishAndStop에서 복구)
-                    _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
+                    _rb.SetLinearVelocity(new Vector2(0f, _rb.GetLinearVelocity().y));
                     if (_hasEnd)
                     {
                         PlayAnimSafe(AnimDashEnd);
@@ -352,7 +352,7 @@ namespace GGemCo2DControl
 
             if (skipEndAnimation || !_hasEnd)
             {
-                _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
+                _rb.SetLinearVelocity(new Vector2(0f, _rb.GetLinearVelocity().y));
                 _phase  = DashPhase.None;
                 _isBusy = false;
 

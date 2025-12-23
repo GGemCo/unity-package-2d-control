@@ -149,9 +149,9 @@ namespace GGemCo2DControl
 
             _objectPushPullCollider2D.isTrigger = false;
             
-            _origPlayerDrag = _playerRb.linearDamping;
-            _origPlayerVel  = _playerRb.linearVelocity;
-
+            _origPlayerDrag = _playerRb.GetLinearDamping();
+            _origPlayerVel  = _playerRb.GetLinearVelocity();
+            
             // 어느 쪽을 잡았는지 판정 후 스냅
             DecideGripSideAndSnapToEdge();
 
@@ -364,22 +364,24 @@ namespace GGemCo2DControl
             else
             {
                 // 이동 불가 시 박스 속도 감쇠
-                _objectPushPullRigidbody2D.linearVelocity = new Vector2(0f, _objectPushPullRigidbody2D.linearVelocity.y);
+                _objectPushPullRigidbody2D.SetLinearVelocity(new Vector2(0f, _objectPushPullRigidbody2D.GetLinearVelocity().y));
             }
 
             // 3) 박스 최신 바운즈 기준으로 플레이어를 모서리에 스냅(항상 붙여 유지)
             SnapPlayerToBoxEdge(_gripSide);
 
             // 4) 캐릭터의 수직 속도는 보존(점프 방지용이면 0으로)
-            _playerRb.linearVelocity = new Vector2(0f, _playerRb.linearVelocity.y);
+            _playerRb.SetLinearVelocity(new Vector2(0f, _playerRb.GetLinearVelocity().y));
         }
 
         private void DampVelocities()
         {
             // GcLogger.Log($"DampVelocities");
             // 박스/플레이어의 수평 속도 제거하여 정지 안정화
-            if (_objectPushPullRigidbody2D != null)     _objectPushPullRigidbody2D.linearVelocity     = new Vector2(0f, _objectPushPullRigidbody2D.linearVelocity.y);
-            if (_playerRb != null)  _playerRb.linearVelocity  = new Vector2(0f, _playerRb.linearVelocity.y);
+            if (_objectPushPullRigidbody2D != null)     
+                _objectPushPullRigidbody2D.SetLinearVelocity(new Vector2(0f, _objectPushPullRigidbody2D.GetLinearVelocity().y));
+            if (_playerRb != null)  
+                _playerRb.SetLinearVelocity(new Vector2(0f, _playerRb.GetLinearVelocity().y));
 
             // 플레이어는 모서리에 계속 스냅
             if (_objectPushPullCollider2D != null) SnapPlayerToBoxEdge(_gripSide);
@@ -430,8 +432,8 @@ namespace GGemCo2DControl
             IsPushing = false;
 
             // 플레이어 물리 복구
-            _playerRb.linearDamping = _origPlayerDrag;
-            _playerRb.linearVelocity = _origPlayerVel;
+            _playerRb.SetLinearDamping(_origPlayerDrag);
+            _playerRb.SetLinearVelocity(_origPlayerVel);
             
             _objectPushPullCollider2D.isTrigger = true;
 
