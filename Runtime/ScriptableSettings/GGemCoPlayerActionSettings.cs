@@ -36,6 +36,8 @@ namespace GGemCo2DControl
         public float jumpHeight;
         [Tooltip("지면에서 최고점까지 도달하는 시간 (초)")]
         public float jumpSpeed;
+        [Tooltip("스킬 사용 중 점프 가능 여부")]
+        public bool canJumpUseSkill;
 
         [Header("대시")]
         [Tooltip("대시 거리 (월드 유닛)")]
@@ -52,6 +54,8 @@ namespace GGemCo2DControl
         public bool canJumpPlayDashing;
         [Tooltip("점프 중 대시 가능 여부")]
         public bool canDashPlayJumping;
+        [Tooltip("스킬 사용 중 대시 가능 여부")]
+        public bool canDashUseSkill;
 
         [Header("등반")]
         [Tooltip("기본 등반 속도 비율 (플레이어 이동 속도 기준)\n예: 1=100%, 0.5=50%\n※ 오브젝트 값이 0보다 크면 그 값을 우선 사용")]

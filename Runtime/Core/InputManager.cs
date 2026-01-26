@@ -49,6 +49,9 @@ namespace GGemCo2DControl
         private bool _canJumpPlayClimbing;
         private bool _canDashPlayClimbing;
         
+        private bool _canJumpUseSkill;
+        private bool _canDashUseSkill;
+        
         // === 추가 필드 ===
         private InteractionScanner2D _scanner;
         private InputAction _inputActionInteraction;
@@ -110,6 +113,9 @@ namespace GGemCo2DControl
             _canClimbingPlayJumping = _playerActionSettings.canClimbingPlayJumping;
             _canJumpPlayClimbing = _playerActionSettings.canJumpPlayClimbing;
             _canDashPlayClimbing = _playerActionSettings.canDashPlayClimbing;
+            
+            _canJumpUseSkill = _playerActionSettings.canJumpUseSkill;
+            _canDashUseSkill = _playerActionSettings.canDashUseSkill;
         }
 
         private void InitializeControls()
@@ -276,6 +282,10 @@ namespace GGemCo2DControl
         {
             if (_characterBase.IsStatusDead()) return;
             
+            // todo. 정리 필요
+            if (_characterBase.IsStatusCastingSkill()) return;
+            if (_characterBase.IsStatusUseSkill()) return;
+            
             // 1) 점프/낙하 상태 전이 및 착지 처리: 항상 호출
             //    - 점프 입력 유무와 관계없이 클리프 폴, 정점 전환, 착지 엔딩 등을 내부에서 처리
             _actionJump.Update();
@@ -417,6 +427,23 @@ namespace GGemCo2DControl
                 GcLogger.Log($"밀기 중 점프는 불가능 합니다.");
                 return;
             }
+            // 스킬 사용 중 점프 가능 여부
+            else if (_characterBase.IsStatusCastingSkill() || _characterBase.IsStatusUseSkill())
+            {
+                // 스킬 사용 중 점프 가능
+                if (_canJumpUseSkill)
+                {
+                    // todo. 스킬 취소
+                    var cancel = _characterBase.GetComponent<ISkillCancelableDriver>();
+                    cancel?.RequestCancelSkill(SkillCancelReason.UserInput);
+                }
+                // 대시 중 공격 불가능
+                else
+                {
+                    GcLogger.Log($"PlayerAction 셋팅에 canJumpUseSkill 값이 false 입니다.");
+                    return;
+                }
+            }
             _actionJump.Jump(ctx);
         }
         public void OnDash(InputAction.CallbackContext ctx)
@@ -460,6 +487,21 @@ namespace GGemCo2DControl
                 GcLogger.Log($"밀기 중 대시는 불가능 합니다.");
                 return;
             }
+            // 스킬 사용 중 대시 가능 여부
+            else if (_characterBase.IsStatusCastingSkill() || _characterBase.IsStatusUseSkill())
+            {
+                if (_canDashUseSkill)
+                {
+                    // todo. 스킬 취소
+                    var cancel = _characterBase.GetComponent<ISkillCancelableDriver>();
+                    cancel?.RequestCancelSkill(SkillCancelReason.UserInput);
+                }
+                else
+                {
+                    GcLogger.Log($"PlayerAction 셋팅에 canDashUseSkill 값이 false 입니다.");
+                    return;
+                }
+            }
 
             _actionDash.Dash(ctx);
         }
@@ -471,6 +513,11 @@ namespace GGemCo2DControl
             if (_characterBase.IsStatusDead()) return;
             // 0) 대시/점프/공격 중 상호작용을 제한하고 싶다면 여기서 리턴
             if (_characterBase.IsStatusDash() || _characterBase.IsStatusAttack())
+            {
+                return;
+            }
+            // 스킬 사용 중 상호작용을 제한하고 싶다면 여기서 리턴
+            if (_characterBase.IsStatusCastingSkill() || _characterBase.IsStatusUseSkill())
             {
                 return;
             }

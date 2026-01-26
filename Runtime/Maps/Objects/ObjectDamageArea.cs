@@ -8,7 +8,7 @@ namespace GGemCo2DControl
     /// </summary>
     public class ObjectDamageArea : DefaultMapObject
     {
-        public SkillConstants.DamageType damageType;
+        public ConfigCommon.DamageType damageType;
         public long damage;
         public int affectUid;
         private Collider2D _col;

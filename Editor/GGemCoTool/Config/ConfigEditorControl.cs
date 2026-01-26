@@ -26,7 +26,7 @@ namespace GGemCo2DControlEditor
         private const string NameToolDevelopment = NameToolGGemCo + "개발툴/";
         
         // 테스트
-        private const string NameToolTest = NameToolGGemCo + "태스트툴/";
+        private const string NameToolTest = NameToolGGemCo + "테스트툴/";
         
         // etc
         private const string NameToolEtc = NameToolGGemCo + "기타/";
