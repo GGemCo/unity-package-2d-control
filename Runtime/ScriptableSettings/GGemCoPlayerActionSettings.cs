@@ -32,12 +32,16 @@ namespace GGemCo2DControl
         public bool canMoveVertical;
 
         [Header("점프")]
+        [Tooltip("점프 애니메이션 prefix (예: jump)")]
+        public string prefixJumpAnimation = "jump";
         [Tooltip("최고 점프 높이 (월드 유닛)")]
         public float jumpHeight;
         [Tooltip("지면에서 최고점까지 도달하는 시간 (초)")]
         public float jumpSpeed;
         [Tooltip("스킬 사용 중 점프 가능 여부")]
         public bool canJumpUseSkill;
+        [Tooltip("점프 중 공격 가능 여부")]
+        public bool canAttackPlayJump;
 
         [Header("대시")]
         [Tooltip("대시 거리 (월드 유닛)")]

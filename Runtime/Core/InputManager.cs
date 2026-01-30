@@ -51,6 +51,7 @@ namespace GGemCo2DControl
         
         private bool _canJumpUseSkill;
         private bool _canDashUseSkill;
+        private bool _canAttackPlayJump;
         
         // === 추가 필드 ===
         private InteractionScanner2D _scanner;
@@ -116,6 +117,7 @@ namespace GGemCo2DControl
             
             _canJumpUseSkill = _playerActionSettings.canJumpUseSkill;
             _canDashUseSkill = _playerActionSettings.canDashUseSkill;
+            _canAttackPlayJump = _playerActionSettings.canAttackPlayJump;
         }
 
         private void InitializeControls()
@@ -370,11 +372,20 @@ namespace GGemCo2DControl
                     return;
                 }
             }
-            // 점프 중 공격 불가능
+            // 점프 중 공격 
             else if (_characterBase.IsStatusJump() && _actionJump.IsJumping)
             {
-                GcLogger.Log($"점프 중 공격은 불가능 합니다.");
-                return;
+                // 점프 중 공격 가능
+                if (_canAttackPlayJump)
+                {
+                    _actionJump.CancelJump(true);
+                }
+                // 점프 중 공격 불가능
+                else
+                {
+                    GcLogger.Log($"PlayerAction 셋팅에 CanAttackPlayJump 값이 false 입니다.");
+                    return;
+                }
             }
             // 등반 중 공격 불가능
             else if (_characterBase.IsStatusClimb() && _actionClimb.IsClimbing)

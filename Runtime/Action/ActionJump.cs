@@ -48,12 +48,12 @@ namespace GGemCo2DControl
         private float _awaitingDeadline;
         private const float DefaultOneshotTimeout = 0.2f; // 클립 길이를 못 구하면 사용
 
-        // --- 애니메이션 이름 ---
-        private const string AnimJumpStart      = "jump";
-        private const string AnimJumpUpLoop     = "jump_up";
-        private const string AnimJumpChangeFall = "jump_change_fall";
-        private const string AnimJumpFallLoop   = "jump_fall";
-        private const string AnimJumpEnd        = "jump_end";
+        // --- 애니메이션 이름 (Settings 기반) ---
+        private string _animJumpStart;
+        private string _animJumpUpLoop;
+        private string _animJumpChangeFall;
+        private string _animJumpFallLoop;
+        private string _animJumpEnd;
 
         // --- Ground Layer ---
         private LayerMask _groundMask;
@@ -98,13 +98,6 @@ namespace GGemCo2DControl
 
             actionCharacterBase.OnAnimationEventJump += OnAnimationEventJump;
             
-            // 보유 여부 캐시
-            _hasStart      = HasAnimation(AnimJumpStart);
-            _hasUp         = HasAnimation(AnimJumpUpLoop);
-            _hasChangeFall = HasAnimation(AnimJumpChangeFall);
-            _hasFall       = HasAnimation(AnimJumpFallLoop);
-            _hasEnd        = HasAnimation(AnimJumpEnd);
-            
             _wasGrounded = IsGroundedByCollision();
             _airborneTime = 0f;
             _changedGravity = false;
@@ -125,15 +118,45 @@ namespace GGemCo2DControl
             }
 
             RecalculatePhysicsConstants(_desiredJumpHeight, _timeToApex);
+            
+            ApplyJumpAnimationNames();
+            RefreshJumpAnimationAvailability();
         }
 
+        private void ApplyJumpAnimationNames()
+        {
+            // Settings가 없거나 값이 비어있으면 기본값으로 폴백
+            var prefix = playerActionSettings != null && !string.IsNullOrWhiteSpace(playerActionSettings.prefixJumpAnimation)
+                ? playerActionSettings.prefixJumpAnimation
+                : "moveset_running_jump";
+
+            _animJumpStart      = prefix;
+            _animJumpUpLoop     = prefix + "_up";
+            _animJumpChangeFall = prefix + "_change_fall";
+            _animJumpFallLoop   = prefix + "_fall";
+            _animJumpEnd        = prefix + "_end";
+        }
+        private void RefreshJumpAnimationAvailability()
+        {
+            // 캐릭터 애니메이션 컨트롤러 기준으로 존재 여부 캐시
+            _hasStart      = HasAnimation(_animJumpStart);
+            _hasUp         = HasAnimation(_animJumpUpLoop);
+            _hasChangeFall = HasAnimation(_animJumpChangeFall);
+            _hasFall       = HasAnimation(_animJumpFallLoop);
+            _hasEnd        = HasAnimation(_animJumpEnd);
+        }
         public void Configure(float desiredJumpHeight, float timeToApex)
         {
             RecalculatePhysicsConstants(desiredJumpHeight, timeToApex);
+            
+            ApplyJumpAnimationNames();
+            RefreshJumpAnimationAvailability();
         }
 
         private void RecalculatePhysicsConstants(float desiredJumpHeight, float timeToApex)
         {
+            ApplyJumpAnimationNames();
+            RefreshJumpAnimationAvailability();
             _desiredJumpHeight = Mathf.Max(0.01f, desiredJumpHeight);
             _timeToApex        = Mathf.Max(0.05f,  timeToApex);
 
@@ -266,7 +289,7 @@ namespace GGemCo2DControl
             if (_phase != JumpPhase.StartOneShot) return;
             ClearAwaiting();
             // 상승 루프 진입 (없으면 전환만)
-            if (_hasUp) PlayAnimSafe(AnimJumpUpLoop);
+            if (_hasUp) PlayAnimSafe(_animJumpUpLoop);
             _phase = JumpPhase.UpLoop;
         }
 
@@ -275,7 +298,7 @@ namespace GGemCo2DControl
             if (_phase != JumpPhase.ApexChange) return;
             ClearAwaiting();
             // 하강 루프 진입 (없으면 전환만)
-            if (_hasFall) PlayAnimSafe(AnimJumpFallLoop);
+            if (_hasFall) PlayAnimSafe(_animJumpFallLoop);
             _phase = JumpPhase.FallLoop;
         }
 
@@ -298,8 +321,8 @@ namespace GGemCo2DControl
                 case JumpPhase.StartOneShot:
                     if (_hasStart)
                     {
-                        PlayAnimSafe(AnimJumpStart);
-                        StartAwaiting(next, AnimJumpStart);
+                        PlayAnimSafe(_animJumpStart);
+                        StartAwaiting(next, _animJumpStart);
                     }
                     else
                     {
@@ -309,15 +332,15 @@ namespace GGemCo2DControl
                     break;
 
                 case JumpPhase.UpLoop:
-                    if (_hasUp) PlayAnimSafe(AnimJumpUpLoop);
+                    if (_hasUp) PlayAnimSafe(_animJumpUpLoop);
                     // 루프는 이벤트 대기 없음
                     break;
 
                 case JumpPhase.ApexChange:
                     if (_hasChangeFall)
                     {
-                        PlayAnimSafe(AnimJumpChangeFall);
-                        StartAwaiting(next, AnimJumpChangeFall);
+                        PlayAnimSafe(_animJumpChangeFall);
+                        StartAwaiting(next, _animJumpChangeFall);
                     }
                     else
                     {
@@ -327,14 +350,14 @@ namespace GGemCo2DControl
                     break;
 
                 case JumpPhase.FallLoop:
-                    if (_hasFall) PlayAnimSafe(AnimJumpFallLoop);
+                    if (_hasFall) PlayAnimSafe(_animJumpFallLoop);
                     break;
 
                 case JumpPhase.LandOneShot:
                     if (_hasEnd)
                     {
-                        PlayAnimSafe(AnimJumpEnd);
-                        StartAwaiting(next, AnimJumpEnd);
+                        PlayAnimSafe(_animJumpEnd);
+                        StartAwaiting(next, _animJumpEnd);
                     }
                     else
                     {
