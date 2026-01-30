@@ -1,4 +1,4 @@
-﻿using System.Linq;
+using System.Linq;
 using GGemCo2DCore;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -62,6 +62,9 @@ namespace GGemCo2DControl
         // UI 클릭시 툴 사용 금지용
         private bool _pendingSimulationTool;
         private InputAction.CallbackContext _pendingSimCtx;
+
+        // AutoMove(Core)
+        private IAutoMoveVectorProvider _autoMoveProvider;
         
         private void Awake()
         {
@@ -83,6 +86,9 @@ namespace GGemCo2DControl
             }
 
             _characterBaseController = GetComponent<CharacterBaseController>();
+
+            // AutoMove: 이동 벡터 오버라이드/입력 잠금 제공자
+            _autoMoveProvider = GetComponent<IAutoMoveVectorProvider>();
 
             if (_characterBase.colliderHitArea)
             {
@@ -277,6 +283,17 @@ namespace GGemCo2DControl
             // 최후의 보루(플랫폼에 따라 동작)
             return EventSystem.current.IsPointerOverGameObject();
         }
+
+        private bool TryBlockByAutoMove(AutoMoveInputType inputType, Vector2 value)
+        {
+            if (_autoMoveProvider == null || !_autoMoveProvider.IsAutoMoveActive) return false;
+
+            // 취소 정책 적용을 위해 입력을 통지한다.
+            _autoMoveProvider.NotifyPlayerInput(inputType, value);
+
+            // 입력 차단 여부는 Provider가 전역 설정 및 요청 정책을 반영하여 결정한다.
+            return _autoMoveProvider.ShouldBlockInput(inputType);
+        }
         /// <summary>
         /// Rigidbody를 사용하므로 FixedUpdate로 처리
         /// </summary>
@@ -296,7 +313,23 @@ namespace GGemCo2DControl
             // 2) 이동 입력 읽기
             // ActionClimb 에서 사용하고 있음
             // ActionPushPull 에서 사용하고 있음
-            Vector2 move = _inputActionMove.ReadValue<Vector2>();
+            Vector2 rawMove = _inputActionMove.ReadValue<Vector2>();
+
+            // AutoMove: 활성화된 경우 이동 벡터를 오버라이드한다.
+            // - 수동 입력이 들어오면 Core(Provider)에게 통지하여 취소 정책을 적용할 수 있다.
+            Vector2 move = rawMove;
+            if (_autoMoveProvider != null && _autoMoveProvider.IsAutoMoveActive)
+            {
+                if (rawMove != Vector2.zero)
+                {
+                    _autoMoveProvider.NotifyPlayerInput(AutoMoveInputType.Move, rawMove);
+                }
+
+                if (_autoMoveProvider.IsAutoMoveActive)
+                {
+                    move = _autoMoveProvider.GetMoveVector();
+                }
+            }
             
             _actionClimb.Update();
             _actionPushPull.Update();
@@ -357,6 +390,7 @@ namespace GGemCo2DControl
         }
         public void OnAttack(InputAction.CallbackContext ctx)
         {
+            if (TryBlockByAutoMove(AutoMoveInputType.Attack, Vector2.zero)) return;
             if (_characterBase.IsStatusDead()) return;
             if (_characterBase.IsStatusDash() && _actionDash.IsDashing)
             {
@@ -403,6 +437,7 @@ namespace GGemCo2DControl
         }
         public void OnJump(InputAction.CallbackContext ctx)
         {
+            if (TryBlockByAutoMove(AutoMoveInputType.Jump, Vector2.zero)) return;
             if (_characterBase.IsStatusDead()) return;
             if (_characterBase.IsStatusDash() && _actionDash.IsDashing)
             {
@@ -459,6 +494,7 @@ namespace GGemCo2DControl
         }
         public void OnDash(InputAction.CallbackContext ctx)
         {
+            if (TryBlockByAutoMove(AutoMoveInputType.Dash, Vector2.zero)) return;
             if (_characterBase.IsStatusDead()) return;
             if (_characterBase.IsStatusJump())
             {
@@ -521,6 +557,7 @@ namespace GGemCo2DControl
         /// </summary>
         private void OnInteraction(InputAction.CallbackContext ctx)
         {
+            if (TryBlockByAutoMove(AutoMoveInputType.Interaction, Vector2.zero)) return;
             if (_characterBase.IsStatusDead()) return;
             // 0) 대시/점프/공격 중 상호작용을 제한하고 싶다면 여기서 리턴
             if (_characterBase.IsStatusDash() || _characterBase.IsStatusAttack())
@@ -565,6 +602,7 @@ namespace GGemCo2DControl
         /// </summary>
         private void OnSimulationTool(InputAction.CallbackContext ctx)
         {
+            if (TryBlockByAutoMove(AutoMoveInputType.SimulationTool, Vector2.zero)) return;
             if (!ctx.performed) return;
             if (_toolAction == null)
             {
