@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using GGemCo2DCore;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -72,7 +72,8 @@ namespace GGemCo2DControl
         private bool _changedGravity; // Jump()에서 true, cliff-fall은 false
         // 클래스 필드
         private System.Func<bool> _isDashActive; // 외부(대시)에서 현재 대시 중인지 질의
-        
+        private System.Func<bool> _isWallActionActive; // 외부(벽 액션)에서 현재 벽 상태인지 질의
+
         public override void Initialize(InputManager inputManager, CharacterBase characterBase, CharacterBaseController characterBaseController)
         {
             base.Initialize(inputManager, characterBase, characterBaseController);
@@ -153,6 +154,49 @@ namespace GGemCo2DControl
             RefreshJumpAnimationAvailability();
         }
 
+        /// <summary>
+        /// 외부 시스템(예: WallJumpEnd)에서 Jump FSM으로 제어권을 인계할 때 사용합니다.
+        /// - Height/Speed 기반으로 점프 상수를 재계산하고, Jump 상태를 강제 진입합니다.
+        /// - 착지 시 LandOneShot 단계가 정상 동작하도록 Jump FSM을 활성화합니다.
+        /// </summary>
+        /// <param name="initialVelocity">인계 시점의 초기 속도(수평 포함). y는 Height/Speed에 맞춘 최소 vy를 보장합니다.</param>
+        /// <param name="desiredJumpHeight">정점 높이(월드 유닛)</param>
+        /// <param name="timeToApex">정점까지 시간(초)</param>
+        /// <param name="playStartOneShot">true면 StartOneShot을 재생(기본 false: UpLoop/FallLoop로 바로 진입)</param>
+        public void BeginJumpFromExternal(Vector2 initialVelocity, float desiredJumpHeight, float timeToApex, bool playStartOneShot)
+        {
+            if (_rb == null) return;
+
+            // Jump 물리 상수 재계산
+            RecalculatePhysicsConstants(desiredJumpHeight, timeToApex);
+
+            // Jump 상태로 전환(착지 처리 포함)
+            if (!actionCharacterBase.IsStatusJump())
+                actionCharacterBase.SetStatusJump();
+
+            // 중력 스케일 변경 및 복구 대상 표시
+            _prevGravityScale = _rb.gravityScale;
+            _rb.gravityScale = _baseGravityScale;
+            _changedGravity = true;
+
+            // Height/Speed에 맞춘 최소 vy를 보장
+            float vy = Mathf.Max(initialVelocity.y, _jumpVelocityY);
+            _rb.SetLinearVelocity(new Vector2(initialVelocity.x, vy));
+
+            // Phase 진입
+            if (playStartOneShot && _hasStart)
+            {
+                EnterPhase(JumpPhase.StartOneShot);
+                return;
+            }
+
+            // 이미 공중 인계이므로 Up/Fall 루프로 바로 진입
+            if (_rb.GetLinearVelocity().y > 0.01f && _hasUp)
+                EnterPhase(JumpPhase.UpLoop);
+            else
+                EnterPhase(JumpPhase.FallLoop);
+        }
+
         private void RecalculatePhysicsConstants(float desiredJumpHeight, float timeToApex)
         {
             ApplyJumpAnimationNames();
@@ -202,6 +246,16 @@ namespace GGemCo2DControl
         public void Update()
         {
             if (_rb == null) return;
+
+            // 벽 액션(매달림/미끄러짐)이 활성 상태면 Jump FSM의 낙하/착지 전이를 강제하지 않는다.
+            // (벽 액션이 velocity/gravity를 별도 제어하기 때문)
+            if (_isWallActionActive != null && _isWallActionActive())
+            {
+                _airborneTime = 0f;
+                _wasGrounded = IsGroundedByCollision();
+                return;
+            }
+
             
             // --- 대시 중이면 점프 FSM의 '클리프 낙하 감지/상태 전환'을 잠시 중단 ---
             //  - 점프 상태가 아니고(_phase == None), 대시 중일 때 불필요한 Jump 상태 진입을 차단
@@ -485,6 +539,11 @@ namespace GGemCo2DControl
         public void SetDashActiveQuery(System.Func<bool> query)
         {
             _isDashActive = query;
+        }
+
+        public void SetWallActionActiveQuery(System.Func<bool> query)
+        {
+            _isWallActionActive = query;
         }
     }
 }

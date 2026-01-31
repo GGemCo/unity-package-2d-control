@@ -6,7 +6,7 @@ namespace GGemCo2DControl
     {
         // --- 외부 참조 ---
         protected InputManager actionInputManager;
-        protected CharacterBase actionCharacterBase;
+        public CharacterBase actionCharacterBase;
         protected CharacterBaseController actionCharacterBaseController;
         protected GGemCoPlayerActionSettings playerActionSettings;
 

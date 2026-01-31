@@ -39,6 +39,9 @@ namespace GGemCo2DControl
         private IToolAction _toolAction;
         private InputAction _inputActionSimulationTool;
 
+        // === Wall Action (Phase 기반 통합) ===
+        private ActionWall _actionWall;
+
         private bool _canAttackPlayDashing;
         private bool _canMovePlayDashing;
         private bool _canJumpPlayDashing;
@@ -150,6 +153,26 @@ namespace GGemCo2DControl
             
             // 대시 진행 여부를 점프에 전달
             _actionJump.SetDashActiveQuery(() => _actionDash.IsDashing);
+
+            // Wall Action (Phase 기반)
+            _actionWall = new ActionWall();
+            _actionWall.Initialize(this, _characterBase, _characterBaseController);
+
+#if UNITY_EDITOR
+            // Wall Action 디버그 Gizmo(레이 캐스트) 렌더링 프록시 바인딩
+            if (_playerActionSettings.enableWallDebugGizmos)
+            {
+                var wallDebug = GetComponent<ActionWallDebugDrawer>();
+                if (wallDebug == null)
+                {
+                    wallDebug = ControlPackageManager.Instance.gameObject.AddComponent<ActionWallDebugDrawer>();
+                }
+
+                wallDebug.Bind(_actionWall, _playerActionSettings);
+            }
+#endif
+            // 벽 액션 진행 여부를 점프에 전달(클리프 폴/착지 전이 충돌 방지)
+            _actionJump.SetWallActionActiveQuery(() => _actionWall != null && (_actionWall.IsWallLocked || _actionWall.IsKinematicWallJumping));
         }
 
         private void InitializeInputPlayer()
@@ -209,6 +232,8 @@ namespace GGemCo2DControl
             _actionMove?.OnDestroy();
             _actionJump?.OnDestroy();
             _actionDash?.OnDestroy();
+
+            _actionWall?.OnDestroy();
 
             if (_actionClimb != null)
             {
@@ -305,6 +330,25 @@ namespace GGemCo2DControl
             if (_characterBase.IsStatusCastingSkill()) return;
             if (_characterBase.IsStatusUseSkill()) return;
             
+            // === Kinematic Wall Jump 우선 처리 ===
+            // 벽 점프를 Kinematic으로 처리하는 동안에는 기존 Jump/Move 시스템이 물리값을 덮어쓰지 않도록 한다.
+            if (_actionWall != null && _actionWall.IsKinematicWallJumping)
+            {
+                // Kinematic Wall Jump가 진행 중이면, 다른 물리 로직이 덮어쓰지 않도록 우선 처리한다.
+                Vector2 rawMoveForWallJump = _inputActionMove.ReadValue<Vector2>();
+                Vector2 moveForWallJump = rawMoveForWallJump;
+                if (_autoMoveProvider != null && _autoMoveProvider.IsAutoMoveActive)
+                {
+                    if (rawMoveForWallJump != Vector2.zero)
+                        _autoMoveProvider.NotifyPlayerInput(AutoMoveInputType.Move, rawMoveForWallJump);
+
+                    if (_autoMoveProvider.IsAutoMoveActive)
+                        moveForWallJump = _autoMoveProvider.GetMoveVector();
+                }
+
+                _actionWall.FixedTick(moveForWallJump);
+                return;
+            }
             // 1) 점프/낙하 상태 전이 및 착지 처리: 항상 호출
             //    - 점프 입력 유무와 관계없이 클리프 폴, 정점 전환, 착지 엔딩 등을 내부에서 처리
             _actionJump.Update();
@@ -330,11 +374,22 @@ namespace GGemCo2DControl
                     move = _autoMoveProvider.GetMoveVector();
                 }
             }
-            
+
+            // 3) Wall Action 업데이트(공중에서만 작동)
+            _actionWall?.FixedTick(move);
+
+            // Hang/Slide 중에는 일반 이동/점프 이동 처리를 막는다(벽 고정/슬라이드가 우선)
+            if (_actionWall != null && _actionWall.IsWallLocked)
+            {
+                // 공격/대시 등 다른 입력은 OnAttack/OnDash에서 별도 정책으로 처리한다.
+                return;
+            }
+
+            // 4) 기타 상호작용/푸시풀/등반 업데이트
             _actionClimb.Update();
             _actionPushPull.Update();
 
-            // 3) 전투/피격 등 제약 상태면 이동/입력 처리만 제한 (물리/낙하 전이는 위에서 이미 처리됨)
+            // 5) 전투/피격 등 제약 상태면 이동 처리 제한
             if (_characterBase.IsStatusAttack()) return;
             if (_characterBase.IsStatusAttackComboWait()) return;
             if (_characterBase.IsStatusDamage()) return;
@@ -342,7 +397,7 @@ namespace GGemCo2DControl
             if (_characterBase.IsStatusPush()) return;
             if (_characterBase.IsStatusSimulationTool()) return;
 
-            // 4) 점프/낙하 중 이동 처리
+            // 6) 점프/낙하 중 이동 처리
             if (_characterBase.IsStatusJump())
             {
                 if (move != Vector2.zero)
@@ -351,7 +406,8 @@ namespace GGemCo2DControl
                 }
                 return;
             }
-            // 5) 대시 중 이동 처리
+
+            // 7) 대시 중 이동 처리
             if (_characterBase.IsStatusDash())
             {
                 // 이동 키를 조작했을 때, 땅에 있을때만 이동하기
@@ -364,7 +420,7 @@ namespace GGemCo2DControl
                 return;
             }
 
-            // 6) 지상 이동/정지 처리
+            // 8) 지상 이동/정지 처리
             if (move != Vector2.zero)
             {
                 OnMoveContinuous(move);
@@ -392,6 +448,14 @@ namespace GGemCo2DControl
         {
             if (TryBlockByAutoMove(AutoMoveInputType.Attack, Vector2.zero)) return;
             if (_characterBase.IsStatusDead()) return;
+
+            // 벽 상태 중 공격 정책(현재는 금지)
+            if (_actionWall != null && _actionWall.IsWallLocked)
+            {
+                GcLogger.Log("벽 매달림/미끄러짐 중 공격은 불가능 합니다.");
+                return;
+            }
+
             if (_characterBase.IsStatusDash() && _actionDash.IsDashing)
             {
                 // 대시 중 공격 가능
@@ -439,6 +503,14 @@ namespace GGemCo2DControl
         {
             if (TryBlockByAutoMove(AutoMoveInputType.Jump, Vector2.zero)) return;
             if (_characterBase.IsStatusDead()) return;
+
+            // 벽 매달림/미끄러짐 중에는 벽 점프로 라우팅
+            if (_actionWall != null && _actionWall.IsWallLocked)
+            {
+                _actionWall.OnJump(ctx);
+                return;
+            }
+
             if (_characterBase.IsStatusDash() && _actionDash.IsDashing)
             {
                 // 대시 중 점프 가능
@@ -496,6 +568,14 @@ namespace GGemCo2DControl
         {
             if (TryBlockByAutoMove(AutoMoveInputType.Dash, Vector2.zero)) return;
             if (_characterBase.IsStatusDead()) return;
+
+            // 벽 상태 중 대시 정책(현재는 금지)
+            if (_actionWall != null && _actionWall.IsWallLocked)
+            {
+                GcLogger.Log("벽 매달림/미끄러짐 중 대시는 불가능 합니다.");
+                return;
+            }
+
             if (_characterBase.IsStatusJump())
             {
                 // 점프 중 대시 가능
@@ -559,6 +639,11 @@ namespace GGemCo2DControl
         {
             if (TryBlockByAutoMove(AutoMoveInputType.Interaction, Vector2.zero)) return;
             if (_characterBase.IsStatusDead()) return;
+
+            // 벽 상태 중 상호작용 제한
+            if (_actionWall != null && _actionWall.IsWallLocked)
+                return;
+
             // 0) 대시/점프/공격 중 상호작용을 제한하고 싶다면 여기서 리턴
             if (_characterBase.IsStatusDash() || _characterBase.IsStatusAttack())
             {
@@ -611,6 +696,13 @@ namespace GGemCo2DControl
             }
 
             if (_characterBase.IsStatusDead()) return;
+
+            if (_actionWall != null && _actionWall.IsWallLocked)
+            {
+                GcLogger.Log("벽 상태 중 시뮬레이션 툴사용은 불가능 합니다.");
+                return;
+            }
+
             if (_characterBase.IsStatusDash() && _actionDash.IsDashing)
             {
                 GcLogger.Log("대시 중 시뮬레이션 툴사용은 불가능 합니다.");
@@ -706,6 +798,9 @@ namespace GGemCo2DControl
             _actionPushPull?.Cancel();
 
             _toolAction?.Cancel(); //  툴 지속 상태 강제 종료
+
+            _actionWall?.CancelWall(restorePrevious: true);
+
         }
         public void SetToolAction(IToolAction toolAction)
         {
