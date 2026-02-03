@@ -68,6 +68,9 @@ namespace GGemCo2DControl
 
         // AutoMove(Core)
         private IAutoMoveVectorProvider _autoMoveProvider;
+        private IAutoMoveSuspendService _autoMoveSuspend;
+        private AutoMoveSuspendToken _autoMoveSuspendToken;
+        private bool _isWallAutoMoveSuspended;
         
         private void Awake()
         {
@@ -92,6 +95,8 @@ namespace GGemCo2DControl
 
             // AutoMove: 이동 벡터 오버라이드/입력 잠금 제공자
             _autoMoveProvider = GetComponent<IAutoMoveVectorProvider>();
+            // AutoMove: Wall Action 등에서 Pause(Resume 가능한) 처리를 위해 Suspend 서비스도 참조한다.
+            _autoMoveSuspend = GetComponent<IAutoMoveSuspendService>();
 
             if (_characterBase.colliderHitArea)
             {
@@ -319,6 +324,43 @@ namespace GGemCo2DControl
             // 입력 차단 여부는 Provider가 전역 설정 및 요청 정책을 반영하여 결정한다.
             return _autoMoveProvider.ShouldBlockInput(inputType);
         }
+
+        private void OnDisable()
+        {
+            // Wall Action 등에서 AcquireSuspend를 쥐고 있는 상태로 비활성화될 수 있으므로,
+            // 누락 없이 해제한다.
+            if (_autoMoveSuspend != null && _autoMoveSuspendToken.IsValid)
+            {
+                _autoMoveSuspend.ReleaseSuspend(_autoMoveSuspendToken);
+                _autoMoveSuspendToken = AutoMoveSuspendToken.None;
+                _isWallAutoMoveSuspended = false;
+            }
+        }
+
+        private void UpdateAutoMoveSuspendByWall()
+        {
+            if (_actionWall == null || _autoMoveSuspend == null) return;
+
+            bool wallActive = _actionWall.IsWallLocked || _actionWall.IsKinematicWallJumping;
+
+            if (wallActive)
+            {
+                if (!_isWallAutoMoveSuspended)
+                {
+                    _autoMoveSuspendToken = _autoMoveSuspend.AcquireSuspend(AutoMoveSuspendReason.WallAction);
+                    _isWallAutoMoveSuspended = _autoMoveSuspendToken.IsValid;
+                }
+            }
+            else
+            {
+                if (_isWallAutoMoveSuspended)
+                {
+                    _autoMoveSuspend.ReleaseSuspend(_autoMoveSuspendToken);
+                    _autoMoveSuspendToken = AutoMoveSuspendToken.None;
+                    _isWallAutoMoveSuspended = false;
+                }
+            }
+        }
         /// <summary>
         /// Rigidbody를 사용하므로 FixedUpdate로 처리
         /// </summary>
@@ -329,6 +371,9 @@ namespace GGemCo2DControl
             // todo. 정리 필요
             if (_characterBase.IsStatusCastingSkill()) return;
             if (_characterBase.IsStatusUseSkill()) return;
+
+            // Wall Action 진행 중에는 AutoMove를 Pause 한다.
+            UpdateAutoMoveSuspendByWall();
             
             // === Kinematic Wall Jump 우선 처리 ===
             // 벽 점프를 Kinematic으로 처리하는 동안에는 기존 Jump/Move 시스템이 물리값을 덮어쓰지 않도록 한다.

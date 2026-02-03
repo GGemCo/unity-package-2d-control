@@ -28,7 +28,7 @@ namespace GGemCo2DControl
         /// <summary>
         /// 현재 Phase가 벽 점프(Jump)이며, Kinematic 방식으로 점프를 시뮬레이션 중인지 여부를 반환합니다.
         /// </summary>
-        public bool IsKinematicWallJumping => _current is { Id: WallPhaseId.Jump };
+        public bool IsKinematicWallJumping => _current is { Id: WallPhaseId.Jump or WallPhaseId.JumpEnd };
 
         /// <summary>
         /// 현재 Phase가 벽 점프 종료(JumpEnd) 단계인지 여부를 반환합니다.
