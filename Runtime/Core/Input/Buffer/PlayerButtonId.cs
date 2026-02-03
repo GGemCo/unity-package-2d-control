@@ -5,10 +5,12 @@ namespace GGemCo2DControl
     /// </summary>
     internal enum PlayerButtonId
     {
-        Attack = 0,
-        Jump = 1,
-        Dash = 2,
-        Interaction = 3,
-        SimulationTool = 4,
+        Attack,
+        Guard,
+        Jump,
+        Dash,
+        Interaction,
+        SimulationTool,
+        
     }
 }

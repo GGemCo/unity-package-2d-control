@@ -8,8 +8,14 @@ namespace GGemCo2DControl
     /// Player Input Asset에 등록한 키보드, 마우스, 게임 패드등의 입력 처리
     /// Player 에 AddComponent 된다.
     /// </summary>
-    public class InputManager : MonoBehaviour
+    public class InputManager : MonoBehaviour, IAutoMoveMovementDriver
     {
+        /// <summary>
+        /// Control 패키지의 InputManager가 실제 이동 실행(Run/Move)을 담당합니다.
+        /// (AutoMove가 활성화되어도 PlayerAutoMoveController가 Run()을 중복 호출하지 않도록 합니다.)
+        /// </summary>
+        public bool DrivesAutoMoveMovement => true;
+
         private CharacterBase _characterBase;
         private CharacterBaseController _characterBaseController;
 
@@ -24,6 +30,9 @@ namespace GGemCo2DControl
 
         // 공격 처리
         private ActionAttack _actionAttack;
+        
+        // 방어 처리
+        private ActionGuard _actionGuard;
 
         // 점프
         private ActionJump _actionJump;
@@ -60,6 +69,7 @@ namespace GGemCo2DControl
         // 정책/핸들러
         private PlayerInputPolicy _policy;
         private AttackInputHandler _attackHandler;
+        private GuardInputHandler _guardHandler;
         private JumpInputHandler _jumpHandler;
         private DashInputHandler _dashHandler;
 
@@ -170,6 +180,9 @@ namespace GGemCo2DControl
         {
             _actionAttack = new ActionAttack();
             _actionAttack.Initialize(this, _characterBase, _characterBaseController);
+            
+            _actionGuard = new ActionGuard();
+            _actionGuard.Initialize(this, _characterBase, _characterBaseController);
 
             _actionMove = new ActionMove();
             _actionMove.Initialize(this, _characterBase, _characterBaseController);
@@ -237,6 +250,7 @@ namespace GGemCo2DControl
             ApplySettings();
 
             _attackHandler = new AttackInputHandler(_characterBase, _actionAttack, _policy);
+            _guardHandler = new GuardInputHandler(_characterBase, _actionGuard, _policy);
             _jumpHandler = new JumpInputHandler(_characterBase, _actionJump, _actionWall, _policy);
             _dashHandler = new DashInputHandler(_characterBase, _actionDash, _policy);
 
@@ -250,13 +264,21 @@ namespace GGemCo2DControl
 
         private void InitializeInputPlayer()
         {
+            // PlayerInput이 루트가 아닌 자식에 배치된 프로젝트 구성도 흔하므로,
+            // 우선 루트에서 찾고 없으면 자식에서 검색합니다(비활성 포함).
             _playerInput = GetComponent<PlayerInput>();
+            if (!_playerInput)
+            {
+                _playerInput = GetComponentInChildren<PlayerInput>(true);
+            }
             if (!_playerInput) return;
             _bindings = new PlayerInputBindings();
             _bindings.Bind(
                 _playerInput,
                 OnAttackPress,
                 OnAttackRelease,
+                OnGuardPress,
+                OnGuardRelease,
                 OnJumpPress,
                 OnJumpRelease,
                 OnDashPress,
@@ -273,6 +295,7 @@ namespace GGemCo2DControl
         private void OnDestroy()
         {
             _actionAttack?.OnDestroy();
+            _actionGuard?.OnDestroy();
             _actionMove?.OnDestroy();
             _actionJump?.OnDestroy();
             _actionDash?.OnDestroy();
@@ -348,6 +371,12 @@ namespace GGemCo2DControl
             bool wallActive = _actionWall.IsWallLocked || _actionWall.IsKinematicWallJumping;
             _autoMove.TickSuspendByWall(wallActive);
         }
+        private void UpdateAutoMoveSuspendByGuard()
+        {
+            if (_autoMove == null || _actionGuard == null) return;
+            bool guardActive = _actionGuard.IsGuarding;
+            _autoMove.TickSuspendByGuard(guardActive);
+        }
 
         /// <summary>
         /// Rigidbody를 사용하므로 FixedUpdate로 처리
@@ -362,6 +391,7 @@ namespace GGemCo2DControl
 
             // Wall Action 진행 중에는 AutoMove를 Pause 한다.
             UpdateAutoMoveSuspendByWall();
+            UpdateAutoMoveSuspendByGuard();
 
             // === Kinematic Wall Jump 우선 처리 ===
             // 벽 점프를 Kinematic으로 처리하는 동안에는 기존 Jump/Move 시스템이 물리값을 덮어쓰지 않도록 한다.
@@ -373,6 +403,11 @@ namespace GGemCo2DControl
                 Vector2 moveForWallJump = _autoMove?.ResolveMove(rawMoveForWallJump) ?? rawMoveForWallJump;
 
                 _actionWall.FixedTick(moveForWallJump);
+                return;
+            }
+
+            if (_actionGuard is { IsGuarding: true })
+            {
                 return;
             }
 
@@ -465,6 +500,7 @@ namespace GGemCo2DControl
         }
 
         // === Press/Release 수집(실행은 ReleaseResolver에서 수행) ===
+        // Attack
         private void OnAttackPress(InputAction.CallbackContext ctx)
         {
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Attack, Vector2.zero)) return;
@@ -476,7 +512,25 @@ namespace GGemCo2DControl
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Attack, Vector2.zero)) return;
             _releaseResolver?.PushRelease(PlayerButtonId.Attack, Time.unscaledTime);
         }
+        
+        // Guard
+        private void OnGuardPress(InputAction.CallbackContext ctx)
+        {
+            if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Guard, Vector2.zero)) return;
 
+            // Guard는 "홀드" 입력이므로 릴리즈 버퍼(Chord) 시스템을 통하지 않고 즉시 시작합니다.
+            // - started: 버튼 Down
+            // - canceled: 버튼 Up
+            _guardHandler?.HandlePress();
+        }
+
+        private void OnGuardRelease(InputAction.CallbackContext ctx)
+        {
+            if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Guard, Vector2.zero)) return;
+            _guardHandler?.HandleRelease();
+        }
+
+        // Jump
         private void OnJumpPress(InputAction.CallbackContext ctx)
         {
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Jump, Vector2.zero)) return;
@@ -488,7 +542,8 @@ namespace GGemCo2DControl
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Jump, Vector2.zero)) return;
             _releaseResolver?.PushRelease(PlayerButtonId.Jump, Time.unscaledTime);
         }
-
+        
+        // Dash
         private void OnDashPress(InputAction.CallbackContext ctx)
         {
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Dash, Vector2.zero)) return;
@@ -649,6 +704,11 @@ namespace GGemCo2DControl
             {
                 _attackHandler?.Handle();
             }
+            
+            if (chord.Buttons.Contains(PlayerButtonId.Guard))
+            {
+                _guardHandler?.Handle();
+            }
 
             if (chord.Buttons.Contains(PlayerButtonId.Jump))
             {
@@ -741,6 +801,7 @@ namespace GGemCo2DControl
             _toolAction?.Cancel(); //  툴 지속 상태 강제 종료
 
             _actionWall?.CancelWall(restorePrevious: true);
+            _actionGuard?.CancelGuard(true);
 
         }
 

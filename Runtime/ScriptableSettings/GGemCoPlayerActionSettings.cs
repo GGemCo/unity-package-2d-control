@@ -168,6 +168,10 @@ namespace GGemCo2DControl
                  "값이 너무 크면 체공이 길어질 수 있으니 2~5 범위를 권장합니다.")]
         public float wallJumpEndExitJumpY = 3.5f;
 
+        [Header("방어")]
+        [Tooltip("방어 애니메이션 prefix (예: guard)")]
+        public string prefixGuardAnimation;
+
         // ============================================================
 
         private void Reset()

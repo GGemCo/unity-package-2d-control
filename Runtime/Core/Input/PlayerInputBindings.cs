@@ -12,6 +12,7 @@ namespace GGemCo2DControl
     {
         public InputAction Move { get; private set; }
         public InputAction Attack { get; private set; }
+        public InputAction Guard { get; private set; }
         public InputAction Jump { get; private set; }
         public InputAction Dash { get; private set; }
         public InputAction Interaction { get; private set; }
@@ -21,6 +22,8 @@ namespace GGemCo2DControl
 
         private Action<InputAction.CallbackContext> _onAttackPress;
         private Action<InputAction.CallbackContext> _onAttackRelease;
+        private Action<InputAction.CallbackContext> _onGuardPress;
+        private Action<InputAction.CallbackContext> _onGuardRelease;
         private Action<InputAction.CallbackContext> _onJumpPress;
         private Action<InputAction.CallbackContext> _onJumpRelease;
         private Action<InputAction.CallbackContext> _onDashPress;
@@ -36,6 +39,8 @@ namespace GGemCo2DControl
             PlayerInput playerInput,
             Action<InputAction.CallbackContext> onAttackPress,
             Action<InputAction.CallbackContext> onAttackRelease,
+            Action<InputAction.CallbackContext> onGuardPress,
+            Action<InputAction.CallbackContext> onGuardRelease,
             Action<InputAction.CallbackContext> onJumpPress,
             Action<InputAction.CallbackContext> onJumpRelease,
             Action<InputAction.CallbackContext> onDashPress,
@@ -51,6 +56,8 @@ namespace GGemCo2DControl
             // 이벤트 해제를 위해 참조 보관
             _onAttackPress = onAttackPress;
             _onAttackRelease = onAttackRelease;
+            _onGuardPress = onGuardPress;
+            _onGuardRelease = onGuardRelease;
             _onJumpPress = onJumpPress;
             _onJumpRelease = onJumpRelease;
             _onDashPress = onDashPress;
@@ -72,6 +79,14 @@ namespace GGemCo2DControl
                 Attack.Enable();
                 Attack.started += _onAttackPress;
                 Attack.canceled += _onAttackRelease;
+            }
+
+            Guard = _playerInput.actions.FindAction(ConfigCommonControl.NameActionGuard);
+            if (Guard != null)
+            {
+                Guard.Enable();
+                Guard.started += _onGuardPress;
+                Guard.canceled += _onGuardRelease;
             }
 
             Jump = _playerInput.actions.FindAction(ConfigCommonControl.NameActionJump);
@@ -116,6 +131,11 @@ namespace GGemCo2DControl
                 Attack.started -= _onAttackPress;
                 Attack.canceled -= _onAttackRelease;
             }
+            if (Guard != null)
+            {
+                Guard.started -= _onGuardPress;
+                Guard.canceled -= _onGuardRelease;
+            }
             if (Jump != null)
             {
                 Jump.started -= _onJumpPress;
@@ -147,6 +167,8 @@ namespace GGemCo2DControl
 
             _onAttackPress = null;
             _onAttackRelease = null;
+            _onGuardPress = null;
+            _onGuardRelease = null;
             _onJumpPress = null;
             _onJumpRelease = null;
             _onDashPress = null;

@@ -14,15 +14,19 @@ namespace GGemCo2DControl
         private readonly IAutoMoveVectorProvider _provider;
         private readonly IAutoMoveSuspendService _suspend;
 
-        private AutoMoveSuspendToken _suspendToken;
+        private AutoMoveSuspendToken _wallSuspendToken;
+        private AutoMoveSuspendToken _guardSuspendToken;
         private bool _isSuspendedByWall;
+        private bool _isSuspendedByGuard;
 
         public AutoMoveAdapter(IAutoMoveVectorProvider provider, IAutoMoveSuspendService suspend)
         {
             _provider = provider;
             _suspend = suspend;
-            _suspendToken = AutoMoveSuspendToken.None;
+            _wallSuspendToken = AutoMoveSuspendToken.None;
+            _guardSuspendToken = AutoMoveSuspendToken.None;
             _isSuspendedByWall = false;
+            _isSuspendedByGuard = false;
         }
 
         public bool IsAutoMoveActive => _provider is { IsAutoMoveActive: true };
@@ -65,17 +69,39 @@ namespace GGemCo2DControl
             {
                 if (!_isSuspendedByWall)
                 {
-                    _suspendToken = _suspend.AcquireSuspend(AutoMoveSuspendReason.WallAction);
-                    _isSuspendedByWall = _suspendToken.IsValid;
+                    _wallSuspendToken = _suspend.AcquireSuspend(AutoMoveSuspendReason.WallAction);
+                    _isSuspendedByWall = _wallSuspendToken.IsValid;
                 }
             }
             else
             {
                 if (_isSuspendedByWall)
                 {
-                    _suspend.ReleaseSuspend(_suspendToken);
-                    _suspendToken = AutoMoveSuspendToken.None;
+                    _suspend.ReleaseSuspend(_wallSuspendToken);
+                    _wallSuspendToken = AutoMoveSuspendToken.None;
                     _isSuspendedByWall = false;
+                }
+            }
+        }
+        public void TickSuspendByGuard(bool guardActive)
+        {
+            if (_suspend == null) return;
+
+            if (guardActive)
+            {
+                if (!_isSuspendedByGuard)
+                {
+                    _guardSuspendToken = _suspend.AcquireSuspend(AutoMoveSuspendReason.GuardAction);
+                    _isSuspendedByGuard = _guardSuspendToken.IsValid;
+                }
+            }
+            else
+            {
+                if (_isSuspendedByGuard)
+                {
+                    _suspend.ReleaseSuspend(_guardSuspendToken);
+                    _guardSuspendToken = AutoMoveSuspendToken.None;
+                    _isSuspendedByGuard = false;
                 }
             }
         }
@@ -83,11 +109,20 @@ namespace GGemCo2DControl
         public void ReleaseAll()
         {
             if (_suspend == null) return;
-            if (!_suspendToken.IsValid) return;
+            if (_wallSuspendToken.IsValid)
+            {
+                _suspend.ReleaseSuspend(_wallSuspendToken);
+                _wallSuspendToken = AutoMoveSuspendToken.None;
+            }
 
-            _suspend.ReleaseSuspend(_suspendToken);
-            _suspendToken = AutoMoveSuspendToken.None;
+            if (_guardSuspendToken.IsValid)
+            {
+                _suspend.ReleaseSuspend(_guardSuspendToken);
+                _guardSuspendToken = AutoMoveSuspendToken.None;
+            }
+
             _isSuspendedByWall = false;
+            _isSuspendedByGuard = false;
         }
     }
 }

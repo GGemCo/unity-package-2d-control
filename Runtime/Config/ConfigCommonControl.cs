@@ -7,6 +7,7 @@
 
         public const string NameActionMove = "Move";
         public const string NameActionAttack = "Attack";
+        public const string NameActionGuard= "Guard";
         public const string NameActionJump = "Jump";
         public const string NameActionDash = "Dash";
         public const string NameActionInteraction = "Interaction";

@@ -103,7 +103,54 @@ namespace GGemCo2DControl
             return true;
         }
 
-        public bool TryPrepareJump(out string denyLog)
+        
+
+        public bool TryPrepareGuard(out string denyLog)
+        {
+            denyLog = null;
+            if (_character.IsStatusDead()) return false;
+
+            // 벽 상태 중 가드 정책(현재는 금지)
+            if (_wall is { IsWallLocked: true })
+            {
+                denyLog = "벽 매달림/미끄러짐 중 가드는 불가능 합니다.";
+                return false;
+            }
+
+            // 대시 중 가드: 기본은 금지(필요 시 설정값 추가 고려)
+            if (_character.IsStatusDash() && _dash.IsDashing)
+            {
+                denyLog = "대시 중 가드는 불가능 합니다.";
+                return false;
+            }
+
+            // 점프 중 가드: 기본은 금지(필요 시 설정값 추가 고려)
+            if (_character.IsStatusJump() && _jump.IsJumping)
+            {
+                denyLog = "점프 중 가드는 불가능 합니다.";
+                return false;
+            }
+
+            if (_character.IsStatusClimb() && _climb.IsClimbing)
+            {
+                denyLog = "등반 중 가드는 불가능 합니다.";
+                return false;
+            }
+
+            if (_character.IsStatusPush() && _pushPull.IsPushing)
+            {
+                denyLog = "밀기 중 가드는 불가능 합니다.";
+                return false;
+            }
+
+            // 스킬 사용 중 가드: 정책 미정이면 보수적으로 허용(원하면 차단 조건 추가)
+            // var skill = _getSkillCancelable?.Invoke();
+            // if (skill != null && skill.IsSkillRunning) { ... }
+
+            return true;
+        }
+
+public bool TryPrepareJump(out string denyLog)
         {
             denyLog = null;
             if (_character.IsStatusDead()) return false;

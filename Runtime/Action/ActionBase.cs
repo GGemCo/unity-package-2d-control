@@ -31,5 +31,20 @@ namespace GGemCo2DControl
         }
 
         protected abstract void ApplySettings();
+        
+        protected bool HasAnimation(string stateName)
+        {
+            // 1) 캐릭터 애니메이션 컨트롤러가 "존재 여부"를 제공한다면 우선 사용
+            if (actionCharacterBase.CharacterAnimationController is { } ctrl)
+            {
+                // 선택: ctrl에 HasAnimation(string) API가 있다면 사용하도록 교체 가능
+                return ctrl.HasAnimation(stateName);
+            }
+
+            return false;
+
+            // // 2) Animator의 클립 이름으로 보수적 판단
+            // return _clipLength.ContainsKey(stateName);
+        }
     }
 }

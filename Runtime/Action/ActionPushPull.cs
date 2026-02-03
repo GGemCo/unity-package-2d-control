@@ -398,13 +398,6 @@ namespace GGemCo2DControl
                 actionCharacterBase.CharacterAnimationController?.PlayCharacterAnimation(stateName);
         }
 
-        private bool HasAnimation(string stateName)
-        {
-            if (actionCharacterBase.CharacterAnimationController is { } ctrl)
-                return ctrl.HasAnimation(stateName);
-            return _clipLength.ContainsKey(stateName);
-        }
-
         private void StartAwaiting(Phase phase, string clipName)
         {
             _awaitingEventFor = phase;

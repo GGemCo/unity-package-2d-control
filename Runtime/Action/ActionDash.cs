@@ -276,12 +276,6 @@ namespace GGemCo2DControl
             actionCharacterBase.CharacterAnimationController?.PlayCharacterAnimation(stateName);
         }
 
-        private bool HasAnimation(string stateName)
-        {
-            if (actionCharacterBase.CharacterAnimationController is { } ctrl) return ctrl.HasAnimation(stateName);
-            return false;
-        }
-
         private void OnAnimationEventDash(CharacterBase sender, EventArgsOnAnimationEventDash e)
         {
             switch (e.EventName)
