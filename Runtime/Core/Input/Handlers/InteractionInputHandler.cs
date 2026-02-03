@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using GGemCo2DCore;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace GGemCo2DControl
 {
@@ -33,7 +32,6 @@ namespace GGemCo2DControl
         }
 
         public void Handle(
-            InputAction.CallbackContext ctx,
             GameObject interactor,
             CharacterBase character,
             System.Func<bool> isWallLocked,

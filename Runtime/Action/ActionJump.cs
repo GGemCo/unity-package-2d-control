@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using GGemCo2DCore;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace GGemCo2DControl
 {
@@ -215,9 +214,8 @@ namespace GGemCo2DControl
         /// InputManager에서 Jump.started로 호출
         /// </summary>
         /// <param name="ctx"></param>
-        public void Jump(InputAction.CallbackContext ctx)
+        public void Jump()
         {
-            if (!ctx.started) return;
             if (_rb == null) return;
 
             if (actionCharacterBase.IsStatusAttack()) return;

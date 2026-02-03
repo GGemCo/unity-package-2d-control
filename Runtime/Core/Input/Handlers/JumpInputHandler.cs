@@ -1,5 +1,4 @@
 using GGemCo2DCore;
-using UnityEngine.InputSystem;
 
 namespace GGemCo2DControl
 {
@@ -23,14 +22,14 @@ namespace GGemCo2DControl
             _policy = policy;
         }
 
-        public void Handle(InputAction.CallbackContext ctx)
+        public void Handle()
         {
             if (_character == null || _jump == null || _policy == null) return;
 
             // 벽 매달림/미끄러짐 중에는 벽 점프로 라우팅
             if (_wall is { IsWallLocked: true })
             {
-                _wall.OnJump(ctx);
+                _wall.OnJump();
                 return;
             }
 
@@ -40,7 +39,7 @@ namespace GGemCo2DControl
                 return;
             }
 
-            _jump.Jump(ctx);
+            _jump.Jump();
         }
     }
 }

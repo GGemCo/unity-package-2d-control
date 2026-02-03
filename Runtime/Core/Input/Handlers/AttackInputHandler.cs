@@ -1,5 +1,4 @@
 using GGemCo2DCore;
-using UnityEngine.InputSystem;
 
 namespace GGemCo2DControl
 {
@@ -21,7 +20,7 @@ namespace GGemCo2DControl
             _policy = policy;
         }
 
-        public void Handle(InputAction.CallbackContext ctx)
+        public void Handle()
         {
             if (_character == null || _attack == null || _policy == null) return;
             if (!_policy.TryPrepareAttack(out var deny))
@@ -30,7 +29,7 @@ namespace GGemCo2DControl
                 return;
             }
 
-            _attack.Attack(ctx);
+            _attack.Attack();
         }
     }
 }

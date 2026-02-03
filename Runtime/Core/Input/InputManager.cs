@@ -12,7 +12,7 @@ namespace GGemCo2DControl
     {
         private CharacterBase _characterBase;
         private CharacterBaseController _characterBaseController;
-        
+
         // 입력 받기
         private PlayerInput _playerInput;
 
@@ -21,17 +21,22 @@ namespace GGemCo2DControl
 
         // 이동 처리
         private ActionMove _actionMove;
+
         // 공격 처리
         private ActionAttack _actionAttack;
+
         // 점프
         private ActionJump _actionJump;
+
         // 대시
         private ActionDash _actionDash;
+
         // 올라가기/내려가기
         private ActionClimb _actionClimb;
+
         // 밀기/당기기
         private ActionPushPull _actionPushPull;
-        
+
         // 시뮬레이션 툴 사용
         private IToolAction _toolAction;
 
@@ -41,13 +46,13 @@ namespace GGemCo2DControl
         private bool _canAttackPlayDashing;
         private bool _canMovePlayDashing;
         private bool _canJumpPlayDashing;
-        
+
         private bool _canDashPlayJumping;
-        
+
         private bool _canClimbingPlayJumping;
         private bool _canJumpPlayClimbing;
         private bool _canDashPlayClimbing;
-        
+
         private bool _canJumpUseSkill;
         private bool _canDashUseSkill;
         private bool _canAttackPlayJump;
@@ -57,7 +62,7 @@ namespace GGemCo2DControl
         private AttackInputHandler _attackHandler;
         private JumpInputHandler _jumpHandler;
         private DashInputHandler _dashHandler;
-        
+
         // === 추가 필드 ===
         private InteractionScanner2D _scanner;
         private InteractionInputHandler _interactionHandler;
@@ -66,9 +71,14 @@ namespace GGemCo2DControl
         // Simulation Tool: UI 위 클릭 방지(다음 프레임에서 판정)
         private SimulationToolInputHandler _simulationToolHandler;
 
+        // === Release 기반 입력 버퍼(Press → Release 정규화) ===
+        private BufferedReleaseResolver _releaseResolver;
+        private InputAction.CallbackContext _simulationToolPressCtx;
+        private InputAction.CallbackContext _simulationToolReleaseCtx;
+
         // AutoMove(Core)
         private AutoMoveAdapter _autoMove;
-        
+
         private void Awake()
         {
             _characterBase = GetComponent<CharacterBase>();
@@ -77,6 +87,9 @@ namespace GGemCo2DControl
                 enabled = false;
                 return;
             }
+
+            // 기본값(80ms)으로 초기화. Settings가 로드되면 ApplySettings에서 갱신됩니다.
+            _releaseResolver = new BufferedReleaseResolver(0.08f);
 
             _playerActionSettings = AddressableLoaderSettingsControl.Instance.playerActionSettings;
             if (_playerActionSettings)
@@ -109,7 +122,7 @@ namespace GGemCo2DControl
 
             Player player = _characterBase as Player;
             player?.onEventDeadByEndGround.AddListener(OnDeadGround);
-            
+
             InitializeControls();
             InitializeInputPlayer();
         }
@@ -123,14 +136,20 @@ namespace GGemCo2DControl
             _canAttackPlayDashing = _playerActionSettings.canAttackPlayDashing;
 
             _canDashPlayJumping = _playerActionSettings.canDashPlayJumping;
-                
+
             _canClimbingPlayJumping = _playerActionSettings.canClimbingPlayJumping;
             _canJumpPlayClimbing = _playerActionSettings.canJumpPlayClimbing;
             _canDashPlayClimbing = _playerActionSettings.canDashPlayClimbing;
-            
+
             _canJumpUseSkill = _playerActionSettings.canJumpUseSkill;
             _canDashUseSkill = _playerActionSettings.canDashUseSkill;
             _canAttackPlayJump = _playerActionSettings.canAttackPlayJump;
+
+            // === Release 기반 입력 버퍼 ===
+            float waitMs = _playerActionSettings != null ? _playerActionSettings.pressToReleaseMaxWaitMs : 80f;
+            float waitSec = waitMs * 0.001f;
+            if (_releaseResolver == null) _releaseResolver = new BufferedReleaseResolver(waitSec);
+            else _releaseResolver.SetWaitWindowSeconds(waitSec);
 
             // Policy snapshot 갱신
             if (_policy != null)
@@ -151,16 +170,16 @@ namespace GGemCo2DControl
         {
             _actionAttack = new ActionAttack();
             _actionAttack.Initialize(this, _characterBase, _characterBaseController);
-            
+
             _actionMove = new ActionMove();
             _actionMove.Initialize(this, _characterBase, _characterBaseController);
-            
+
             _actionJump = new ActionJump();
             _actionJump.Initialize(this, _characterBase, _characterBaseController);
-            
+
             _actionDash = new ActionDash();
             _actionDash.Initialize(this, _characterBase, _characterBaseController);
-            
+
             _actionClimb = new ActionClimb();
             _actionClimb.Initialize(this, _characterBase, _characterBaseController);
             _actionClimb.InteractionEnded += OnInteractionEnded;
@@ -168,7 +187,7 @@ namespace GGemCo2DControl
             _actionPushPull = new ActionPushPull();
             _actionPushPull.Initialize(this, _characterBase, _characterBaseController);
             _actionPushPull.InteractionEnded += OnInteractionEnded;
-            
+
             // 대시 진행 여부를 점프에 전달
             _actionJump.SetDashActiveQuery(() => _actionDash.IsDashing);
 
@@ -190,7 +209,8 @@ namespace GGemCo2DControl
             }
 #endif
             // 벽 액션 진행 여부를 점프에 전달(클리프 폴/착지 전이 충돌 방지)
-            _actionJump.SetWallActionActiveQuery(() => _actionWall != null && (_actionWall.IsWallLocked || _actionWall.IsKinematicWallJumping));
+            _actionJump.SetWallActionActiveQuery(() =>
+                _actionWall != null && (_actionWall.IsWallLocked || _actionWall.IsKinematicWallJumping));
 
             // Simulation Tool 입력 핸들러(다음 프레임 UI 판정)
             _simulationToolHandler = new SimulationToolInputHandler(
@@ -219,6 +239,13 @@ namespace GGemCo2DControl
             _attackHandler = new AttackInputHandler(_characterBase, _actionAttack, _policy);
             _jumpHandler = new JumpInputHandler(_characterBase, _actionJump, _actionWall, _policy);
             _dashHandler = new DashInputHandler(_characterBase, _actionDash, _policy);
+
+            // === Release 기반 입력 버퍼 ===
+            if (_releaseResolver != null)
+            {
+                _releaseResolver.Resolved -= OnResolvedChord;
+                _releaseResolver.Resolved += OnResolvedChord;
+            }
         }
 
         private void InitializeInputPlayer()
@@ -228,12 +255,17 @@ namespace GGemCo2DControl
             _bindings = new PlayerInputBindings();
             _bindings.Bind(
                 _playerInput,
-                OnAttack,
-                OnJump,
-                OnDash,
-                OnInteraction,
-                OnSimulationTool);
-            
+                OnAttackPress,
+                OnAttackRelease,
+                OnJumpPress,
+                OnJumpRelease,
+                OnDashPress,
+                OnDashRelease,
+                OnInteractionPress,
+                OnInteractionRelease,
+                OnSimulationToolPress,
+                OnSimulationToolRelease);
+
             if (_playerInput != null)
                 _playerInput.onControlsChanged += OnChangeControlScheme;
         }
@@ -265,13 +297,25 @@ namespace GGemCo2DControl
             _bindings?.Unbind();
             _bindings = null;
 
+            if (_releaseResolver != null)
+            {
+                _releaseResolver.Resolved -= OnResolvedChord;
+                _releaseResolver = null;
+            }
+
+            if (_releaseResolver != null)
+            {
+                _releaseResolver.Resolved -= OnResolvedChord;
+                _releaseResolver = null;
+            }
+
             // Suspend 누락 방지
             _autoMove?.ReleaseAll();
 
             _toolAction?.Cancel();
             _toolAction?.OnDestroy();
             _toolAction = null;
-            
+
             if (_playerActionSettings)
             {
 #if UNITY_EDITOR
@@ -279,13 +323,17 @@ namespace GGemCo2DControl
                 _playerActionSettings.Changed -= ApplySettings;
 #endif
             }
-            
+
             Player player = _characterBase as Player;
             player?.onEventDeadByEndGround.RemoveAllListeners();
         }
+
         private void Update()
         {
             _simulationToolHandler?.Tick();
+
+            // 80ms 입력 버퍼 마감 처리(가상 릴리즈)
+            _releaseResolver?.Tick(Time.unscaledTime);
         }
 
         private void OnDisable()
@@ -300,20 +348,21 @@ namespace GGemCo2DControl
             bool wallActive = _actionWall.IsWallLocked || _actionWall.IsKinematicWallJumping;
             _autoMove.TickSuspendByWall(wallActive);
         }
+
         /// <summary>
         /// Rigidbody를 사용하므로 FixedUpdate로 처리
         /// </summary>
         private void FixedUpdate()
         {
             if (_characterBase.IsStatusDead()) return;
-            
+
             // todo. 정리 필요
             if (_characterBase.IsStatusCastingSkill()) return;
             if (_characterBase.IsStatusUseSkill()) return;
 
             // Wall Action 진행 중에는 AutoMove를 Pause 한다.
             UpdateAutoMoveSuspendByWall();
-            
+
             // === Kinematic Wall Jump 우선 처리 ===
             // 벽 점프를 Kinematic으로 처리하는 동안에는 기존 Jump/Move 시스템이 물리값을 덮어쓰지 않도록 한다.
             if (_actionWall is { IsKinematicWallJumping: true })
@@ -326,11 +375,12 @@ namespace GGemCo2DControl
                 _actionWall.FixedTick(moveForWallJump);
                 return;
             }
+
             // 1) 점프/낙하 상태 전이 및 착지 처리: 항상 호출
             //    - 점프 입력 유무와 관계없이 클리프 폴, 정점 전환, 착지 엔딩 등을 내부에서 처리
             _actionJump.Update();
             _actionDash.Update();
-            
+
             // 2) 이동 입력 읽기
             // ActionClimb 에서 사용하고 있음
             // ActionPushPull 에서 사용하고 있음
@@ -369,6 +419,7 @@ namespace GGemCo2DControl
                 {
                     OnJumpMoveContinuous(move);
                 }
+
                 return;
             }
 
@@ -382,6 +433,7 @@ namespace GGemCo2DControl
                     if (_actionDash.IsDashing)
                         _actionDash.CancelDash(skipEndAnimation: true);
                 }
+
                 return;
             }
 
@@ -395,6 +447,7 @@ namespace GGemCo2DControl
                 _characterBase.Stop();
             }
         }
+
         private void OnJumpMoveContinuous(Vector2 direction)
         {
             if (_characterBase.IsStatusDead()) return;
@@ -402,6 +455,7 @@ namespace GGemCo2DControl
             // Debug.Log($"Moving: {direction}");
             _actionMove.JumpMove(direction);
         }
+
         private void OnMoveContinuous(Vector2 direction)
         {
             if (_characterBase.IsStatusDead()) return;
@@ -409,52 +463,213 @@ namespace GGemCo2DControl
             // Debug.Log($"Moving: {direction}");
             _actionMove.Move(direction);
         }
-        public void OnAttack(InputAction.CallbackContext ctx)
+
+        // === Press/Release 수집(실행은 ReleaseResolver에서 수행) ===
+        private void OnAttackPress(InputAction.CallbackContext ctx)
         {
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Attack, Vector2.zero)) return;
-            _attackHandler?.Handle(ctx);
+            _releaseResolver?.PushPress(PlayerButtonId.Attack, Time.unscaledTime);
         }
-        public void OnJump(InputAction.CallbackContext ctx)
+
+        private void OnAttackRelease(InputAction.CallbackContext ctx)
+        {
+            if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Attack, Vector2.zero)) return;
+            _releaseResolver?.PushRelease(PlayerButtonId.Attack, Time.unscaledTime);
+        }
+
+        private void OnJumpPress(InputAction.CallbackContext ctx)
         {
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Jump, Vector2.zero)) return;
-            _jumpHandler?.Handle(ctx);
+            _releaseResolver?.PushPress(PlayerButtonId.Jump, Time.unscaledTime);
         }
-        public void OnDash(InputAction.CallbackContext ctx)
+
+        private void OnJumpRelease(InputAction.CallbackContext ctx)
+        {
+            if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Jump, Vector2.zero)) return;
+            _releaseResolver?.PushRelease(PlayerButtonId.Jump, Time.unscaledTime);
+        }
+
+        private void OnDashPress(InputAction.CallbackContext ctx)
         {
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Dash, Vector2.zero)) return;
-            _dashHandler?.Handle(ctx);
+            _releaseResolver?.PushPress(PlayerButtonId.Dash, Time.unscaledTime);
         }
+
+        private void OnDashRelease(InputAction.CallbackContext ctx)
+        {
+            if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Dash, Vector2.zero)) return;
+            _releaseResolver?.PushRelease(PlayerButtonId.Dash, Time.unscaledTime);
+        }
+
         /// <summary>
         /// F 입력 처리: 가장 우선순위 높은 상호작용 대상 선택 → Begin/End 토글
         /// </summary>
-        private void OnInteraction(InputAction.CallbackContext ctx)
+        private void OnInteractionPress(InputAction.CallbackContext ctx)
         {
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Interaction, Vector2.zero)) return;
-
-            _interactionHandler?.Handle(
-                ctx,
-                gameObject,
-                _characterBase,
-                () => _actionWall is { IsWallLocked: true },
-                () =>
-                {
-                    // 0) 대시/점프/공격 중 상호작용 제한
-                    if (_characterBase.IsStatusDash() || _characterBase.IsStatusAttack()) return true;
-                    // 스킬 사용 중 상호작용 제한
-                    if (_characterBase.IsStatusCastingSkill() || _characterBase.IsStatusUseSkill()) return true;
-                    return false;
-                });
+            _releaseResolver?.PushPress(PlayerButtonId.Interaction, Time.unscaledTime);
         }
+
+        private void OnInteractionRelease(InputAction.CallbackContext ctx)
+        {
+            if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Interaction, Vector2.zero)) return;
+            _releaseResolver?.PushRelease(PlayerButtonId.Interaction, Time.unscaledTime);
+        }
+
         /// <summary>
         /// 시뮬레이션 툴 사용
         /// </summary>
-        private void OnSimulationTool(InputAction.CallbackContext ctx)
+        private void OnSimulationToolPress(InputAction.CallbackContext ctx)
         {
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.SimulationTool, Vector2.zero)) return;
-            _simulationToolHandler?.OnSimulationTool(ctx);
+            _simulationToolPressCtx = ctx;
+            _releaseResolver?.PushPress(PlayerButtonId.SimulationTool, Time.unscaledTime);
         }
 
-        // === ActionLadder/PushPull 과의 연결 API ===
+        private void OnSimulationToolRelease(InputAction.CallbackContext ctx)
+        {
+            if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.SimulationTool, Vector2.zero)) return;
+            _simulationToolReleaseCtx = ctx;
+            _releaseResolver?.PushRelease(PlayerButtonId.SimulationTool, Time.unscaledTime);
+        }
+
+        // === Chord 확정(릴리즈) 처리 ===
+        private void OnResolvedChord(ResolvedButtonChord chord)
+        {
+            // 0) Interaction은 토글 동작이라 동시입력에서도 우선 처리(예시 정책)
+            //    - 후보가 없을 때 다른 액션까지 수행하고 싶다면, 아래 3)에서 설명하는 "bool 반환" 방식으로 개선 권장
+            if (chord.Buttons.Contains(PlayerButtonId.Interaction))
+            {
+                _interactionHandler?.Handle(
+                    gameObject,
+                    _characterBase,
+                    () => _actionWall is { IsWallLocked: true },
+                    () =>
+                    {
+                        if (_characterBase.IsStatusDash() || _characterBase.IsStatusAttack()) return true;
+                        if (_characterBase.IsStatusCastingSkill() || _characterBase.IsStatusUseSkill()) return true;
+                        return false;
+                    });
+                return;
+            }
+
+            // 1) 조합(Chord) 우선 처리: 소비하면 return
+            if (TryHandleChordCombo(in chord))
+                return;
+
+            // 2) 조합이 없으면 기존 기본 동작(fallback): 포함된 버튼을 정해진 순서로 모두 실행
+            DispatchSingles(in chord);
+        }
+
+        /// <summary>
+        /// 동시 입력 처리
+        /// </summary>
+        /// <param name="chord"></param>
+        /// <returns></returns>
+        private bool TryHandleChordCombo(in ResolvedButtonChord chord)
+        {
+            // PlayerButtonSet은 순서 무관 비트마스크입니다.
+            // 정확한 조합만 잡고 싶으면 == 비교가 가장 명확합니다.
+            var set = chord.Buttons;
+
+            // 예시 1) Attack + Jump
+            // - 지상: Jump 우선(점프), 공중: Attack 우선(공중 공격)
+            PlayerButtonSet attackJump = PlayerButtonSet
+                .From(PlayerButtonId.Attack)
+                .Add(PlayerButtonId.Jump);
+
+            if (set == attackJump)
+            {
+                // _actionJump.IsGroundedByCollision()는 기존 코드에서 사용 중인 지상 판정 API입니다.
+                bool grounded = _actionJump != null && _actionJump.IsGroundedByCollision();
+
+                if (grounded)
+                {
+                    _jumpHandler?.Handle();
+                }
+                else
+                {
+                    _attackHandler?.Handle();
+                }
+
+                return true; // 소비
+            }
+
+            // 예시 2) Attack + Dash = 대시 어택(예시 정책)
+            PlayerButtonSet attackDash = PlayerButtonSet
+                .From(PlayerButtonId.Attack)
+                .Add(PlayerButtonId.Dash);
+
+            if (set == attackDash)
+            {
+                // “대시로 진입 → 공격” 느낌
+                _dashHandler?.Handle();
+                _attackHandler?.Handle();
+                return true;
+            }
+
+            // 예시 3) Jump + Dash = 회피 점프(예시 정책)
+            PlayerButtonSet jumpDash = PlayerButtonSet
+                .From(PlayerButtonId.Jump)
+                .Add(PlayerButtonId.Dash);
+
+            if (set == jumpDash)
+            {
+                GcLogger.Log($"chord: {set}");
+                // _jumpHandler?.Handle();
+                // _dashHandler?.Handle();
+                return true;
+            }
+
+            // 예시 4) SimulationTool + Attack 처럼 조합을 잡고 싶을 때
+            // - SimulationTool은 ctx가 필요하므로 chord.IsVirtual(...)을 함께 사용
+            PlayerButtonSet toolAttack = PlayerButtonSet
+                .From(PlayerButtonId.SimulationTool)
+                .Add(PlayerButtonId.Attack);
+
+            if (set == toolAttack)
+            {
+                // Tool 먼저 실행(또는 반대)
+                var ctx = chord.IsVirtual(PlayerButtonId.SimulationTool)
+                    ? _simulationToolPressCtx
+                    : _simulationToolReleaseCtx;
+                _simulationToolHandler?.HandleResolved(ctx);
+
+                _attackHandler?.Handle();
+                return true;
+            }
+
+            return false; // 조합 미처리 → fallback으로
+        }
+
+        private void DispatchSingles(in ResolvedButtonChord chord)
+        {
+            // 기본 동작: 동시 입력이면 정해진 순서로 모두 실행
+            if (chord.Buttons.Contains(PlayerButtonId.Attack))
+            {
+                _attackHandler?.Handle();
+            }
+
+            if (chord.Buttons.Contains(PlayerButtonId.Jump))
+            {
+                _jumpHandler?.Handle();
+            }
+
+            if (chord.Buttons.Contains(PlayerButtonId.Dash))
+            {
+                _dashHandler?.Handle();
+            }
+
+            if (chord.Buttons.Contains(PlayerButtonId.SimulationTool))
+            {
+                var ctx = chord.IsVirtual(PlayerButtonId.SimulationTool)
+                    ? _simulationToolPressCtx
+                    : _simulationToolReleaseCtx;
+                _simulationToolHandler?.HandleResolved(ctx);
+            }
+        }
+
+// === ActionLadder/PushPull 과의 연결 API ===
 
         public bool TryBeginLadder(ObjectClimb climb)
         {
@@ -498,6 +713,7 @@ namespace GGemCo2DControl
             _actionPushPull.End(target);
             _interactionHandler?.ClearIfSame(target); // 안전망
         }
+
         private void OnChangeControlScheme(PlayerInput playerInput)
         {
             // GcLogger.Log($"on controls changed. {playerInput.currentControlScheme}");
@@ -505,12 +721,13 @@ namespace GGemCo2DControl
             // if (!uiPanelControl) return;
             // uiPanelControl.SetScheme(playerInput.currentControlScheme);
         }
-        
+
         private void OnInteractionEnded(IInteraction ended)
         {
             // 현재 상호작용 중인 대상과 같다면 초기화
             _interactionHandler?.ClearIfEnded(ended);
         }
+
         /// <summary>
         /// 캐릭터가 바닥을 벗어나서 사망했을 때
         /// </summary>
@@ -526,6 +743,7 @@ namespace GGemCo2DControl
             _actionWall?.CancelWall(restorePrevious: true);
 
         }
+
         public void SetToolAction(IToolAction toolAction)
         {
             // 기존 액션 정리

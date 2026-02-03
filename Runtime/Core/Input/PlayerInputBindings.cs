@@ -19,31 +19,46 @@ namespace GGemCo2DControl
 
         private PlayerInput _playerInput;
 
-        private Action<InputAction.CallbackContext> _onAttackStarted;
-        private Action<InputAction.CallbackContext> _onJumpStarted;
-        private Action<InputAction.CallbackContext> _onDashStarted;
-        private Action<InputAction.CallbackContext> _onInteractionStarted;
-        private Action<InputAction.CallbackContext> _onSimulationToolPerformed;
+        private Action<InputAction.CallbackContext> _onAttackPress;
+        private Action<InputAction.CallbackContext> _onAttackRelease;
+        private Action<InputAction.CallbackContext> _onJumpPress;
+        private Action<InputAction.CallbackContext> _onJumpRelease;
+        private Action<InputAction.CallbackContext> _onDashPress;
+        private Action<InputAction.CallbackContext> _onDashRelease;
+        private Action<InputAction.CallbackContext> _onInteractionPress;
+        private Action<InputAction.CallbackContext> _onInteractionRelease;
+        private Action<InputAction.CallbackContext> _onSimulationToolPress;
+        private Action<InputAction.CallbackContext> _onSimulationToolRelease;
 
         public bool IsValid => _playerInput != null;
 
         public void Bind(
             PlayerInput playerInput,
-            Action<InputAction.CallbackContext> onAttackStarted,
-            Action<InputAction.CallbackContext> onJumpStarted,
-            Action<InputAction.CallbackContext> onDashStarted,
-            Action<InputAction.CallbackContext> onInteractionStarted,
-            Action<InputAction.CallbackContext> onSimulationToolPerformed)
+            Action<InputAction.CallbackContext> onAttackPress,
+            Action<InputAction.CallbackContext> onAttackRelease,
+            Action<InputAction.CallbackContext> onJumpPress,
+            Action<InputAction.CallbackContext> onJumpRelease,
+            Action<InputAction.CallbackContext> onDashPress,
+            Action<InputAction.CallbackContext> onDashRelease,
+            Action<InputAction.CallbackContext> onInteractionPress,
+            Action<InputAction.CallbackContext> onInteractionRelease,
+            Action<InputAction.CallbackContext> onSimulationToolPress,
+            Action<InputAction.CallbackContext> onSimulationToolRelease)
         {
             _playerInput = playerInput;
             if (_playerInput == null) return;
 
             // 이벤트 해제를 위해 참조 보관
-            _onAttackStarted = onAttackStarted;
-            _onJumpStarted = onJumpStarted;
-            _onDashStarted = onDashStarted;
-            _onInteractionStarted = onInteractionStarted;
-            _onSimulationToolPerformed = onSimulationToolPerformed;
+            _onAttackPress = onAttackPress;
+            _onAttackRelease = onAttackRelease;
+            _onJumpPress = onJumpPress;
+            _onJumpRelease = onJumpRelease;
+            _onDashPress = onDashPress;
+            _onDashRelease = onDashRelease;
+            _onInteractionPress = onInteractionPress;
+            _onInteractionRelease = onInteractionRelease;
+            _onSimulationToolPress = onSimulationToolPress;
+            _onSimulationToolRelease = onSimulationToolRelease;
 
             // 반드시 필요
             _playerInput.actions.Enable();
@@ -55,35 +70,40 @@ namespace GGemCo2DControl
             if (Attack != null)
             {
                 Attack.Enable();
-                Attack.started += _onAttackStarted;
+                Attack.started += _onAttackPress;
+                Attack.canceled += _onAttackRelease;
             }
 
             Jump = _playerInput.actions.FindAction(ConfigCommonControl.NameActionJump);
             if (Jump != null)
             {
                 Jump.Enable();
-                Jump.started += _onJumpStarted;
+                Jump.started += _onJumpPress;
+                Jump.canceled += _onJumpRelease;
             }
 
             Dash = _playerInput.actions.FindAction(ConfigCommonControl.NameActionDash);
             if (Dash != null)
             {
                 Dash.Enable();
-                Dash.started += _onDashStarted;
+                Dash.started += _onDashPress;
+                Dash.canceled += _onDashRelease;
             }
 
             Interaction = _playerInput.actions.FindAction(ConfigCommonControl.NameActionInteraction);
             if (Interaction != null)
             {
                 Interaction.Enable();
-                Interaction.started += _onInteractionStarted;
+                Interaction.started += _onInteractionPress;
+                Interaction.canceled += _onInteractionRelease;
             }
 
             SimulationTool = _playerInput.actions.FindAction(ConfigCommonControl.NameActionSimulationTool);
             if (SimulationTool != null)
             {
                 SimulationTool.Enable();
-                SimulationTool.performed += _onSimulationToolPerformed;
+                SimulationTool.started += _onSimulationToolPress;
+                SimulationTool.canceled += _onSimulationToolRelease;
             }
         }
 
@@ -92,15 +112,30 @@ namespace GGemCo2DControl
             if (_playerInput == null) return;
 
             if (Attack != null)
-                Attack.started -= _onAttackStarted;
+            {
+                Attack.started -= _onAttackPress;
+                Attack.canceled -= _onAttackRelease;
+            }
             if (Jump != null)
-                Jump.started -= _onJumpStarted;
+            {
+                Jump.started -= _onJumpPress;
+                Jump.canceled -= _onJumpRelease;
+            }
             if (Dash != null)
-                Dash.started -= _onDashStarted;
+            {
+                Dash.started -= _onDashPress;
+                Dash.canceled -= _onDashRelease;
+            }
             if (Interaction != null)
-                Interaction.started -= _onInteractionStarted;
+            {
+                Interaction.started -= _onInteractionPress;
+                Interaction.canceled -= _onInteractionRelease;
+            }
             if (SimulationTool != null)
-                SimulationTool.performed -= _onSimulationToolPerformed;
+            {
+                SimulationTool.started -= _onSimulationToolPress;
+                SimulationTool.canceled -= _onSimulationToolRelease;
+            }
 
             _playerInput = null;
             Move = null;
@@ -110,11 +145,16 @@ namespace GGemCo2DControl
             Interaction = null;
             SimulationTool = null;
 
-            _onAttackStarted = null;
-            _onJumpStarted = null;
-            _onDashStarted = null;
-            _onInteractionStarted = null;
-            _onSimulationToolPerformed = null;
+            _onAttackPress = null;
+            _onAttackRelease = null;
+            _onJumpPress = null;
+            _onJumpRelease = null;
+            _onDashPress = null;
+            _onDashRelease = null;
+            _onInteractionPress = null;
+            _onInteractionRelease = null;
+            _onSimulationToolPress = null;
+            _onSimulationToolRelease = null;
         }
     }
 }

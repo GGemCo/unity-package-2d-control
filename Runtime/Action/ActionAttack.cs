@@ -1,7 +1,6 @@
 ﻿using System.Collections;
 using GGemCo2DCore;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace GGemCo2DControl
 {
@@ -87,15 +86,8 @@ namespace GGemCo2DControl
             actionCharacterBase.CharacterAnimationController?.PlayAttackEndAnimation();
         }
 
-        public void Attack(InputAction.CallbackContext ctx)
+        public void Attack()
         {
-            // if (ctx.started)  
-            //     GcLogger.Log($"on attack Press ");
-            // else if (ctx.performed)
-            //     GcLogger.Log($"on attack Hold  ");
-            // else if (ctx.canceled) 
-            //     GcLogger.Log($"on attack Release");
-            
             if (actionCharacterBase.IsStatusAttack()) return;
             if (actionCharacterBase.IsStatusDead()) return;
             if (_countCombo <= 0) return;

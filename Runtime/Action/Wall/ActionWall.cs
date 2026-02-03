@@ -1,6 +1,5 @@
 using GGemCo2DCore;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace GGemCo2DControl
 {
@@ -146,9 +145,8 @@ namespace GGemCo2DControl
         /// 공격/피격 등 우선순위 정책은 보통 InputManager에서 처리되지만,
         /// 본 메서드는 벽 점프 전이를 위한 최소한의 방어 로직을 포함합니다.
         /// </remarks>
-        public void OnJump(InputAction.CallbackContext ctx)
+        public void OnJump()
         {
-            if (!ctx.started) return;
             if (!_enabled) return;
             if (_current == null) return;
 

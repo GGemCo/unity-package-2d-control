@@ -39,6 +39,11 @@ namespace GGemCo2DControl
         [Tooltip("세로(위/아래) 이동 허용 여부")]
         public bool canMoveVertical;
 
+        [Header("입력")]
+        [Tooltip("버튼 Press 후 릴리즈로 확정하기까지의 최대 대기시간(ms)\n- 모든 액션은 릴리즈(실제/가상) 시점에만 실행됩니다.\n- 대기 시간 동안 다른 버튼 Press가 들어오면 동시 입력(Chord)으로 판단합니다.")]
+        [Range(1f, 500f)]
+        public float pressToReleaseMaxWaitMs = 80f;
+
         [Header("점프")]
         [Tooltip("점프 애니메이션 prefix (예: jump)")]
         public string prefixJumpAnimation = "jump";

@@ -1,7 +1,6 @@
 ﻿using System.Collections.Generic;
 using GGemCo2DCore;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace GGemCo2DControl
 {
@@ -124,9 +123,8 @@ namespace GGemCo2DControl
 
         #region 입력/업데이트
 
-        public void Dash(InputAction.CallbackContext ctx)
+        public void Dash()
         {
-            if (!ctx.started) return;
             if (_rb == null) return;
             if (_isBusy) return;
 

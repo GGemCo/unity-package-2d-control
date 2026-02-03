@@ -55,10 +55,12 @@ namespace GGemCo2DControl
             _toolAction.UseTool(_pendingCtx);
         }
 
-        public void OnSimulationTool(InputAction.CallbackContext ctx)
+        /// <summary>
+        /// 릴리즈(실제/가상) 확정 시점에 호출됩니다.
+        /// - 가상 릴리즈일 경우, Press 시점 컨텍스트를 전달하는 것을 권장합니다.
+        /// </summary>
+        public void HandleResolved(InputAction.CallbackContext ctx)
         {
-            if (!ctx.performed) return;
-
             if (_toolAction == null)
             {
                 GcLogger.Log("Simulation ToolAction 이 주입되지 않았습니다. (SimulationActionInstaller 확인)");
@@ -97,6 +99,12 @@ namespace GGemCo2DControl
             // 다음 프레임에서 UI 위 여부 확인 후 실행
             _pendingCtx = ctx;
             _pending = true;
+        }
+
+        // (레거시 호환) 기존 호출 지점을 위해 남겨둠
+        public void OnSimulationTool(InputAction.CallbackContext ctx)
+        {
+            HandleResolved(ctx);
         }
     }
 }
