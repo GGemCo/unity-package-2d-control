@@ -89,6 +89,9 @@ namespace GGemCo2DControl
         // AutoMove(Core)
         private AutoMoveAdapter _autoMove;
 
+        // 플레이어 공격 영역에 몬스터 진입 상태
+        private PlayerAttackAreaState _attackAreaState;
+
         private void Awake()
         {
             _characterBase = GetComponent<CharacterBase>();
@@ -132,6 +135,9 @@ namespace GGemCo2DControl
 
             Player player = _characterBase as Player;
             player?.onEventDeadByEndGround.AddListener(OnDeadGround);
+
+            // 패트롤 영역 진입 상태 캐시(없어도 동작해야 함)
+            _attackAreaState = player != null ? player.GetComponent<PlayerAttackAreaState>() : null;
 
             InitializeControls();
             InitializeInputPlayer();
@@ -378,6 +384,15 @@ namespace GGemCo2DControl
             _autoMove.TickSuspendByGuard(guardActive);
         }
 
+        private void UpdateAutoMoveSuspendByPatrolArea()
+        {
+            if (_autoMove == null) return;
+
+            // 몬스터 패트롤 영역(ObjectPatrol)에 진입하면 AutoMove를 일시 정지한다.
+            bool active = _attackAreaState != null && _attackAreaState.IsInAttackArea;
+            _autoMove.TickSuspendByPlayerAttackRange(active);
+        }
+
         /// <summary>
         /// Rigidbody를 사용하므로 FixedUpdate로 처리
         /// </summary>
@@ -392,6 +407,7 @@ namespace GGemCo2DControl
             // Wall Action 진행 중에는 AutoMove를 Pause 한다.
             UpdateAutoMoveSuspendByWall();
             UpdateAutoMoveSuspendByGuard();
+            UpdateAutoMoveSuspendByPatrolArea();
 
             // === Kinematic Wall Jump 우선 처리 ===
             // 벽 점프를 Kinematic으로 처리하는 동안에는 기존 Jump/Move 시스템이 물리값을 덮어쓰지 않도록 한다.

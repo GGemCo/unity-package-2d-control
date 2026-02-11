@@ -16,8 +16,10 @@ namespace GGemCo2DControl
 
         private AutoMoveSuspendToken _wallSuspendToken;
         private AutoMoveSuspendToken _guardSuspendToken;
+        private AutoMoveSuspendToken _playerAttackRangeSuspendToken;
         private bool _isSuspendedByWall;
         private bool _isSuspendedByGuard;
+        private bool _isSuspendedByPlayerAttackRange;
 
         public AutoMoveAdapter(IAutoMoveVectorProvider provider, IAutoMoveSuspendService suspend)
         {
@@ -25,8 +27,10 @@ namespace GGemCo2DControl
             _suspend = suspend;
             _wallSuspendToken = AutoMoveSuspendToken.None;
             _guardSuspendToken = AutoMoveSuspendToken.None;
+            _playerAttackRangeSuspendToken = AutoMoveSuspendToken.None;
             _isSuspendedByWall = false;
             _isSuspendedByGuard = false;
+            _isSuspendedByPlayerAttackRange = false;
         }
 
         public bool IsAutoMoveActive => _provider is { IsAutoMoveActive: true };
@@ -105,6 +109,32 @@ namespace GGemCo2DControl
                 }
             }
         }
+        /// <summary>
+        /// 플레이어 공격 거리에 몬스터가 있는 체크한 후 
+        /// </summary>
+        /// <param name="active"></param>
+        public void TickSuspendByPlayerAttackRange(bool active)
+        {
+            if (_suspend == null) return;
+
+            if (active)
+            {
+                if (!_isSuspendedByPlayerAttackRange)
+                {
+                    _playerAttackRangeSuspendToken = _suspend.AcquireSuspend(AutoMoveSuspendReason.PlayerAttackRange);
+                    _isSuspendedByPlayerAttackRange = _playerAttackRangeSuspendToken.IsValid;
+                }
+            }
+            else
+            {
+                if (_isSuspendedByPlayerAttackRange)
+                {
+                    _suspend.ReleaseSuspend(_playerAttackRangeSuspendToken);
+                    _playerAttackRangeSuspendToken = AutoMoveSuspendToken.None;
+                    _isSuspendedByPlayerAttackRange = false;
+                }
+            }
+        }
 
         public void ReleaseAll()
         {
@@ -121,8 +151,15 @@ namespace GGemCo2DControl
                 _guardSuspendToken = AutoMoveSuspendToken.None;
             }
 
+            if (_playerAttackRangeSuspendToken.IsValid)
+            {
+                _suspend.ReleaseSuspend(_playerAttackRangeSuspendToken);
+                _playerAttackRangeSuspendToken = AutoMoveSuspendToken.None;
+            }
+
             _isSuspendedByWall = false;
             _isSuspendedByGuard = false;
+            _isSuspendedByPlayerAttackRange = false;
         }
     }
 }
