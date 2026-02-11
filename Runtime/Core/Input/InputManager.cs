@@ -33,6 +33,7 @@ namespace GGemCo2DControl
         
         // 방어 처리
         private ActionGuard _actionGuard;
+        private StaminaRegenController _staminaRegen;
 
         // 점프
         private ActionJump _actionJump;
@@ -180,6 +181,9 @@ namespace GGemCo2DControl
                 _policy.CanDashUseSkill = _canDashUseSkill;
                 _policy.CanAttackPlayJump = _canAttackPlayJump;
             }
+
+            // 스테미나 회복 설정 스냅샷 갱신
+            _staminaRegen?.ApplySettings(_playerActionSettings);
         }
 
         private void InitializeControls()
@@ -189,6 +193,10 @@ namespace GGemCo2DControl
             
             _actionGuard = new ActionGuard();
             _actionGuard.Initialize(this, _characterBase, _characterBaseController);
+
+            // "가드가 아닐 때" 스테미나 회복 정책
+            _staminaRegen = new StaminaRegenController(_characterBase, _actionGuard);
+            _staminaRegen.ApplySettings(_playerActionSettings);
 
             _actionMove = new ActionMove();
             _actionMove.Initialize(this, _characterBase, _characterBaseController);
@@ -361,11 +369,14 @@ namespace GGemCo2DControl
         {
             _simulationToolHandler?.Tick();
 
-            // Guard 유지 비용(스테미나 틱 차감), 자동 해제
-            _actionGuard?.Tick(Time.deltaTime);
-
             // 80ms 입력 버퍼 마감 처리(가상 릴리즈)
             _releaseResolver?.Tick(Time.unscaledTime);
+
+            // Guard 유지(스테미나 틱/자동 해제) 처리
+            _actionGuard?.Tick(Time.deltaTime);
+
+            // 스테미나 회복(가드 중이 아닐 때)
+            _staminaRegen?.Tick(Time.deltaTime);
         }
 
         private void OnDisable()

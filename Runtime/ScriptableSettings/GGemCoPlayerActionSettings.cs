@@ -184,6 +184,16 @@ namespace GGemCo2DControl
         [Tooltip("guardStaminaTickInterval 시간마다 얼마나 차감할 것인지")]
         public long guardStaminaTickCost;
 
+        [Header("스테미나 회복")] 
+        [Tooltip("방어를 하고 있지 않을 때, 몇 초 마다 회복할 것인지")]
+        public float noGuardStaminaTickInterval;
+
+        [Tooltip("틱 회복량 해석 방식\n- Flat: 고정값(정수 스테미나)\n- PercentOfMax: 최대 스테미나 대비 비율(0~1)\n  예) 0.02 = 2%")]
+        public ConfigCommon.CalculateType noGuardStaminaTickValueType = ConfigCommon.CalculateType.Flat;
+
+        [Tooltip("틱 회복량 값\n- Flat: 스테미나 값(정수로 반올림)\n- PercentOfMax: 최대 스테미나 대비 비율(0~1)")]
+        public float noGuardStaminaTickValue;
+
         // ============================================================
 
         private void Reset()

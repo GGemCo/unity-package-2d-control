@@ -41,7 +41,7 @@ namespace GGemCo2DControl
         // [Tooltip("guardStaminaTickInterval 시간마다 얼마나 차감할 것인지")]
         private long _guardStaminaTickCost;
 
-        // 스테미나 틱(유지 차감) 누적 시간
+        // 스테미나 틱 누적(프레임 드랍 보정)
         private float _staminaTickElapsed;
 
         public override void Initialize(InputManager inputManager, CharacterBase characterBase, CharacterBaseController characterBaseController)
@@ -98,7 +98,7 @@ namespace GGemCo2DControl
             // 이미 가드 중이면 유지 (중복 호출 방지)
             if (IsGuarding) return;
 
-            // Guard 시작 비용(즉시 1회 차감)
+            // Guard 시작 비용 지불(부족하면 진입 불가)
             if (!TrySpendStamina(_guardStartStaminaCost))
             {
                 // 스테미나가 부족하면 Guard 진입 자체를 막는다.
@@ -126,44 +126,77 @@ namespace GGemCo2DControl
         }
 
         /// <summary>
-        /// Guard 유지 중(Start/Wait) 스테미나 틱 차감 처리.
-        /// - 프레임 드랍 시에도 누락 없이 처리하기 위해 누적 시간 + while 루프를 사용합니다.
+        /// Update 루프에서 호출되는 Guard 유지 처리
+        /// - 스테미나 0이면 입력과 무관하게 즉시 해제
+        /// - 설정된 주기마다 스테미나를 차감
         /// </summary>
         public void Tick(float deltaTime)
         {
-            if (_phase != GuardPhase.Start && _phase != GuardPhase.Wait) return;
-            if (_guardStaminaTickInterval <= 0f) return;
+            if (!IsGuarding) return;
+            if (actionCharacterBase == null) return;
 
-            // 비정상 값 방어
-            if (deltaTime <= 0f) return;
+            // 사망 시 즉시 해제
+            if (actionCharacterBase.IsStatusDead())
+            {
+                CancelGuard(true);
+                return;
+            }
+
+            // 스테미나 0이면 입력과 무관하게 즉시 해제
+            if (actionCharacterBase.CurrentStamina.Value <= 0)
+            {
+                CancelGuard(true);
+                return;
+            }
+
+            // 틱 차감 비활성
+            if (_guardStaminaTickInterval <= 0f || _guardStaminaTickCost <= 0f)
+            {
+                return;
+            }
 
             _staminaTickElapsed += deltaTime;
+            if (_staminaTickElapsed < _guardStaminaTickInterval) return;
 
-            // 1프레임에 여러 번 차감될 수 있음(프레임 드랍)
+            // 프레임 드랍에도 누락되지 않도록 while 처리
             while (_staminaTickElapsed >= _guardStaminaTickInterval)
             {
                 _staminaTickElapsed -= _guardStaminaTickInterval;
 
                 if (!TrySpendStamina(_guardStaminaTickCost))
                 {
-                    // 스테미나 부족 시 즉시 해제(연출 스킵)
-                    CancelGuard(skipEndAnimation: false);
+                    // 유지 불가 → 즉시 해제
+                    CancelGuard(true);
+                    return;
+                }
+
+                if (actionCharacterBase.CurrentStamina.Value <= 0)
+                {
+                    CancelGuard(true);
                     return;
                 }
             }
         }
 
         /// <summary>
-        /// 가드 성공(블록/저스트가드 등) 확정 시 호출.
-        /// - 성공 비용을 지불할 수 없으면 즉시 가드를 해제하고 false를 반환합니다.
+        /// 가드 성공(블록/저스트가드 등)이 확정된 시점에 호출.
+        /// - 성공 비용을 차감
+        /// - 부족하면 즉시 가드 해제 후 false 반환
         /// </summary>
         public bool OnGuardSuccess()
         {
             if (!IsGuarding) return false;
+            if (actionCharacterBase == null) return false;
 
             if (!TrySpendStamina(_guardSuccessStaminaCost))
             {
-                CancelGuard(skipEndAnimation: true);
+                CancelGuard(true);
+                return false;
+            }
+
+            if (actionCharacterBase.CurrentStamina.Value <= 0)
+            {
+                CancelGuard(true);
                 return false;
             }
 
