@@ -172,6 +172,18 @@ namespace GGemCo2DControl
         [Tooltip("방어 애니메이션 prefix (예: guard)")]
         public string prefixGuardAnimation;
 
+        [Tooltip("방어 시작시 차감되는 스테미나")]
+        public long guardStartStaminaCost;
+
+        [Tooltip("방어 성공시 차감되는 스테미나")]
+        public long guardSuccessStaminaCost;
+
+        [Tooltip("가드를 하는 중이면, 몇 초 마다 차감할 것인지")]
+        public float guardStaminaTickInterval;
+
+        [Tooltip("guardStaminaTickInterval 시간마다 얼마나 차감할 것인지")]
+        public long guardStaminaTickCost;
+
         // ============================================================
 
         private void Reset()

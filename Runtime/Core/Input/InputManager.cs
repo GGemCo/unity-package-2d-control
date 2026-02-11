@@ -361,6 +361,9 @@ namespace GGemCo2DControl
         {
             _simulationToolHandler?.Tick();
 
+            // Guard 유지 비용(스테미나 틱 차감), 자동 해제
+            _actionGuard?.Tick(Time.deltaTime);
+
             // 80ms 입력 버퍼 마감 처리(가상 릴리즈)
             _releaseResolver?.Tick(Time.unscaledTime);
         }
