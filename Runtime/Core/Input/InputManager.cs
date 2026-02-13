@@ -398,6 +398,14 @@ namespace GGemCo2DControl
             _autoMove.TickSuspendByGuard(guardActive);
         }
 
+        private void UpdateAutoMoveSuspendByControlLocked()
+        {
+            if (_autoMove == null || _characterBase == null) return;
+
+            bool locked = _characterBase.IsStatusDontControl() || _characterBase.IsStatusDead();
+            _autoMove.TickSuspendByControlLocked(locked);
+        }
+
         private void UpdateAutoMoveSuspendByPatrolArea()
         {
             if (_autoMove == null) return;
@@ -422,6 +430,28 @@ namespace GGemCo2DControl
             UpdateAutoMoveSuspendByWall();
             UpdateAutoMoveSuspendByGuard();
             UpdateAutoMoveSuspendByPatrolArea();
+
+            UpdateAutoMoveSuspendByControlLocked();
+
+
+            // DontControl(그로기/컷씬 등) 중에는 입력/자동 이동을 포함한 제어 로직을 중지한다.
+            // - 물리/착지 전이는 유지하기 위해 Jump/Dash Update는 수행한다.
+            if (_characterBase.IsStatusDontControl())
+            {
+                _actionJump.Update();
+                _actionDash.Update();
+
+                // 진행 중인 특수 이동은 즉시 종료
+                if (_actionDash != null && _actionDash.IsDashing)
+                    _actionDash.CancelDash(skipEndAnimation: true);
+
+                // 벽 고정/키네마틱 점프 등 특수 Wall 상태도 해제
+                _actionWall?.CancelWall(restorePrevious: false);
+
+                // 이동 입력/자동 이동 모두 중지
+                // _characterBase.Stop();
+                return;
+            }
 
             // === Kinematic Wall Jump 우선 처리 ===
             // 벽 점프를 Kinematic으로 처리하는 동안에는 기존 Jump/Move 시스템이 물리값을 덮어쓰지 않도록 한다.
@@ -533,12 +563,14 @@ namespace GGemCo2DControl
         // Attack
         private void OnAttackPress(InputAction.CallbackContext ctx)
         {
+            if (_characterBase != null && _characterBase.IsStatusDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Attack, Vector2.zero)) return;
             _releaseResolver?.PushPress(PlayerButtonId.Attack, Time.unscaledTime);
         }
 
         private void OnAttackRelease(InputAction.CallbackContext ctx)
         {
+            if (_characterBase != null && _characterBase.IsStatusDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Attack, Vector2.zero)) return;
             _releaseResolver?.PushRelease(PlayerButtonId.Attack, Time.unscaledTime);
         }
@@ -546,6 +578,7 @@ namespace GGemCo2DControl
         // Guard
         private void OnGuardPress(InputAction.CallbackContext ctx)
         {
+            if (_characterBase != null && _characterBase.IsStatusDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Guard, Vector2.zero)) return;
 
             // Guard는 "홀드" 입력이므로 릴리즈 버퍼(Chord) 시스템을 통하지 않고 즉시 시작합니다.
@@ -556,6 +589,7 @@ namespace GGemCo2DControl
 
         private void OnGuardRelease(InputAction.CallbackContext ctx)
         {
+            if (_characterBase != null && _characterBase.IsStatusDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Guard, Vector2.zero)) return;
             _guardHandler?.HandleRelease();
         }
@@ -563,12 +597,14 @@ namespace GGemCo2DControl
         // Jump
         private void OnJumpPress(InputAction.CallbackContext ctx)
         {
+            if (_characterBase != null && _characterBase.IsStatusDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Jump, Vector2.zero)) return;
             _releaseResolver?.PushPress(PlayerButtonId.Jump, Time.unscaledTime);
         }
 
         private void OnJumpRelease(InputAction.CallbackContext ctx)
         {
+            if (_characterBase != null && _characterBase.IsStatusDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Jump, Vector2.zero)) return;
             _releaseResolver?.PushRelease(PlayerButtonId.Jump, Time.unscaledTime);
         }
@@ -576,12 +612,14 @@ namespace GGemCo2DControl
         // Dash
         private void OnDashPress(InputAction.CallbackContext ctx)
         {
+            if (_characterBase != null && _characterBase.IsStatusDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Dash, Vector2.zero)) return;
             _releaseResolver?.PushPress(PlayerButtonId.Dash, Time.unscaledTime);
         }
 
         private void OnDashRelease(InputAction.CallbackContext ctx)
         {
+            if (_characterBase != null && _characterBase.IsStatusDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Dash, Vector2.zero)) return;
             _releaseResolver?.PushRelease(PlayerButtonId.Dash, Time.unscaledTime);
         }
@@ -591,12 +629,14 @@ namespace GGemCo2DControl
         /// </summary>
         private void OnInteractionPress(InputAction.CallbackContext ctx)
         {
+            if (_characterBase != null && _characterBase.IsStatusDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Interaction, Vector2.zero)) return;
             _releaseResolver?.PushPress(PlayerButtonId.Interaction, Time.unscaledTime);
         }
 
         private void OnInteractionRelease(InputAction.CallbackContext ctx)
         {
+            if (_characterBase != null && _characterBase.IsStatusDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Interaction, Vector2.zero)) return;
             _releaseResolver?.PushRelease(PlayerButtonId.Interaction, Time.unscaledTime);
         }
@@ -606,6 +646,7 @@ namespace GGemCo2DControl
         /// </summary>
         private void OnSimulationToolPress(InputAction.CallbackContext ctx)
         {
+            if (_characterBase != null && _characterBase.IsStatusDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.SimulationTool, Vector2.zero)) return;
             _simulationToolPressCtx = ctx;
             _releaseResolver?.PushPress(PlayerButtonId.SimulationTool, Time.unscaledTime);
@@ -613,6 +654,7 @@ namespace GGemCo2DControl
 
         private void OnSimulationToolRelease(InputAction.CallbackContext ctx)
         {
+            if (_characterBase != null && _characterBase.IsStatusDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.SimulationTool, Vector2.zero)) return;
             _simulationToolReleaseCtx = ctx;
             _releaseResolver?.PushRelease(PlayerButtonId.SimulationTool, Time.unscaledTime);

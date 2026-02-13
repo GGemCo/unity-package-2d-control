@@ -17,9 +17,11 @@ namespace GGemCo2DControl
         private AutoMoveSuspendToken _wallSuspendToken;
         private AutoMoveSuspendToken _guardSuspendToken;
         private AutoMoveSuspendToken _playerAttackRangeSuspendToken;
+        private AutoMoveSuspendToken _controlLockedSuspendToken;
         private bool _isSuspendedByWall;
         private bool _isSuspendedByGuard;
         private bool _isSuspendedByPlayerAttackRange;
+        private bool _isSuspendedByControlLocked;
 
         public AutoMoveAdapter(IAutoMoveVectorProvider provider, IAutoMoveSuspendService suspend)
         {
@@ -28,9 +30,11 @@ namespace GGemCo2DControl
             _wallSuspendToken = AutoMoveSuspendToken.None;
             _guardSuspendToken = AutoMoveSuspendToken.None;
             _playerAttackRangeSuspendToken = AutoMoveSuspendToken.None;
+            _controlLockedSuspendToken = AutoMoveSuspendToken.None;
             _isSuspendedByWall = false;
             _isSuspendedByGuard = false;
             _isSuspendedByPlayerAttackRange = false;
+            _isSuspendedByControlLocked = false;
         }
 
         public bool IsAutoMoveActive => _provider is { IsAutoMoveActive: true };
@@ -131,7 +135,35 @@ namespace GGemCo2DControl
                 {
                     _suspend.ReleaseSuspend(_playerAttackRangeSuspendToken);
                     _playerAttackRangeSuspendToken = AutoMoveSuspendToken.None;
+                    _controlLockedSuspendToken = AutoMoveSuspendToken.None;
                     _isSuspendedByPlayerAttackRange = false;
+                    _isSuspendedByControlLocked = false;
+                }
+            }
+        }
+
+        /// <summary>
+        /// CharacterStatus.DontControl 등으로 제어가 잠겨 있을 때 AutoMove를 Suspend(Resume 가능한 Pause)합니다.
+        /// </summary>
+        public void TickSuspendByControlLocked(bool controlLocked)
+        {
+            if (_suspend == null) return;
+
+            if (controlLocked)
+            {
+                if (!_isSuspendedByControlLocked)
+                {
+                    _controlLockedSuspendToken = _suspend.AcquireSuspend(AutoMoveSuspendReason.ControlLocked);
+                    _isSuspendedByControlLocked = _controlLockedSuspendToken.IsValid;
+                }
+            }
+            else
+            {
+                if (_isSuspendedByControlLocked)
+                {
+                    _suspend.ReleaseSuspend(_controlLockedSuspendToken);
+                    _controlLockedSuspendToken = AutoMoveSuspendToken.None;
+                    _isSuspendedByControlLocked = false;
                 }
             }
         }
@@ -157,9 +189,16 @@ namespace GGemCo2DControl
                 _playerAttackRangeSuspendToken = AutoMoveSuspendToken.None;
             }
 
+            if (_controlLockedSuspendToken.IsValid)
+            {
+                _suspend.ReleaseSuspend(_controlLockedSuspendToken);
+                _controlLockedSuspendToken = AutoMoveSuspendToken.None;
+            }
+
             _isSuspendedByWall = false;
             _isSuspendedByGuard = false;
             _isSuspendedByPlayerAttackRange = false;
+            _isSuspendedByControlLocked = false;
         }
     }
 }
