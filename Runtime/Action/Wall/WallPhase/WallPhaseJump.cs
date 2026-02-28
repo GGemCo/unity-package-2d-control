@@ -47,8 +47,9 @@ namespace GGemCo2DControl
             ctx.RaycastNonAlloc(origin, checkDir, ctx.WallJumpPredictDistance, ctx.WallMask, out var hit);
 
             // 디버그 시각화를 위한 레이 정보 기록(실패/성공 및 hit point 포함)
+#if UNITY_EDITOR            
             ctx.DebugSetJumpPredictRay(origin, checkDir, ctx.WallJumpPredictDistance, hit.collider != null, hit.point);
-
+#endif
             // 반대편 벽이 없으면 Wall Action을 종료하는 JumpEnd로 전이합니다.
             if (!hit.collider)
             {
