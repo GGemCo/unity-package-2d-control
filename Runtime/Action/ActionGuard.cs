@@ -1,3 +1,4 @@
+using System;
 using GGemCo2DCore;
 using UnityEngine;
 
@@ -11,6 +12,7 @@ namespace GGemCo2DControl
     public sealed class ActionGuard : ActionBase
     {
         public bool IsGuarding => _phase != GuardPhase.None;
+        public bool IsActivelyGuarding => _phase == GuardPhase.Start || _phase == GuardPhase.Wait;
 
         private enum GuardPhase
         {
@@ -43,6 +45,17 @@ namespace GGemCo2DControl
 
         // 스테미나 틱 누적(프레임 드랍 보정)
         private float _staminaTickElapsed;
+
+        private bool _enableJustGuard;
+        private float _justGuardOpenDelay;
+        private float _justGuardWindowDuration;
+        private float _guardDamageMultiplier;
+        private float _justGuardDamageMultiplier;
+        private bool _guardFrontOnly;
+        private bool _guardSuppressHitReaction;
+        private bool _justGuardSuppressHitReaction;
+
+        private float _guardStartedTime = -999f;
 
         public override void Initialize(InputManager inputManager, CharacterBase characterBase, CharacterBaseController characterBaseController)
         {
@@ -85,6 +98,15 @@ namespace GGemCo2DControl
             _guardSuccessStaminaCost = playerActionSettings.guardSuccessStaminaCost;
             _guardStaminaTickInterval = playerActionSettings.guardStaminaTickInterval;
             _guardStaminaTickCost = playerActionSettings.guardStaminaTickCost;
+
+            _enableJustGuard = playerActionSettings.enableJustGuard;
+            _justGuardOpenDelay = Mathf.Max(0f, playerActionSettings.justGuardOpenDelay);
+            _justGuardWindowDuration = Mathf.Max(0f, playerActionSettings.justGuardWindowDuration);
+            _guardDamageMultiplier = Mathf.Clamp01(playerActionSettings.guardDamageMultiplier);
+            _justGuardDamageMultiplier = Mathf.Clamp01(playerActionSettings.justGuardDamageMultiplier);
+            _guardFrontOnly = playerActionSettings.guardFrontOnly;
+            _guardSuppressHitReaction = playerActionSettings.guardSuppressHitReaction;
+            _justGuardSuppressHitReaction = playerActionSettings.justGuardSuppressHitReaction;
         }
 
         /// <summary>
@@ -107,6 +129,7 @@ namespace GGemCo2DControl
 
             // Tick 초기화
             _staminaTickElapsed = 0f;
+            _guardStartedTime = Time.time;
 
             // 이동 멈춤
             actionCharacterBase.directionNormalize = Vector3.zero;
@@ -249,8 +272,86 @@ namespace GGemCo2DControl
         {
             _phase = GuardPhase.None;
             _staminaTickElapsed = 0f;
+            _guardStartedTime = -999f;
             // 상태 복귀는 Stop이 담당(기존 설계 유지)
             actionCharacterBase?.Stop(true);
+        }
+
+        public bool TryResolveIncomingHit(MetadataDamage metadataDamage, out GuardResolutionResult result)
+        {
+            result = default;
+
+            if (!IsActivelyGuarding) return false;
+            if (actionCharacterBase == null) return false;
+            if (metadataDamage == null) return false;
+            if (metadataDamage.damage <= 0) return false;
+            if (_guardFrontOnly && !IsIncomingAttackFromFront(metadataDamage.attacker)) return false;
+
+            bool isJustGuard = IsInJustGuardWindow(Time.time);
+            if (!OnGuardSuccess())
+            {
+                return false;
+            }
+
+            float damageMultiplier = isJustGuard ? _justGuardDamageMultiplier : _guardDamageMultiplier;
+            bool suppressHitReaction = isJustGuard ? _justGuardSuppressHitReaction : _guardSuppressHitReaction;
+
+            long remainingDamage = CalculateReducedDamage(metadataDamage.damage, damageMultiplier);
+
+            result = new GuardResolutionResult
+            {
+                IsResolved = true,
+                IsJustGuard = isJustGuard,
+                RemainingDamage = remainingDamage,
+                SuppressHitReaction = suppressHitReaction,
+                FeedbackText = isJustGuard ? "JUST GUARD" : "GUARD",
+                FeedbackColor = isJustGuard ? Color.yellow : Color.cyan,
+            };
+            return true;
+        }
+
+        private bool IsInJustGuardWindow(float now)
+        {
+            if (!_enableJustGuard) return false;
+            if (!IsActivelyGuarding) return false;
+            if (_justGuardWindowDuration <= 0f) return false;
+
+            float elapsed = now - _guardStartedTime;
+            if (elapsed < 0f) return false;
+            if (elapsed < _justGuardOpenDelay) return false;
+            return elapsed <= (_justGuardOpenDelay + _justGuardWindowDuration);
+        }
+
+        private bool IsIncomingAttackFromFront(GameObject attacker)
+        {
+            if (actionCharacterBase == null) return false;
+            if (attacker == null) return true;
+
+            float deltaX = attacker.transform.position.x - actionCharacterBase.transform.position.x;
+            if (Mathf.Abs(deltaX) <= 0.0001f)
+            {
+                return true;
+            }
+
+            return actionCharacterBase.CurrentFacing switch
+            {
+                CharacterConstants.FacingDirection8.Left => deltaX <= 0f,
+                CharacterConstants.FacingDirection8.Right => deltaX >= 0f,
+                CharacterConstants.FacingDirection8.UpLeft => deltaX <= 0f,
+                CharacterConstants.FacingDirection8.DownLeft => deltaX <= 0f,
+                CharacterConstants.FacingDirection8.UpRight => deltaX >= 0f,
+                CharacterConstants.FacingDirection8.DownRight => deltaX >= 0f,
+                _ => true,
+            };
+        }
+
+        private static long CalculateReducedDamage(long damage, float multiplier)
+        {
+            if (damage <= 0) return 0;
+            if (multiplier <= 0f) return 0;
+            if (multiplier >= 1f) return damage;
+
+            return Math.Max(0L, (long)Mathf.Ceil(damage * multiplier));
         }
 
         public void CancelGuard(bool skipEndAnimation = false)

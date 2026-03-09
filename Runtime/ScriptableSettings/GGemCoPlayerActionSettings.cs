@@ -184,6 +184,33 @@ namespace GGemCo2DControl
         [Tooltip("guardStaminaTickInterval 시간마다 얼마나 차감할 것인지")]
         public long guardStaminaTickCost;
 
+        [Header("저스트 가드")]
+        [Tooltip("저스트 가드 기능 활성화 여부")]
+        public bool enableJustGuard = true;
+
+        [Tooltip("가드 시작 후 저스트 가드 판정을 열기까지의 지연 시간(초)")]
+        public float justGuardOpenDelay = 0f;
+
+        [Tooltip("저스트 가드 판정 유지 시간(초)")]
+        public float justGuardWindowDuration = 0.12f;
+
+        [Tooltip("일반 가드 성공 시 적용할 데미지 배율\n0 = 완전 방어, 1 = 감쇄 없음")]
+        [Range(0f, 1f)]
+        public float guardDamageMultiplier = 0f;
+
+        [Tooltip("저스트 가드 성공 시 적용할 데미지 배율\n0 = 완전 방어, 1 = 감쇄 없음")]
+        [Range(0f, 1f)]
+        public float justGuardDamageMultiplier = 0f;
+
+        [Tooltip("공격이 캐릭터 정면에서 들어온 경우에만 가드/저스트가드를 허용할지 여부")]
+        public bool guardFrontOnly = true;
+
+        [Tooltip("일반 가드 성공 시 피격 리액션(피격 애니메이션/CC)을 막을지 여부")]
+        public bool guardSuppressHitReaction = true;
+
+        [Tooltip("저스트 가드 성공 시 피격 리액션(피격 애니메이션/CC)을 막을지 여부")]
+        public bool justGuardSuppressHitReaction = true;
+
         [Header("스테미나 회복")] 
         [Tooltip("방어를 하고 있지 않을 때, 몇 초 마다 회복할 것인지")]
         public float noGuardStaminaTickInterval;

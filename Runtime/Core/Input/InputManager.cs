@@ -8,7 +8,7 @@ namespace GGemCo2DControl
     /// Player Input Asset에 등록한 키보드, 마우스, 게임 패드등의 입력 처리
     /// Player 에 AddComponent 된다.
     /// </summary>
-    public class InputManager : MonoBehaviour, IAutoMoveMovementDriver
+    public class InputManager : MonoBehaviour, IAutoMoveMovementDriver, IIncomingHitGuardResolver
     {
         /// <summary>
         /// Control 패키지의 InputManager가 실제 이동 실행(Run/Move)을 담당합니다.
@@ -226,7 +226,7 @@ namespace GGemCo2DControl
             // Wall Action 디버그 Gizmo(레이 캐스트) 렌더링 프록시 바인딩
             if (_playerActionSettings.enableWallDebugGizmos)
             {
-                var wallDebug = GetComponent<ActionWallDebugDrawer>();
+                var wallDebug = ControlPackageManager.Instance.gameObject.GetComponent<ActionWallDebugDrawer>();
                 if (wallDebug == null)
                 {
                     wallDebug = ControlPackageManager.Instance.gameObject.AddComponent<ActionWallDebugDrawer>();
@@ -377,6 +377,13 @@ namespace GGemCo2DControl
 
             // 스테미나 회복(가드 중이 아닐 때)
             _staminaRegen?.Tick(Time.deltaTime);
+        }
+
+        public bool TryResolveIncomingHit(MetadataDamage metadataDamage, out GuardResolutionResult result)
+        {
+            result = default;
+            if (_actionGuard == null) return false;
+            return _actionGuard.TryResolveIncomingHit(metadataDamage, out result);
         }
 
         private void OnDisable()
