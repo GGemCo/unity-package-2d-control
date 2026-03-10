@@ -1,12 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using GGemCo2DCore;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.InputSystem;
 using UnityEngine.ResourceManagement.AsyncOperations;
 
-namespace GGemCo2DCore
+namespace GGemCo2DControl
 {
     /// <summary>
     /// 사운드 로드
