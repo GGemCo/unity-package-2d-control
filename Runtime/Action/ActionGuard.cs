@@ -307,6 +307,8 @@ namespace GGemCo2DControl
                 FeedbackText = isJustGuard ? "JUST GUARD" : "GUARD",
                 FeedbackColor = isJustGuard ? Color.yellow : Color.cyan,
             };
+            if (!playerActionSettings.showGuardDebugText)
+                result.FeedbackText = string.Empty;
             return true;
         }
 
