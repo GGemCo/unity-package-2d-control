@@ -83,6 +83,15 @@ namespace GGemCo2DControl
             ResolveByTimeout(_deadline);
         }
 
+        /// <summary>
+        /// 현재 대기 중인 입력 윈도우를 즉시 비웁니다.
+        /// 피격 등 외부 인터럽트 시 이전 입력이 다음 프레임에 재실행되지 않도록 사용합니다.
+        /// </summary>
+        public void Clear()
+        {
+            ResetWindow();
+        }
+
         private void BeginWindow(PlayerButtonId first, float time)
         {
             _active = true;

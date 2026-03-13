@@ -8,7 +8,7 @@ namespace GGemCo2DControl
     /// Player Input Asset에 등록한 키보드, 마우스, 게임 패드등의 입력 처리
     /// Player 에 AddComponent 된다.
     /// </summary>
-    public class InputManager : MonoBehaviour, IAutoMoveMovementDriver, IIncomingHitGuardResolver
+    public class InputManager : MonoBehaviour, IAutoMoveMovementDriver, IIncomingHitGuardResolver, IIncomingHitActionCanceler
     {
         /// <summary>
         /// Control 패키지의 InputManager가 실제 이동 실행(Run/Move)을 담당합니다.
@@ -384,6 +384,32 @@ namespace GGemCo2DControl
             result = default;
             if (_actionGuard == null) return false;
             return _actionGuard.TryResolveIncomingHit(metadataDamage, out result);
+        }
+
+        /// <summary>
+        /// 피격/사망으로 인해 진행 중인 입력 액션을 강제 종료합니다.
+        /// 가드 상태가 남아서 다음 입력이 막히는 문제를 방지하기 위해, 상태 전환 전에 관련 액션과 입력 버퍼를 함께 정리합니다.
+        /// </summary>
+        /// <param name="reason">액션 취소 사유입니다.</param>
+        public void CancelActionsOnIncomingHit(IncomingHitCancelReason reason)
+        {
+            _releaseResolver?.Clear();
+
+            _actionJump?.CancelJump(skipLandAnimation: true, restoreGravity: true);
+            _actionDash?.CancelDash(skipEndAnimation: true);
+            _actionClimb?.CancelClimb(skipEndAnimation: true, restoreGravity: true);
+            _actionPushPull?.Cancel();
+            _toolAction?.Cancel();
+            _actionWall?.CancelWall(restorePrevious: reason == IncomingHitCancelReason.Death);
+            _actionGuard?.CancelGuard(true);
+
+            _autoMove?.ReleaseAll();
+
+            if (reason == IncomingHitCancelReason.Death)
+            {
+                _simulationToolPressCtx = default;
+                _simulationToolReleaseCtx = default;
+            }
         }
 
         private void OnDisable()
@@ -872,16 +898,7 @@ namespace GGemCo2DControl
         /// </summary>
         private void OnDeadGround()
         {
-            _actionJump?.CancelJump(true);
-            _actionDash?.CancelDash(true);
-            _actionClimb?.CancelClimb();
-            _actionPushPull?.Cancel();
-
-            _toolAction?.Cancel(); //  툴 지속 상태 강제 종료
-
-            _actionWall?.CancelWall(restorePrevious: true);
-            _actionGuard?.CancelGuard(true);
-
+            CancelActionsOnIncomingHit(IncomingHitCancelReason.Death);
         }
 
         public void SetToolAction(IToolAction toolAction)
