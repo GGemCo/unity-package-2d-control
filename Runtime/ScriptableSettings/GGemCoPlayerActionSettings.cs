@@ -55,6 +55,22 @@ namespace GGemCo2DControl
         public bool canJumpUseSkill;
         [Tooltip("점프 중 공격 가능 여부")]
         public bool canAttackPlayJump;
+        [Tooltip("일반 지형 레이어 외에 One Way Platform으로 사용할 추가 레이어 이름입니다.\n비어 있으면 일반 지형 레이어만 사용합니다.")]
+        public string jumpOneWayPlatformLayerName = "";
+        [Tooltip("발 아래 접지 판정 폭 비율입니다. 콜라이더 폭에 곱해 사용합니다.\n값이 너무 크면 벽/경사 오판정이 증가하고, 너무 작으면 착지 안정성이 떨어질 수 있습니다.")]
+        [Range(0.1f, 1f)]
+        public float jumpGroundProbeWidthScale = 0.8f;
+        [Tooltip("발 아래 접지 판정 박스 높이(월드 유닛)입니다.")]
+        public float jumpGroundProbeHeight = 0.08f;
+        [Tooltip("발 아래로 추가 검사할 거리(월드 유닛)입니다. 작은 경사/단차에서 접지 안정성을 높입니다.")]
+        public float jumpGroundProbeExtraDistance = 0.04f;
+        [Tooltip("머리 위 천장 판정 폭 비율입니다. 콜라이더 폭에 곱해 사용합니다.")]
+        [Range(0.1f, 1f)]
+        public float jumpCeilingProbeWidthScale = 0.7f;
+        [Tooltip("머리 위 천장 판정 박스 높이(월드 유닛)입니다.")]
+        public float jumpCeilingProbeHeight = 0.06f;
+        [Tooltip("머리 위로 추가 검사할 거리(월드 유닛)입니다.")]
+        public float jumpCeilingProbeExtraDistance = 0.02f;
 
         [Header("대시")]
         [Tooltip("대시 거리 (월드 유닛)")]
@@ -229,6 +245,12 @@ namespace GGemCo2DControl
         private void Reset()
         {
             canMoveVertical = true;
+            jumpGroundProbeWidthScale = 0.8f;
+            jumpGroundProbeHeight = 0.08f;
+            jumpGroundProbeExtraDistance = 0.04f;
+            jumpCeilingProbeWidthScale = 0.7f;
+            jumpCeilingProbeHeight = 0.06f;
+            jumpCeilingProbeExtraDistance = 0.02f;
         }
     }
 }

@@ -54,8 +54,18 @@ namespace GGemCo2DControl
         private string _animJumpFallLoop;
         private string _animJumpEnd;
 
-        // --- Ground Layer ---
+        // --- Ground / Ceiling Layer ---
         private LayerMask _groundMask;
+        private LayerMask _solidGroundMask;
+        private LayerMask _oneWayGroundMask;
+
+        // --- Probe Settings ---
+        private float _groundProbeWidthScale;
+        private float _groundProbeHeight;
+        private float _groundProbeExtraDistance;
+        private float _ceilingProbeWidthScale;
+        private float _ceilingProbeHeight;
+        private float _ceilingProbeExtraDistance;
 
         // --- 보유 여부 캐시 ---
         private bool _hasStart, _hasUp, _hasChangeFall, _hasFall, _hasEnd;
@@ -89,12 +99,7 @@ namespace GGemCo2DControl
             // Animator/클립 길이 수집
             _clipLength = actionCharacterBase.CharacterAnimationController.GetAnimationAllLength();
 
-            // Ground Layer
-            _groundMask = LayerMask.GetMask(ConfigLayer.GetValue(ConfigLayer.Keys.TileMapGround));
-            if (_groundMask == 0)
-            {
-                GcLogger.LogWarning($"[ActionJump] Layer '{ConfigLayer.GetValue(ConfigLayer.Keys.TileMapGround)}'를 찾을 수 없습니다. Project Settings > Tags and Layers 확인.");
-            }
+            RefreshCollisionMasks();
 
             actionCharacterBase.OnAnimationEventJump += OnAnimationEventJump;
             
@@ -114,11 +119,27 @@ namespace GGemCo2DControl
             if (playerActionSettings)
             {
                 _desiredJumpHeight = playerActionSettings.jumpHeight;
-                _timeToApex        = playerActionSettings.jumpSpeed;
+                _timeToApex = playerActionSettings.jumpSpeed;
+                _groundProbeWidthScale = Mathf.Clamp(playerActionSettings.jumpGroundProbeWidthScale, 0.1f, 1f);
+                _groundProbeHeight = Mathf.Max(0.01f, playerActionSettings.jumpGroundProbeHeight);
+                _groundProbeExtraDistance = Mathf.Max(0f, playerActionSettings.jumpGroundProbeExtraDistance);
+                _ceilingProbeWidthScale = Mathf.Clamp(playerActionSettings.jumpCeilingProbeWidthScale, 0.1f, 1f);
+                _ceilingProbeHeight = Mathf.Max(0.01f, playerActionSettings.jumpCeilingProbeHeight);
+                _ceilingProbeExtraDistance = Mathf.Max(0f, playerActionSettings.jumpCeilingProbeExtraDistance);
+            }
+            else
+            {
+                _groundProbeWidthScale = 0.8f;
+                _groundProbeHeight = 0.08f;
+                _groundProbeExtraDistance = 0.04f;
+                _ceilingProbeWidthScale = 0.7f;
+                _ceilingProbeHeight = 0.06f;
+                _ceilingProbeExtraDistance = 0.02f;
             }
 
+            RefreshCollisionMasks();
             RecalculatePhysicsConstants(_desiredJumpHeight, _timeToApex);
-            
+
             ApplyJumpAnimationNames();
             RefreshJumpAnimationAvailability();
         }
@@ -306,7 +327,7 @@ namespace GGemCo2DControl
             switch (_phase)
             {
                 case JumpPhase.UpLoop:
-                    if (vy <= 0.0001f) EnterPhase(JumpPhase.ApexChange);
+                    if (vy <= 0.0001f || IsCeilingHit()) EnterPhase(JumpPhase.ApexChange);
                     break;
 
                 case JumpPhase.FallLoop:
@@ -458,8 +479,58 @@ namespace GGemCo2DControl
 
         public bool IsGroundedByCollision()
         {
-            if (_col == null) return false;
-            return _col.IsTouchingLayers(_groundMask);
+            if (_col == null || _groundMask == 0) return false;
+
+            Bounds bounds = _col.bounds;
+            Vector2 size = BuildGroundProbeSize(bounds);
+            Vector2 center = new Vector2(bounds.center.x, bounds.min.y - _groundProbeExtraDistance + (size.y * 0.5f));
+
+            return Physics2D.OverlapBox(center, size, 0f, _groundMask) != null;
+        }
+
+        private bool IsCeilingHit()
+        {
+            if (_col == null || _solidGroundMask == 0) return false;
+
+            Bounds bounds = _col.bounds;
+            Vector2 size = BuildCeilingProbeSize(bounds);
+            Vector2 center = new Vector2(bounds.center.x, bounds.max.y + _ceilingProbeExtraDistance - (size.y * 0.5f));
+
+            return Physics2D.OverlapBox(center, size, 0f, _solidGroundMask) != null;
+        }
+
+        private Vector2 BuildGroundProbeSize(Bounds bounds)
+        {
+            float width = Mathf.Max(0.02f, bounds.size.x * _groundProbeWidthScale);
+            return new Vector2(width, _groundProbeHeight);
+        }
+
+        private Vector2 BuildCeilingProbeSize(Bounds bounds)
+        {
+            float width = Mathf.Max(0.02f, bounds.size.x * _ceilingProbeWidthScale);
+            return new Vector2(width, _ceilingProbeHeight);
+        }
+
+        private void RefreshCollisionMasks()
+        {
+            string solidGroundLayerName = ConfigLayer.GetValue(ConfigLayer.Keys.TileMapGround);
+            _solidGroundMask = LayerMask.GetMask(solidGroundLayerName);
+            if (_solidGroundMask == 0)
+            {
+                GcLogger.LogWarning($"[ActionJump] Layer '{solidGroundLayerName}'를 찾을 수 없습니다. Project Settings > Tags and Layers 확인.");
+            }
+
+            _oneWayGroundMask = 0;
+            if (playerActionSettings != null && !string.IsNullOrWhiteSpace(playerActionSettings.jumpOneWayPlatformLayerName))
+            {
+                _oneWayGroundMask = LayerMask.GetMask(playerActionSettings.jumpOneWayPlatformLayerName);
+                if (_oneWayGroundMask == 0)
+                {
+                    GcLogger.LogWarning($"[ActionJump] One Way Platform Layer '{playerActionSettings.jumpOneWayPlatformLayerName}'를 찾을 수 없습니다. Project Settings > Tags and Layers 확인.");
+                }
+            }
+
+            _groundMask = _solidGroundMask | _oneWayGroundMask;
         }
 
         /// <summary>
