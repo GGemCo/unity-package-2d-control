@@ -223,6 +223,18 @@ namespace GGemCo2DControl
             _actionWall.Initialize(this, _characterBase, _characterBaseController);
 
 #if UNITY_EDITOR
+            // 점프 접지/천장 판정 Gizmo 렌더링 프록시 바인딩
+            if (_playerActionSettings.EnableJumpProbeDebugGizmos)
+            {
+                var jumpDebug = _characterBase.gameObject.GetComponent<ActionJumpDebugDrawer>();
+                if (jumpDebug == null)
+                {
+                    jumpDebug = _characterBase.gameObject.AddComponent<ActionJumpDebugDrawer>();
+                }
+
+                jumpDebug.Bind(_actionJump, _playerActionSettings);
+            }
+
             // Wall Action 디버그 Gizmo(레이 캐스트) 렌더링 프록시 바인딩
             if (_playerActionSettings.enableWallDebugGizmos)
             {

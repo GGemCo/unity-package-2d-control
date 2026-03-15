@@ -56,9 +56,14 @@ namespace GGemCo2DControl
         [Tooltip("점프 중 공격 가능 여부")]
         public bool canAttackPlayJump;
         [Tooltip("일반 지형 레이어 외에 One Way Platform으로 사용할 추가 레이어 이름입니다.\n비어 있으면 일반 지형 레이어만 사용합니다.")]
-        public string jumpOneWayPlatformLayerName = "";
+        public ConfigLayer.Keys jumpOneWayPlatformLayerName = ConfigLayer.Keys.TileMapOneWayPlatform;
+        
+        [Header("점프 접지/천장 판정")]
+        [SerializeField, DebugOption("점프 접지/천장 판정 Gizmo 표시 여부")]
+        private bool enableJumpProbeDebugGizmos;
+        public bool EnableJumpProbeDebugGizmos => DebugOptionRuntimeUtility.Resolve(enableJumpProbeDebugGizmos);
+        
         [Tooltip("발 아래 접지 판정 폭 비율입니다. 콜라이더 폭에 곱해 사용합니다.\n값이 너무 크면 벽/경사 오판정이 증가하고, 너무 작으면 착지 안정성이 떨어질 수 있습니다.")]
-        [Range(0.1f, 1f)]
         public float jumpGroundProbeWidthScale = 0.8f;
         [Tooltip("발 아래 접지 판정 박스 높이(월드 유닛)입니다.")]
         public float jumpGroundProbeHeight = 0.08f;

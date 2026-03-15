@@ -479,36 +479,44 @@ namespace GGemCo2DControl
 
         public bool IsGroundedByCollision()
         {
-            if (_col == null || _groundMask == 0) return false;
-
-            Bounds bounds = _col.bounds;
-            Vector2 size = BuildGroundProbeSize(bounds);
-            Vector2 center = new Vector2(bounds.center.x, bounds.min.y - _groundProbeExtraDistance + (size.y * 0.5f));
-
+            if (!TryGetGroundProbeBounds(out var center, out var size, out _)) return false;
             return Physics2D.OverlapBox(center, size, 0f, _groundMask) != null;
         }
 
         private bool IsCeilingHit()
         {
-            if (_col == null || _solidGroundMask == 0) return false;
-
-            Bounds bounds = _col.bounds;
-            Vector2 size = BuildCeilingProbeSize(bounds);
-            Vector2 center = new Vector2(bounds.center.x, bounds.max.y + _ceilingProbeExtraDistance - (size.y * 0.5f));
-
+            if (!TryGetCeilingProbeBounds(out var center, out var size, out _)) return false;
             return Physics2D.OverlapBox(center, size, 0f, _solidGroundMask) != null;
         }
 
-        private Vector2 BuildGroundProbeSize(Bounds bounds)
+        public bool TryGetGroundProbeBounds(out Vector2 center, out Vector2 size, out bool isGrounded)
         {
-            float width = Mathf.Max(0.02f, bounds.size.x * _groundProbeWidthScale);
-            return new Vector2(width, _groundProbeHeight);
+            center = default;
+            size = default;
+            isGrounded = false;
+
+            if (_col == null || _groundMask == 0) return false;
+
+            Bounds bounds = _col.bounds;
+            size = ActionJumpProbeUtility.BuildGroundProbeSize(bounds, _groundProbeWidthScale, _groundProbeHeight);
+            center = ActionJumpProbeUtility.BuildGroundProbeCenter(bounds, _groundProbeExtraDistance, size);
+            isGrounded = Physics2D.OverlapBox(center, size, 0f, _groundMask) != null;
+            return true;
         }
 
-        private Vector2 BuildCeilingProbeSize(Bounds bounds)
+        public bool TryGetCeilingProbeBounds(out Vector2 center, out Vector2 size, out bool isCeilingHit)
         {
-            float width = Mathf.Max(0.02f, bounds.size.x * _ceilingProbeWidthScale);
-            return new Vector2(width, _ceilingProbeHeight);
+            center = default;
+            size = default;
+            isCeilingHit = false;
+
+            if (_col == null || _solidGroundMask == 0) return false;
+
+            Bounds bounds = _col.bounds;
+            size = ActionJumpProbeUtility.BuildCeilingProbeSize(bounds, _ceilingProbeWidthScale, _ceilingProbeHeight);
+            center = ActionJumpProbeUtility.BuildCeilingProbeCenter(bounds, _ceilingProbeExtraDistance, size);
+            isCeilingHit = Physics2D.OverlapBox(center, size, 0f, _solidGroundMask) != null;
+            return true;
         }
 
         private void RefreshCollisionMasks()
@@ -521,9 +529,9 @@ namespace GGemCo2DControl
             }
 
             _oneWayGroundMask = 0;
-            if (playerActionSettings != null && !string.IsNullOrWhiteSpace(playerActionSettings.jumpOneWayPlatformLayerName))
+            if (playerActionSettings != null)
             {
-                _oneWayGroundMask = LayerMask.GetMask(playerActionSettings.jumpOneWayPlatformLayerName);
+                _oneWayGroundMask = LayerMask.GetMask(ConfigLayer.GetValue(playerActionSettings.jumpOneWayPlatformLayerName));
                 if (_oneWayGroundMask == 0)
                 {
                     GcLogger.LogWarning($"[ActionJump] One Way Platform Layer '{playerActionSettings.jumpOneWayPlatformLayerName}'를 찾을 수 없습니다. Project Settings > Tags and Layers 확인.");
