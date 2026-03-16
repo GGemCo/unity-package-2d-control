@@ -46,7 +46,13 @@ namespace GGemCo2DControl
             if (!ch.GetComponent<InputManager>())
             {
                 // action 처리하는 컨트롤 셋팅
-                var actionController = ch.gameObject.AddComponent<InputManager>();
+                ch.gameObject.AddComponent<InputManager>();
+            }
+
+            if (!ch.GetComponent<MobileInputHudRuntime>())
+            {
+                // 모바일/터치 디바이스에서 사용할 온스크린 컨트롤 HUD
+                ch.gameObject.AddComponent<MobileInputHudRuntime>();
             }
         }
 
