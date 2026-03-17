@@ -25,8 +25,7 @@ namespace GGemCo2DControl
                 return;
             }
 
-            GameObject eventSystemGo = new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
-            Object.DontDestroyOnLoad(eventSystemGo);
+            new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
         }
 
         public MobileHudRootView CreateOrInstantiateView(GGemCoMobileHudSettings settings)
@@ -38,7 +37,6 @@ namespace GGemCo2DControl
 
             GameObject instance = Object.Instantiate(settings.hudPrefab);
             instance.name = settings.hudPrefab.name;
-            Object.DontDestroyOnLoad(instance);
 
             MobileHudRootView prefabView = instance.GetComponent<MobileHudRootView>();
             if (prefabView == null)

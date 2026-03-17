@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
 
 namespace GGemCo2DControl
 {
@@ -18,6 +19,7 @@ namespace GGemCo2DControl
         private MobileHudRootView _rootView;
         private PlayerInput _boundPlayerInput;
         private GGemCoMobileHudSettings _settings;
+        private GameObject _viewPrefabSource;
         private bool _hasLoggedMissingSettings;
         private bool _hasLoggedMissingPrefab;
         private bool _hasLoggedMissingRootView;
@@ -44,6 +46,8 @@ namespace GGemCo2DControl
 
             Instance = this;
             DontDestroyOnLoad(gameObject);
+            SceneManager.sceneLoaded += OnSceneLoaded;
+            SceneManager.sceneUnloaded += OnSceneUnloaded;
         }
 
         private void OnDestroy()
@@ -53,6 +57,9 @@ namespace GGemCo2DControl
                 Instance = null;
             }
 
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+            SceneManager.sceneUnloaded -= OnSceneUnloaded;
+            DestroyRootView();
             UnsubscribeSettings();
         }
 
@@ -77,11 +84,13 @@ namespace GGemCo2DControl
 
             _boundPlayerInput = null;
             _visibilityService.SetVisibleByPlatform(false);
+            DestroyRootView();
         }
 
         public void Refresh()
         {
             ResolveSettings();
+            ValidateRootViewState();
             bool shouldShow = ShouldEnableHud();
             _visibilityService.SetVisibleByPlatform(shouldShow);
 
@@ -93,12 +102,14 @@ namespace GGemCo2DControl
             if (_settings == null)
             {
                 LogMissingSettings();
+                DestroyRootView();
                 return;
             }
 
             if (_settings.hudPrefab == null)
             {
                 LogMissingPrefab();
+                DestroyRootView();
                 return;
             }
 
@@ -107,6 +118,7 @@ namespace GGemCo2DControl
             if (_rootView == null)
             {
                 _rootView = _presenter.CreateOrInstantiateView(_settings);
+                _viewPrefabSource = _settings.hudPrefab;
                 if (_rootView == null)
                 {
                     LogMissingRootView();
@@ -156,7 +168,74 @@ namespace GGemCo2DControl
         private void OnSettingsChanged()
         {
             ResetWarnings();
+            ValidateRootViewState(forceRecreate: true);
             Refresh();
+        }
+
+        private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            ValidateRootViewState(forceRecreate: true);
+            Refresh();
+        }
+
+        private void OnSceneUnloaded(Scene scene)
+        {
+            if (_rootView == null)
+            {
+                return;
+            }
+
+            if (_rootView.gameObject.scene == scene)
+            {
+                _rootView = null;
+                _viewPrefabSource = null;
+                _visibilityService.Bind(null);
+            }
+        }
+
+        private void ValidateRootViewState(bool forceRecreate = false)
+        {
+            bool shouldDestroy = forceRecreate;
+
+            if (!shouldDestroy && _rootView == null)
+            {
+                return;
+            }
+
+            if (!shouldDestroy && !_rootView)
+            {
+                shouldDestroy = true;
+            }
+
+            if (!shouldDestroy && _rootView.gameObject.scene != SceneManager.GetActiveScene())
+            {
+                shouldDestroy = true;
+            }
+
+            if (!shouldDestroy && _settings != null && _settings.hudPrefab != _viewPrefabSource)
+            {
+                shouldDestroy = true;
+            }
+
+            if (!shouldDestroy)
+            {
+                return;
+            }
+
+            DestroyRootView();
+        }
+
+        private void DestroyRootView()
+        {
+            _visibilityService.Bind(null);
+
+            if (_rootView != null)
+            {
+                Destroy(_rootView.gameObject);
+            }
+
+            _rootView = null;
+            _viewPrefabSource = null;
         }
 
         private bool ShouldEnableHud()
