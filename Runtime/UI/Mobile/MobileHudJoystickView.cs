@@ -1,93 +1,98 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.OnScreen;
-using UnityEngine.UI;
 
 namespace GGemCo2DControl
 {
     /// <summary>
     /// 모바일 HUD 조이스틱 뷰입니다.
+    /// 입력용 참조와 노브 위치 동기화만 담당합니다.
     /// </summary>
-    public sealed class MobileHudJoystickView : MonoBehaviour
+    public sealed class MobileHudJoystickView : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IDragHandler
     {
         [SerializeField] private RectTransform rectTransform;
-        [SerializeField] private Image baseImage;
         [SerializeField] private RectTransform knobRectTransform;
-        [SerializeField] private Image knobImage;
         [SerializeField] private OnScreenStick onScreenStick;
-        [SerializeField] private MobileStickVisual stickVisual;
+
+        private float _movementRange = 68f;
 
         public RectTransform RectTransform => rectTransform;
-        public Image BaseImage => baseImage;
         public RectTransform KnobRectTransform => knobRectTransform;
-        public Image KnobImage => knobImage;
         public OnScreenStick OnScreenStick => onScreenStick;
 
         public void EnsureReferences()
         {
-            if (rectTransform == null) rectTransform = GetComponent<RectTransform>();
-            if (baseImage == null) baseImage = GetComponent<Image>();
-            if (onScreenStick == null) onScreenStick = GetComponent<OnScreenStick>();
-            if (stickVisual == null) stickVisual = GetComponent<MobileStickVisual>();
+            if (rectTransform == null)
+            {
+                rectTransform = GetComponent<RectTransform>();
+            }
 
-            if (knobRectTransform == null || knobImage == null)
+            if (onScreenStick == null)
+            {
+                onScreenStick = GetComponent<OnScreenStick>();
+            }
+
+            if (knobRectTransform == null)
             {
                 Transform knob = transform.Find("Knob");
                 if (knob != null)
                 {
                     knobRectTransform = knob.GetComponent<RectTransform>();
-                    knobImage = knob.GetComponent<Image>();
                 }
             }
         }
 
-        public void ApplyVisual(float baseAlpha, float knobAlpha, Sprite baseSprite, Sprite knobSprite, float baseSize, float knobSize, float movementRange)
+        public void SetMovementRange(float movementRange)
         {
-            EnsureReferences();
-
-            if (rectTransform != null)
-            {
-                rectTransform.sizeDelta = new Vector2(baseSize, baseSize);
-            }
-
-            if (baseImage != null)
-            {
-                if (baseSprite != null)
-                {
-                    baseImage.sprite = baseSprite;
-                }
-
-                Color color = baseImage.color;
-                color.a = baseAlpha;
-                baseImage.color = color;
-            }
-
-            if (knobRectTransform != null)
-            {
-                knobRectTransform.sizeDelta = new Vector2(knobSize, knobSize);
-            }
-
-            if (knobImage != null)
-            {
-                if (knobSprite != null)
-                {
-                    knobImage.sprite = knobSprite;
-                }
-
-                Color color = knobImage.color;
-                color.a = knobAlpha;
-                knobImage.color = color;
-            }
-
-            if (stickVisual == null)
-            {
-                stickVisual = gameObject.AddComponent<MobileStickVisual>();
-            }
-
-            stickVisual.Initialize(rectTransform, knobRectTransform, movementRange);
+            _movementRange = Mathf.Max(1f, movementRange);
 
             if (onScreenStick != null)
             {
-                onScreenStick.movementRange = movementRange;
+                onScreenStick.movementRange = _movementRange;
+            }
+        }
+
+        public void OnPointerDown(PointerEventData eventData)
+        {
+            UpdateKnobPosition(eventData);
+        }
+
+        public void OnDrag(PointerEventData eventData)
+        {
+            UpdateKnobPosition(eventData);
+        }
+
+        public void OnPointerUp(PointerEventData eventData)
+        {
+            ResetKnob();
+        }
+
+        private void OnDisable()
+        {
+            ResetKnob();
+        }
+
+        private void UpdateKnobPosition(PointerEventData eventData)
+        {
+            EnsureReferences();
+            if (rectTransform == null || knobRectTransform == null)
+            {
+                return;
+            }
+
+            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(rectTransform, eventData.position, eventData.pressEventCamera, out Vector2 localPoint))
+            {
+                return;
+            }
+
+            knobRectTransform.anchoredPosition = Vector2.ClampMagnitude(localPoint, _movementRange);
+        }
+
+        private void ResetKnob()
+        {
+            if (knobRectTransform != null)
+            {
+                knobRectTransform.anchoredPosition = Vector2.zero;
             }
         }
     }

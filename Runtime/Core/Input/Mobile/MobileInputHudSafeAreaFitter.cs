@@ -14,6 +14,11 @@ namespace GGemCo2DControl
         private Vector2 _padding;
         private bool _useSafeArea = true;
 
+        public void Initialize(RectTransform targetRect, bool useSafeArea)
+        {
+            Initialize(targetRect, useSafeArea, Vector2.zero);
+        }
+
         public void Initialize(RectTransform targetRect, bool useSafeArea, Vector2 padding)
         {
             target = targetRect;

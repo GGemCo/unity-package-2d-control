@@ -18,7 +18,9 @@ namespace GGemCo2DControl
         private MobileHudRootView _rootView;
         private PlayerInput _boundPlayerInput;
         private GGemCoMobileHudSettings _settings;
-        private GGemCoMobileHudSettings _runtimeDefaultSettings;
+        private bool _hasLoggedMissingSettings;
+        private bool _hasLoggedMissingPrefab;
+        private bool _hasLoggedMissingRootView;
 
         public static MobileInputHudService EnsureInstance()
         {
@@ -88,15 +90,35 @@ namespace GGemCo2DControl
                 return;
             }
 
+            if (_settings == null)
+            {
+                LogMissingSettings();
+                return;
+            }
+
+            if (_settings.hudPrefab == null)
+            {
+                LogMissingPrefab();
+                return;
+            }
+
             _presenter.EnsureEventSystem();
 
             if (_rootView == null)
             {
                 _rootView = _presenter.CreateOrInstantiateView(_settings);
+                if (_rootView == null)
+                {
+                    LogMissingRootView();
+                    return;
+                }
             }
 
             _presenter.Apply(_rootView, _settings, _boundPlayerInput, _bindingResolver);
-            _visibilityService.Bind(_rootView.RootCanvasGroup);
+            if (_rootView.RootCanvasGroup != null)
+            {
+                _visibilityService.Bind(_rootView.RootCanvasGroup);
+            }
         }
 
         public void SetSuppressed(string reason, bool suppressed)
@@ -110,17 +132,6 @@ namespace GGemCo2DControl
                 ? AddressableLoaderSettingsControl.Instance.mobileHudSettings
                 : null;
 
-            if (next == null)
-            {
-                if (_runtimeDefaultSettings == null)
-                {
-                    _runtimeDefaultSettings = ScriptableObject.CreateInstance<GGemCoMobileHudSettings>();
-                    _runtimeDefaultSettings.name = nameof(GGemCoMobileHudSettings) + "(RuntimeDefault)";
-                }
-
-                next = _runtimeDefaultSettings;
-            }
-
             if (_settings == next)
             {
                 return;
@@ -128,7 +139,10 @@ namespace GGemCo2DControl
 
             UnsubscribeSettings();
             _settings = next;
-            _settings.Changed += OnSettingsChanged;
+            if (_settings != null)
+            {
+                _settings.Changed += OnSettingsChanged;
+            }
         }
 
         private void UnsubscribeSettings()
@@ -141,6 +155,7 @@ namespace GGemCo2DControl
 
         private void OnSettingsChanged()
         {
+            ResetWarnings();
             Refresh();
         }
 
@@ -175,6 +190,46 @@ namespace GGemCo2DControl
 
             string scheme = _boundPlayerInput.currentControlScheme;
             return string.IsNullOrWhiteSpace(scheme) || scheme == ConfigCommonControl.NameControlSchemeTouch || scheme == ConfigCommonControl.NameControlSchemeGamepad;
+        }
+
+        private void ResetWarnings()
+        {
+            _hasLoggedMissingSettings = false;
+            _hasLoggedMissingPrefab = false;
+            _hasLoggedMissingRootView = false;
+        }
+
+        private void LogMissingSettings()
+        {
+            if (_hasLoggedMissingSettings)
+            {
+                return;
+            }
+
+            _hasLoggedMissingSettings = true;
+            Debug.LogWarning("[MobileInputHudService] GGemCoMobileHudSettings 가 로드되지 않아 모바일 HUD 생성을 건너뜁니다.");
+        }
+
+        private void LogMissingPrefab()
+        {
+            if (_hasLoggedMissingPrefab)
+            {
+                return;
+            }
+
+            _hasLoggedMissingPrefab = true;
+            Debug.LogWarning("[MobileInputHudService] hudPrefab 이 지정되지 않아 모바일 HUD 생성을 건너뜁니다.");
+        }
+
+        private void LogMissingRootView()
+        {
+            if (_hasLoggedMissingRootView)
+            {
+                return;
+            }
+
+            _hasLoggedMissingRootView = true;
+            Debug.LogWarning("[MobileInputHudService] hudPrefab 인스턴스에서 MobileHudRootView 를 찾지 못해 모바일 HUD 생성을 건너뜁니다.");
         }
     }
 }
