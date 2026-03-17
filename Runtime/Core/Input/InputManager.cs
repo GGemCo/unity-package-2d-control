@@ -1,4 +1,4 @@
-using GGemCo2DCore;
+﻿using GGemCo2DCore;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -893,6 +893,8 @@ namespace GGemCo2DControl
 
         private void OnChangeControlScheme(PlayerInput playerInput)
         {
+            // 기존 옵션 패널의 스킴 표시는 유지 가능하며, 모바일 HUD도 현재 스킴 기준으로 즉시 갱신합니다.
+            MobileInputHudService.Instance?.Refresh();
             // GcLogger.Log($"on controls changed. {playerInput.currentControlScheme}");
             // var uiPanelControl = ControlPackageManager.Instance.GetUIPanelControl();
             // if (!uiPanelControl) return;

@@ -15,7 +15,8 @@ namespace GGemCo2DControl
         public enum ControlSettingsKey
         {
             AttackCombo,
-            PlayerAction
+            PlayerAction,
+            MobileHud,
         }
 
         /// <summary>
@@ -25,6 +26,7 @@ namespace GGemCo2DControl
         {
             AttackCombo,
             PlayerAction,
+            MobileHud,
         }
 
         public const string BasePath = ConfigDefine.NameSDK + "/Settings/";
@@ -38,6 +40,7 @@ namespace GGemCo2DControl
                 (int)ConfigScriptableObjectCommon.PackageOrder.Control +
                 (int)ControlLocalOrder.AttackCombo;
         }
+
         public static class PlayerAction
         {
             public const string FileName = BaseName + "PlayerActionSettings";
@@ -45,6 +48,15 @@ namespace GGemCo2DControl
             public const int Ordering =
                 (int)ConfigScriptableObjectCommon.PackageOrder.Control +
                 (int)ControlLocalOrder.PlayerAction;
+        }
+
+        public static class MobileHud
+        {
+            public const string FileName = BaseName + "MobileHudSettings";
+            public const string MenuName = BasePath + FileName;
+            public const int Ordering =
+                (int)ConfigScriptableObjectCommon.PackageOrder.Control +
+                (int)ControlLocalOrder.MobileHud;
         }
 
         /// <summary>
@@ -69,6 +81,14 @@ namespace GGemCo2DControl
                         PlayerAction.Ordering,
                         typeof(GGemCoPlayerActionSettings))
                 },
+                {
+                    ControlSettingsKey.MobileHud,
+                    new ConfigScriptableObjectCommon.MenuInfo(
+                        MobileHud.FileName,
+                        MobileHud.MenuName,
+                        MobileHud.Ordering,
+                        typeof(GGemCoMobileHudSettings))
+                },
             };
 
         /// <summary>
@@ -79,19 +99,14 @@ namespace GGemCo2DControl
             {
                 { AttackCombo.FileName, typeof(GGemCoAttackComboSettings) },
                 { PlayerAction.FileName, typeof(GGemCoPlayerActionSettings) },
+                { MobileHud.FileName, typeof(GGemCoMobileHudSettings) },
             };
 
-        /// <summary>
-        /// 설정 키로 메뉴 정보를 조회한다.
-        /// </summary>
         public static ConfigScriptableObjectCommon.MenuInfo GetInfo(ControlSettingsKey key)
         {
             return Infos[key];
         }
 
-        /// <summary>
-        /// 파일명으로 설정 타입을 조회한다.
-        /// </summary>
         public static bool TryGetSettingsType(string fileName, out Type settingsType)
         {
             return SettingsTypes.TryGetValue(fileName, out settingsType);

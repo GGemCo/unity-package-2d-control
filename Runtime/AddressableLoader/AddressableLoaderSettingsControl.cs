@@ -9,7 +9,7 @@ using UnityEngine.ResourceManagement.AsyncOperations;
 namespace GGemCo2DControl
 {
     /// <summary>
-    /// GGemCo Settings 불러오기
+    /// Control 패키지 Settings를 Addressables에서 불러옵니다.
     /// </summary>
     public class AddressableLoaderSettingsControl : MonoBehaviour
     {
@@ -17,6 +17,7 @@ namespace GGemCo2DControl
 
         [HideInInspector] public GGemCoAttackComboSettings attackComboSettings;
         [HideInInspector] public GGemCoPlayerActionSettings playerActionSettings;
+        [HideInInspector] public GGemCoMobileHudSettings mobileHudSettings;
 
         public delegate void DelegateLoadSettings(GGemCoAttackComboSettings attackComboSettings, GGemCoPlayerActionSettings playerActionSettings);
         public event DelegateLoadSettings OnLoadSettings;
@@ -43,32 +44,25 @@ namespace GGemCo2DControl
             ReleaseAll();
         }
 
-        /// <summary>
-        /// 모든 로드된 리소스를 해제합니다.
-        /// </summary>
         private void ReleaseAll()
         {
             AddressableLoaderController.ReleaseByHandles(_activeHandles);
         }
-        /// <summary>
-        /// 모든 설정 파일을 Addressables에서 로드
-        /// </summary>
+
         public async Task LoadAllSettingsAsync()
         {
             try
             {
-                // 여러 개의 설정을 병렬적으로 로드
                 var taskAttackCombo = LoadSettingsAsync<GGemCoAttackComboSettings>(ConfigAddressableSettingControl.AttackComboSettings.Key);
                 var taskPlayerSettings = LoadSettingsAsync<GGemCoPlayerActionSettings>(ConfigAddressableSettingControl.PlayerActionSettings.Key);
+                var taskMobileHudSettings = LoadSettingsAsync<GGemCoMobileHudSettings>(ConfigAddressableSettingControl.MobileHudSettings.Key, optional: true);
 
-                // 모든 작업이 완료될 때까지 대기
-                await Task.WhenAll(taskAttackCombo, taskPlayerSettings);
+                await Task.WhenAll(taskAttackCombo, taskPlayerSettings, taskMobileHudSettings);
 
-                // 결과 저장
                 attackComboSettings = taskAttackCombo.Result;
                 playerActionSettings = taskPlayerSettings.Result;
+                mobileHudSettings = taskMobileHudSettings.Result;
 
-                // 이벤트 호출
                 OnLoadSettings?.Invoke(attackComboSettings, playerActionSettings);
             }
             catch (Exception ex)
@@ -77,30 +71,30 @@ namespace GGemCo2DControl
             }
         }
 
-        /// <summary>
-        /// 제네릭을 사용하여 Addressables에서 설정을 로드하는 함수
-        /// </summary>
-        private async Task<T> LoadSettingsAsync<T>(string key) where T : ScriptableObject
+        private async Task<T> LoadSettingsAsync<T>(string key, bool optional = false) where T : ScriptableObject
         {
-            // 키가 Addressables에 등록되어 있는지 확인
             var locationsHandle = Addressables.LoadResourceLocationsAsync(key);
             await locationsHandle.Task;
 
             if (!locationsHandle.Status.Equals(AsyncOperationStatus.Succeeded) || locationsHandle.Result.Count == 0)
             {
-                GcLogger.LogError($"[AddressableSettingsLoader] '{key}' 가 Addressables에 등록되지 않았습니다. '{key}' 를 생성한 후 {ConfigDefine.NameSDK}Tool > 기본 셋팅하기 메뉴를 열고 Addressable 추가하기 버튼을 클릭해주세요.");
+                if (!optional)
+                {
+                    GcLogger.LogError($"[AddressableSettingsLoader] '{key}' 가 Addressables에 등록되지 않았습니다. '{key}' 를 생성한 후 {ConfigDefine.NameSDK}Tool > 기본 셋팅하기 메뉴를 열고 Addressable 추가하기 버튼을 클릭해주세요.");
+                }
+
                 Addressables.Release(locationsHandle);
                 return null;
             }
 
-            // 설정 로드
             AsyncOperationHandle<T> handle = Addressables.LoadAssetAsync<T>(key);
+            _activeHandles.Add(handle);
             T asset = await handle.Task;
 
-            // 핸들 해제
             Addressables.Release(locationsHandle);
             return asset;
         }
+
         public float GetLoadProgress() => _loadProgress;
     }
 }

@@ -4,6 +4,7 @@
     {
         public const string NameControlSchemePc = "Keyboard&Mouse";
         public const string NameControlSchemeGamepad = "Gamepad";
+        public const string NameControlSchemeTouch = "Touch";
 
         public const string NameActionMove = "Move";
         public const string NameActionAttack = "Attack";

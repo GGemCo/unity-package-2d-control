@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 namespace GGemCo2DControl
 {
     /// <summary>
-    /// Core의 캐릭터 생성 이벤트를 구독하여 ControlBase 를 자동 부착
+    /// Core의 캐릭터 생성 이벤트를 구독하여 Control 관련 컴포넌트를 자동 부착합니다.
     /// </summary>
     public class BootstrapperAction : MonoBehaviour
     {
@@ -13,52 +13,61 @@ namespace GGemCo2DControl
 
         private void OnEnable()
         {
-            CharacterManager.OnCharacterSpawned   += OnCharacterSpawned;
+            CharacterManager.OnCharacterSpawned += OnCharacterSpawned;
             CharacterManager.OnCharacterDestroyed += OnCharacterDestroyed;
         }
 
         private void OnDisable()
         {
-            CharacterManager.OnCharacterSpawned   -= OnCharacterSpawned;
+            CharacterManager.OnCharacterSpawned -= OnCharacterSpawned;
             CharacterManager.OnCharacterDestroyed -= OnCharacterDestroyed;
         }
 
         private void OnCharacterSpawned(CharacterBase ch)
         {
-            if (!addIfMissing) return;
-# if GGEMCO_USE_SPINE
-            
-#else
-
-#endif
-            // 플레이어 타입이 아니면 return 처리 
-            if (!ch.IsPlayer()) return;
-            if (!ch.GetComponent<PlayerInput>())
+            if (!addIfMissing || ch == null)
             {
-                // PlayerInput 셋팅
-                var playerInput = ch.gameObject.AddComponent<PlayerInput>();
-                playerInput.actions =
-                    AddressableLoaderInputAction.Instance.GetInputAction(ConfigAddressableControl.InputAction.Key);
-                playerInput.notificationBehavior = PlayerNotifications.InvokeCSharpEvents;
-                // playerInput.neverAutoSwitchControlSchemes = true;
+                return;
             }
-            
-            if (!ch.GetComponent<InputManager>())
+
+            if (!ch.IsPlayer())
             {
-                // action 처리하는 컨트롤 셋팅
+                return;
+            }
+
+            PlayerInput playerInput = ch.GetComponent<PlayerInput>();
+            if (playerInput == null)
+            {
+                playerInput = ch.gameObject.AddComponent<PlayerInput>();
+                playerInput.actions = AddressableLoaderInputAction.Instance.GetInputAction(ConfigAddressableControl.InputAction.Key);
+                playerInput.notificationBehavior = PlayerNotifications.InvokeCSharpEvents;
+            }
+
+            if (ch.GetComponent<InputManager>() == null)
+            {
                 ch.gameObject.AddComponent<InputManager>();
             }
 
-            if (!ch.GetComponent<MobileInputHudRuntime>())
+            MobileInputHudService service = MobileInputHudService.EnsureInstance();
+            if (service != null)
             {
-                // 모바일/터치 디바이스에서 사용할 온스크린 컨트롤 HUD
-                ch.gameObject.AddComponent<MobileInputHudRuntime>();
+                service.BindPlayer(playerInput);
+            }
+
+            if (ch.GetComponent<MobileInputHudBootstrap>() == null)
+            {
+                ch.gameObject.AddComponent<MobileInputHudBootstrap>();
             }
         }
 
         private void OnCharacterDestroyed(CharacterBase ch)
         {
-            // 필요 시 언바인드/풀 반환/로그 등 처리
+            if (ch == null || !ch.IsPlayer())
+            {
+                return;
+            }
+
+            MobileInputHudService.Instance?.UnbindPlayer(ch.GetComponent<PlayerInput>());
         }
     }
 }
