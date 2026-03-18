@@ -28,7 +28,7 @@ namespace GGemCo2DControl
 
         public void ClearIfSame(Object obj)
         {
-            if (_current == obj) _current = null;
+            if ((Object)_current == obj) _current = null;
         }
 
         public void Handle(
