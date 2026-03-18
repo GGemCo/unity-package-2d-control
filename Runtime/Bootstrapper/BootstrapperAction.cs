@@ -48,15 +48,16 @@ namespace GGemCo2DControl
                 ch.gameObject.AddComponent<InputManager>();
             }
 
-            MobileInputHudService service = MobileInputHudService.EnsureInstance();
-            if (service != null)
-            {
-                service.BindPlayer(playerInput);
-            }
+            MobileInputHudService.EnsureInstance();
 
-            if (ch.GetComponent<MobileInputHudBootstrap>() == null)
+            MobileInputHudBootstrap hudBootstrap = ch.GetComponent<MobileInputHudBootstrap>();
+            if (hudBootstrap == null)
             {
                 ch.gameObject.AddComponent<MobileInputHudBootstrap>();
+            }
+            else if (hudBootstrap.isActiveAndEnabled)
+            {
+                hudBootstrap.BindNow();
             }
         }
 

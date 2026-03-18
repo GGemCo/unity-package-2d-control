@@ -19,6 +19,16 @@ namespace GGemCo2DControl
 
         private void OnEnable()
         {
+            BindNow();
+        }
+
+        public void BindNow()
+        {
+            if (_playerInput == null)
+            {
+                _playerInput = GetComponent<PlayerInput>();
+            }
+
             _service = MobileInputHudService.EnsureInstance();
             _service?.BindPlayer(_playerInput);
         }

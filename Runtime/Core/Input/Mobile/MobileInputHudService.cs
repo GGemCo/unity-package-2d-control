@@ -23,6 +23,8 @@ namespace GGemCo2DControl
         private bool _hasLoggedMissingSettings;
         private bool _hasLoggedMissingPrefab;
         private bool _hasLoggedMissingRootView;
+        private bool _isRefreshing;
+        private bool _hasPendingRefresh;
 
         public static MobileInputHudService EnsureInstance()
         {
@@ -70,8 +72,15 @@ namespace GGemCo2DControl
                 return;
             }
 
+            bool wasSamePlayer = _boundPlayerInput == playerInput;
             _boundPlayerInput = playerInput;
             ResolveSettings();
+
+            if (wasSamePlayer && _rootView != null)
+            {
+                return;
+            }
+
             Refresh();
         }
 
@@ -88,6 +97,30 @@ namespace GGemCo2DControl
         }
 
         public void Refresh()
+        {
+            if (_isRefreshing)
+            {
+                _hasPendingRefresh = true;
+                return;
+            }
+
+            _isRefreshing = true;
+            try
+            {
+                do
+                {
+                    _hasPendingRefresh = false;
+                    RefreshInternal();
+                }
+                while (_hasPendingRefresh);
+            }
+            finally
+            {
+                _isRefreshing = false;
+            }
+        }
+
+        private void RefreshInternal()
         {
             ResolveSettings();
             ValidateRootViewState();
