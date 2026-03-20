@@ -1,4 +1,5 @@
 using System;
+using GGemCo2DCore;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -19,13 +20,11 @@ namespace GGemCo2DControl
             {
                 if (EventSystem.current.GetComponent<InputSystemUIInputModule>() == null)
                 {
-                    EventSystem.current.gameObject.AddComponent<InputSystemUIInputModule>();
+                    GcLogger.LogError("EventSystem already exists but InputSystemUIInputModule is missing.");
                 }
 
                 return;
             }
-
-            new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
         }
 
         public MobileHudRootView CreateOrInstantiateView(GGemCoMobileHudSettings settings)
