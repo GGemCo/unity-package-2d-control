@@ -82,6 +82,7 @@ namespace GGemCo2DControl
         // 클래스 필드
         private System.Func<bool> _isDashActive; // 외부(대시)에서 현재 대시 중인지 질의
         private System.Func<bool> _isWallActionActive; // 외부(벽 액션)에서 현재 벽 상태인지 질의
+        private bool _suppressStatusRelease;
 
         public override void Initialize(InputManager inputManager, CharacterBase characterBase, CharacterBaseController characterBaseController)
         {
@@ -257,12 +258,28 @@ namespace GGemCo2DControl
         }
 
         /// <summary>
-        /// 매 프레임 호출(Update)
-        /// - 정점 통과 감지(UpLoop → ApexChange)
-        /// - 하강 중 접지 감지(FallLoop → LandOneShot)
-        /// - 1회성 단계 워치독(이벤트 누락 대비)
+        /// FixedUpdate에서 호출되는 기본 Jump 갱신입니다.
+        /// - 수동 낙하(cliff-fall) 감지
+        /// - 활성 Jump FSM 진행(정점 전환/착지/원샷 워치독)
         /// </summary>
         public void Update()
+        {
+            _suppressStatusRelease = false;
+            UpdateInternal(allowPassiveFallDetection: true);
+        }
+
+        /// <summary>
+        /// 이미 활성화된 Jump FSM만 진행합니다.
+        /// - DontControl 등 외부 시스템이 상태를 소유한 동안, Jump가 새 상태를 획득하지 못하게 합니다.
+        /// - 착지 종료 시에도 <see cref="CharacterBase.Stop(bool)"/>을 호출하지 않도록 선택적으로 억제할 수 있습니다.
+        /// </summary>
+        public void TickActiveFsmOnly(bool suppressStatusRelease = false)
+        {
+            _suppressStatusRelease = suppressStatusRelease;
+            UpdateInternal(allowPassiveFallDetection: false);
+        }
+
+        private void UpdateInternal(bool allowPassiveFallDetection)
         {
             if (_rb == null) return;
 
@@ -275,7 +292,6 @@ namespace GGemCo2DControl
                 return;
             }
 
-            
             // --- 대시 중이면 점프 FSM의 '클리프 낙하 감지/상태 전환'을 잠시 중단 ---
             //  - 점프 상태가 아니고(_phase == None), 대시 중일 때 불필요한 Jump 상태 진입을 차단
             //  - 점프 중(원샷/루프 진행)인 상태에서도 대시가 개입했다면, 이벤트 워치독/전이 충돌을 방지
@@ -284,43 +300,63 @@ namespace GGemCo2DControl
                 // 낙하 누적 타이머를 초기화하여 대시가 끝난 즉시 Jump 전환이 폭발하지 않도록 함
                 _airborneTime = 0f;
                 _wasGrounded = IsGroundedByCollision();
-                return; // <-- 대시 중에는 Jump FSM 갱신을 스킵
+                return;
             }
-            
+
             bool grounded = IsGroundedByCollision();
 
-            // --- [추가] 점프 FSM이 꺼져 있고(=입력 점프 아님), 지면을 잃었을 때 낙하 감지 ---
-            if (_phase == JumpPhase.None)
+            if (allowPassiveFallDetection)
+                TryEnterPassiveFall(grounded);
+            else if (grounded)
+                _airborneTime = 0f;
+
+            TickActiveJumpFsm(grounded);
+        }
+
+        private void TryEnterPassiveFall(bool grounded)
+        {
+            if (_phase != JumpPhase.None)
             {
-                if (!grounded)
-                {
-                    _airborneTime += Time.deltaTime;
-
-                    // 충분히 공중 상태가 지속되고, 실제로 하강 중일 때만 낙하 인정
-                    if (_airborneTime >= CoyoteThreshold && _rb.GetLinearVelocity().y <= MinFallSpeedY)
-                    {
-                        // 전투 등 방해 상태는 존중
-                        if (!actionCharacterBase.IsStatusAttack() && !actionCharacterBase.IsStatusAttackComboWait())
-                        {
-                            // 공중 상태로 전환(프로젝트 표준에 맞춰 Jump 상태 사용)
-                            if (!actionCharacterBase.IsStatusJump()) actionCharacterBase.SetStatusJump();
-
-                            // Cliff-fall은 중력 스케일을 변경하지 않음 (복구 불필요)
-                            _changedGravity = false;
-
-                            // 곧바로 Fall 루프 진입 → jump_fall이 있으면 재생
-                            EnterPhase(JumpPhase.FallLoop);
-                        }
-                    }
-                }
-                else
-                {
-                    _airborneTime = 0f; // 지면 회복 시 초기화
-                }
+                if (grounded)
+                    _airborneTime = 0f;
+                return;
             }
 
-            // --- 기존 점프 FSM 로직 ---
-            if (_phase == JumpPhase.None) { _wasGrounded = grounded; return; }
+            if (!grounded)
+            {
+                _airborneTime += Time.deltaTime;
+
+                // 충분히 공중 상태가 지속되고, 실제로 하강 중일 때만 낙하 인정
+                if (_airborneTime >= CoyoteThreshold && _rb.GetLinearVelocity().y <= MinFallSpeedY)
+                {
+                    // 전투 등 방해 상태는 존중
+                    if (!actionCharacterBase.IsStatusAttack() && !actionCharacterBase.IsStatusAttackComboWait())
+                    {
+                        // 공중 상태로 전환(프로젝트 표준에 맞춰 Jump 상태 사용)
+                        if (!actionCharacterBase.IsStatusJump())
+                            actionCharacterBase.SetStatusJump();
+
+                        // Cliff-fall은 중력 스케일을 변경하지 않음 (복구 불필요)
+                        _changedGravity = false;
+
+                        // 곧바로 Fall 루프 진입 → jump_fall이 있으면 재생
+                        EnterPhase(JumpPhase.FallLoop);
+                    }
+                }
+            }
+            else
+            {
+                _airborneTime = 0f;
+            }
+        }
+
+        private void TickActiveJumpFsm(bool grounded)
+        {
+            if (_phase == JumpPhase.None)
+            {
+                _wasGrounded = grounded;
+                return;
+            }
 
             float vy = _rb.GetLinearVelocity().y;
 
@@ -469,7 +505,10 @@ namespace GGemCo2DControl
             if (_changedGravity && _rb != null)
                 _rb.gravityScale = _prevGravityScale;
 
-            actionCharacterBase.Stop();
+            _changedGravity = false;
+
+            if (!_suppressStatusRelease)
+                actionCharacterBase.Stop();
         }
 
         private void PlayAnimSafe(string stateName)
@@ -590,7 +629,9 @@ namespace GGemCo2DControl
 
                 _phase = JumpPhase.None;
                 _changedGravity = false; // 복구 처리 완료
-                actionCharacterBase.Stop();   // 프로젝트 표준 상태 복귀(Idle/Run 등)
+
+                if (!_suppressStatusRelease)
+                    actionCharacterBase.Stop();   // 프로젝트 표준 상태 복귀(Idle/Run 등)
                 return;
             }
 

@@ -18,6 +18,7 @@ namespace GGemCo2DControl
 
         private CharacterBase _characterBase;
         private CharacterBaseController _characterBaseController;
+        private ICharacterMotionController _motionController;
 
         // 입력 받기
         private PlayerInput _playerInput;
@@ -116,6 +117,7 @@ namespace GGemCo2DControl
             }
 
             _characterBaseController = GetComponent<CharacterBaseController>();
+            _motionController = GetComponent<ICharacterMotionController>();
 
             // AutoMove: 이동 벡터 오버라이드/입력 잠금 + Suspend 관리
             _autoMove = new AutoMoveAdapter(
@@ -480,10 +482,16 @@ namespace GGemCo2DControl
 
 
             // DontControl(그로기/컷씬 등) 중에는 입력/자동 이동을 포함한 제어 로직을 중지한다.
-            // - 물리/착지 전이는 유지하기 위해 Jump/Dash Update는 수행한다.
+            // - CrowdControl 모션 재생 중에는 Jump가 새 상태를 획득하지 못하도록 passive fall 감지를 막는다.
+            // - 이미 활성화된 Jump FSM만 필요 시 유지하여, 외부 상태(DontControl)를 덮어쓰지 않도록 한다.
             if (_characterBase.IsStatusDontControl())
             {
-                _actionJump.Update();
+                bool isCrowdControlMotionPlaying =
+                    _motionController != null && _motionController.IsPlaying(MotionChannel.CrowdControl);
+
+                if (!isCrowdControlMotionPlaying)
+                    _actionJump.TickActiveFsmOnly(suppressStatusRelease: true);
+
                 _actionDash.Update();
 
                 // 진행 중인 특수 이동은 즉시 종료
@@ -493,8 +501,6 @@ namespace GGemCo2DControl
                 // 벽 고정/키네마틱 점프 등 특수 Wall 상태도 해제
                 _actionWall?.CancelWall(restorePrevious: false);
 
-                // 이동 입력/자동 이동 모두 중지
-                // _characterBase.Stop();
                 return;
             }
 
