@@ -33,7 +33,7 @@ namespace GGemCo2DControlEditor
             buttonWidth = position.width / 2f - 10f;
             _scrollPosition = EditorGUILayout.BeginScrollView(_scrollPosition);
             
-            // EditorGUILayout.HelpBox("캐릭터 추가 후 맵을 추가해야 맵별 배치되어있는 캐릭터 정보가 반영됩니다.", MessageType.Error);
+            // EditorGUILayout.HelpBox("", MessageType.Error);
             
             EditorGUILayout.BeginHorizontal();
             _settingScriptableObjectControl.OnGUI();
