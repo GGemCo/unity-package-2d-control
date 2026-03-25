@@ -8,7 +8,7 @@ namespace GGemCo2DControl
     /// Player Input Asset에 등록한 키보드, 마우스, 게임 패드등의 입력 처리
     /// Player 에 AddComponent 된다.
     /// </summary>
-    public class InputManager : MonoBehaviour, IAutoMoveMovementDriver, IIncomingHitGuardResolver, IIncomingHitActionCanceler
+    public class InputManager : MonoBehaviour, IAutoMoveMovementDriver, IIncomingHitGuardResolver, IIncomingHitActionCanceler, ISkillStartActionCanceler
     {
         /// <summary>
         /// Control 패키지의 InputManager가 실제 이동 실행(Run/Move)을 담당합니다.
@@ -398,6 +398,25 @@ namespace GGemCo2DControl
             result = default;
             if (_actionGuard == null) return false;
             return _actionGuard.TryResolveIncomingHit(metadataDamage, out result);
+        }
+
+        /// <summary>
+        /// 플레이어 스킬 시작 직전에 점프/대시 등 잔존 중인 입력 액션을 정리합니다.
+        /// Ground Slam 같은 공중 스킬이 시작된 뒤에도 이전 Jump FSM이 살아남아 Fall 애니메이션을 다시 점유하는 문제를 방지합니다.
+        /// </summary>
+        public void CancelActionsOnSkillStart()
+        {
+            _releaseResolver?.Clear();
+
+            _actionJump?.CancelJump(skipLandAnimation: true, restoreGravity: true);
+            _actionDash?.CancelDash(skipEndAnimation: true);
+            _actionClimb?.CancelClimb(skipEndAnimation: true, restoreGravity: true);
+            _actionPushPull?.Cancel();
+            _toolAction?.Cancel();
+            _actionWall?.CancelWall(restorePrevious: false);
+            _actionGuard?.CancelGuard(true);
+
+            _autoMove?.ReleaseAll();
         }
 
         /// <summary>
