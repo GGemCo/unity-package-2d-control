@@ -88,6 +88,7 @@ namespace GGemCo2DControl
 
             // 벽 감지/접촉 판정을 담당하는 센서 초기화
             _sensor = new WallSensor2D(_colliderMapObject, _rigidbody);
+            _physicsOverrideController = characterBase.PhysicsOverrideController;
 
             // 진입 전/후 복구를 위한 기존 모션/상태 캐시
             CacheMotionState();
@@ -97,6 +98,11 @@ namespace GGemCo2DControl
             _hasAnchorX = false;
 
             base.Initialize(inputManager, characterBase, characterBaseController);
+        }
+        public override void OnDestroy()
+        {
+            base.OnDestroy();
+            ReleaseWallGravityOverride();
         }
 
         /// <summary>

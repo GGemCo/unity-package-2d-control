@@ -30,7 +30,6 @@ namespace GGemCo2DControl
             if (rb.bodyType != RigidbodyType2D.Kinematic)
                 rb.bodyType = RigidbodyType2D.Kinematic;
 
-            rb.gravityScale = 0f;
             rb.SetLinearVelocity(Vector2.zero);
 
             // 현재 벽의 반대 방향을 계산합니다(방향이 0인 경우를 방어적으로 처리).
@@ -103,7 +102,6 @@ namespace GGemCo2DControl
             // 아직 도착 전: 계속 이동(중력/물리 속도는 사용하지 않음)
             rb.MovePosition(origin + delta);
             rb.SetLinearVelocity(Vector2.zero);
-            rb.gravityScale = 0f;
         }
 
         /// <summary>

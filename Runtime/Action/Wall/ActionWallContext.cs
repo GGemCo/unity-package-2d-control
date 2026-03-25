@@ -1,3 +1,4 @@
+using GGemCo2DCore;
 using UnityEngine;
 
 namespace GGemCo2DControl
@@ -27,6 +28,11 @@ namespace GGemCo2DControl
         /// 벽 감지/스냅/레이캐스트 등을 담당하는 센서입니다.
         /// </summary>
         internal WallSensor2D Sensor => _sensor;
+
+        /// <summary>
+        /// 벽 액션에서 사용하는 중력 오버라이드 컨트롤러입니다.
+        /// </summary>
+        internal CharacterPhysicsOverrideController PhysicsOverrideController => _physicsOverrideController;
 
         // --- Runtime state (shared across phases) ---
 
@@ -124,6 +130,18 @@ namespace GGemCo2DControl
 
         /// <summary>벽 감지/판정 센서 참조입니다.</summary>
         private WallSensor2D _sensor;
+
+        /// <summary>벽 액션에서 사용하는 중력 오버라이드 컨트롤러입니다.</summary>
+        private CharacterPhysicsOverrideController _physicsOverrideController;
+
+        /// <summary>벽 액션이 점유 중인 중력 오버라이드 핸들입니다.</summary>
+        private CharacterPhysicsOverrideHandle _wallGravityOverrideHandle;
+
+        /// <summary>컨트롤러가 없을 때 사용할 fallback 이전 gravityScale 값입니다.</summary>
+        private float _wallFallbackPrevGravityScale;
+
+        /// <summary>fallback 중력 오버라이드 적용 여부입니다.</summary>
+        private bool _hasWallFallbackGravityOverride;
 
         /// <summary>
         /// 벽 재부착 금지 쿨다운의 만료 시각(Time.time 기준)입니다.

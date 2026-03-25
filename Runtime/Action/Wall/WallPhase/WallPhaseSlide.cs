@@ -33,7 +33,6 @@ namespace GGemCo2DControl
             if (rb.bodyType != RigidbodyType2D.Kinematic)
                 rb.bodyType = RigidbodyType2D.Kinematic;
 
-            rb.gravityScale = 0f;
             rb.SetLinearVelocity(Vector2.zero);
 
             // Slide 애니메이션이 있다면 재생합니다.

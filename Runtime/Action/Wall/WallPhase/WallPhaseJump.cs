@@ -30,7 +30,6 @@ namespace GGemCo2DControl
             if (rb.bodyType != RigidbodyType2D.Kinematic)
                 rb.bodyType = RigidbodyType2D.Kinematic;
 
-            rb.gravityScale = 0f;
             rb.SetLinearVelocity(Vector2.zero);
 
             // 현재 벽의 반대 방향으로 "고정 거리" 내에 벽이 있는지 검사합니다.
@@ -114,7 +113,6 @@ namespace GGemCo2DControl
             // 아직 벽에 닿지 않았다면 계속 이동합니다.
             rb.MovePosition(origin + delta);
             rb.SetLinearVelocity(Vector2.zero);
-            rb.gravityScale = 0f;
 
             // 안전장치: 최대 지속시간이 지나면 Wall Action을 종료하고 Dynamic 점프/낙하 로직으로 제어권을 넘깁니다.
             if (ctx.JumpElapsed >= ctx.WallJumpMaxDuration)

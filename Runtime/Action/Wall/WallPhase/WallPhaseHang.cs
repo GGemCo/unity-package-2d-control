@@ -28,7 +28,6 @@ namespace GGemCo2DControl
             if (rb.bodyType != RigidbodyType2D.Kinematic)
                 rb.bodyType = RigidbodyType2D.Kinematic;
 
-            rb.gravityScale = 0f;
             rb.SetLinearVelocity(Vector2.zero);
 
             // 벽 방향에 맞춰 캐릭터 플립(좌/우) 및 관련 상태를 정렬합니다.

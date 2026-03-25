@@ -37,6 +37,54 @@ namespace GGemCo2DControl
 
         /// <summary>벽 점프 종료(인계) Phase 인스턴스입니다.</summary>
         private readonly IWallPhase _phaseJumpEnd = new WallPhaseJumpEnd();
+        private const int GravityOverridePriorityWall = 50;
+
+        private void ApplyNoGravityDuringWallAction()
+        {
+            if (_rigidbody == null)
+                return;
+
+            if (_wallGravityOverrideHandle.IsValid || _hasWallFallbackGravityOverride)
+                return;
+
+            if (_physicsOverrideController == null && actionCharacterBase != null)
+            {
+                _physicsOverrideController = actionCharacterBase.PhysicsOverrideController;
+            }
+
+            if (_physicsOverrideController != null)
+            {
+                _wallGravityOverrideHandle = _physicsOverrideController.AcquireGravityOverride(
+                    ownerKey: this,
+                    lifecycleOwner: actionCharacterBase,
+                    channel: CharacterPhysicsOverrideChannel.Action,
+                    priority: GravityOverridePriorityWall,
+                    gravityScale: 0f,
+                    reason: "ActionWall");
+
+                if (_wallGravityOverrideHandle.IsValid)
+                    return;
+            }
+
+            _wallFallbackPrevGravityScale = _rigidbody.gravityScale;
+            _rigidbody.gravityScale = 0f;
+            _hasWallFallbackGravityOverride = true;
+        }
+
+        private void ReleaseWallGravityOverride()
+        {
+            if (_wallGravityOverrideHandle.IsValid && _physicsOverrideController != null)
+            {
+                _physicsOverrideController.ReleaseGravityOverride(ref _wallGravityOverrideHandle);
+            }
+            else if (_hasWallFallbackGravityOverride && _rigidbody != null)
+            {
+                _rigidbody.gravityScale = _wallFallbackPrevGravityScale;
+            }
+
+            _wallGravityOverrideHandle = default;
+            _hasWallFallbackGravityOverride = false;
+        }
 
         /// <summary>
         /// 현재 Phase를 지정된 Phase로 전환합니다.
@@ -129,19 +177,19 @@ namespace GGemCo2DControl
             _jumpHasTargetWall = false;
             _jumpTargetPoint = Vector2.zero;
 
+            ReleaseWallGravityOverride();
+
             if (_rigidbody == null) return;
 
             if (forceRestorePrevious)
             {
                 _rigidbody.bodyType = _motionCache.PrevBodyType;
-                _rigidbody.gravityScale = _motionCache.PrevGravityScale;
                 _rigidbody.SetLinearVelocity(_motionCache.PrevVelocity);
             }
             else
             {
                 // 기본은 Dynamic으로 넘겨, 기존 점프/낙하 로직이 이어받게 한다.
                 _rigidbody.bodyType = RigidbodyType2D.Dynamic;
-                _rigidbody.gravityScale = _motionCache.PrevGravityScale;
                 _rigidbody.SetLinearVelocity(Vector2.zero);
             }
         }
@@ -168,9 +216,10 @@ namespace GGemCo2DControl
             _jumpHasTargetWall = false;
             _jumpTargetPoint = Vector2.zero;
 
+            ReleaseWallGravityOverride();
+
             if (_rigidbody == null) return;
             _rigidbody.bodyType = RigidbodyType2D.Dynamic;
-            _rigidbody.gravityScale = _motionCache.PrevGravityScale;
             _rigidbody.SetLinearVelocity(handoffVelocity);
         }
 
@@ -188,6 +237,8 @@ namespace GGemCo2DControl
             WallSideX = 0;
             _preferSideX = 0;
             NoInputTimeSeconds = 0f;
+
+            ReleaseWallGravityOverride();
 
             // NOTE: 이 종료 경로는 "물리 상태 유지"가 핵심이므로 Anchor/Jump 관련 런타임 값만 정리합니다.
             _anchorX = 0f;
@@ -247,7 +298,9 @@ namespace GGemCo2DControl
             _motionCache = new WallMotionCache
             {
                 PrevBodyType = _rigidbody.bodyType,
-                PrevGravityScale = _rigidbody.gravityScale,
+                PrevGravityScale = _physicsOverrideController != null
+                    ? _physicsOverrideController.CurrentGravityScale
+                    : _rigidbody.gravityScale,
                 PrevVelocity = _rigidbody.GetLinearVelocity()
             };
         }
@@ -265,7 +318,7 @@ namespace GGemCo2DControl
         private bool TryEnterHang(Vector2 moveInput)
         {
             // Hang으로 진입하는 순간의 Rigidbody 상태를 캐시해 두어
-            // 이후 JumpEnd/Exit에서 원래 값(bodyType/gravityScale)을 정확히 복구할 수 있도록 합니다.
+            // 이후 JumpEnd/Exit에서 원래 값(bodyType/velocity)을 정확히 복구할 수 있도록 합니다.
             CacheMotionState();
 
             // 방향: 입력이 있으면 입력 기반, 없으면 바라보는 방향 기반
@@ -289,6 +342,7 @@ namespace GGemCo2DControl
             // 벽 액션 진입 시점의 Rigidbody 상태를 캐시한다.
             // (ExitWall/JumpEnd에서 원래 값으로 복구하는 기준)
             CacheMotionState();
+            ApplyNoGravityDuringWallAction();
 
             SwitchToHang();
             return true;

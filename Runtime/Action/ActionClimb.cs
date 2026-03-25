@@ -23,6 +23,7 @@ namespace GGemCo2DControl
 
         // --- 캐시 ---
         private Rigidbody2D _rigidbody;
+        private CharacterPhysicsOverrideController _physicsOverrideController;
         private Collider2D _colliderMapObject;
         private Collider2D _colliderHitArea;
         private PlayerInput _playerInput;
@@ -36,6 +37,8 @@ namespace GGemCo2DControl
         private Vector2 _velocityCache;          // 진입 시 속도 저장
         private bool _changedGravity;            // 진입 시 중력 0 고정 여부
         private bool _canMoveSideWhileClimbing;  // 좌/우 이동 허용 여부
+        private CharacterPhysicsOverrideHandle _climbGravityOverrideHandle;
+        private const int GravityOverridePriorityClimb = 42;
 
         // Ladder 참조 및 경계
         private ObjectClimb _climb;
@@ -95,6 +98,7 @@ namespace GGemCo2DControl
             base.Initialize(inputManager, characterBase, characterBaseController);
 
             _rigidbody  = actionCharacterBase.characterRigidbody2D;
+            _physicsOverrideController = actionCharacterBase.PhysicsOverrideController;
             _colliderMapObject = actionCharacterBase.colliderMapObject;
             _colliderHitArea   = actionCharacterBase.colliderHitArea;
             _playerInput = actionCharacterBase.GetComponent<PlayerInput>();
@@ -121,6 +125,11 @@ namespace GGemCo2DControl
 
             if (_playerInput != null)
                 _moveAction = _playerInput.actions[ConfigCommonControl.NameActionMove];
+        }
+        public override void OnDestroy()
+        {
+            base.OnDestroy();
+            RestoreGravityAfterClimb();
         }
 
         protected override void ApplySettings()
@@ -163,12 +172,10 @@ namespace GGemCo2DControl
             }
 
             // 물리 고정
-            _prevGravityScale      = _rigidbody.gravityScale;
-            _rigidbody.gravityScale= 0f;
+            ApplyNoGravityDuringClimb();
             _velocityCache         = _rigidbody.GetLinearVelocity();
             _rigidbody.SetLinearVelocity(Vector2.zero);
             _rigidbody.bodyType    = RigidbodyType2D.Kinematic;
-            _changedGravity        = true;
 
             // 상태 전이
             actionCharacterBase.SetStatusClimb();
@@ -472,19 +479,59 @@ namespace GGemCo2DControl
             if (_clipLength.TryGetValue(clipName, out var len) && len > 0f) return len + 0.02f;
             return DefaultOneShotTimeout;
         }
+        private void ApplyNoGravityDuringClimb()
+        {
+            if (_rigidbody == null || _changedGravity) return;
+
+            if (_physicsOverrideController != null)
+            {
+                _climbGravityOverrideHandle = _physicsOverrideController.AcquireGravityOverride(
+                    ownerKey: this,
+                    lifecycleOwner: actionCharacterBase,
+                    channel: CharacterPhysicsOverrideChannel.Action,
+                    priority: GravityOverridePriorityClimb,
+                    gravityScale: 0f,
+                    reason: "ActionClimb");
+
+                _changedGravity = _climbGravityOverrideHandle.IsValid;
+                if (_changedGravity)
+                    return;
+            }
+
+            _prevGravityScale = _rigidbody.gravityScale;
+            _rigidbody.gravityScale = 0f;
+            _changedGravity = true;
+        }
+
+        private void RestoreGravityAfterClimb()
+        {
+            if (_rigidbody == null) return;
+            if (!_changedGravity) return;
+
+            if (_climbGravityOverrideHandle.IsValid && _physicsOverrideController != null)
+            {
+                _physicsOverrideController.ReleaseGravityOverride(ref _climbGravityOverrideHandle);
+            }
+            else
+            {
+                _rigidbody.gravityScale = _prevGravityScale;
+            }
+
+            _climbGravityOverrideHandle = default;
+            _changedGravity = false;
+        }
 
         private void FinishAndStop()
         {
             var endedTarget = _climb;
             _phase = ClimbPhase.None;
 
-            if (_changedGravity && _rigidbody != null)
+            if (_rigidbody != null)
             {
-                _rigidbody.gravityScale   = _prevGravityScale;
+                RestoreGravityAfterClimb();
                 _rigidbody.SetLinearVelocity(_velocityCache);
-                _rigidbody.bodyType       = RigidbodyType2D.Dynamic;
+                _rigidbody.bodyType = RigidbodyType2D.Dynamic;
             }
-            _changedGravity = false;
             _endKind = EndKind.Default;
 
             actionCharacterBase.Stop(); // Idle/Run 등 표준 상태로 복귀
@@ -503,12 +550,17 @@ namespace GGemCo2DControl
             if (skipEndAnimation || !_hasEnd)
             {
                 var endedTarget = _climb;
-                if (restoreGravity && _changedGravity && _rigidbody != null)
+                if (_rigidbody != null)
                 {
-                    _rigidbody.gravityScale   = _prevGravityScale;
+                    if (restoreGravity)
+                        RestoreGravityAfterClimb();
+                    else if (_climbGravityOverrideHandle.IsValid && _physicsOverrideController != null)
+                        _physicsOverrideController.ReleaseGravityOverride(ref _climbGravityOverrideHandle);
+
                     _rigidbody.SetLinearVelocity(_velocityCache);
-                    _rigidbody.bodyType       = RigidbodyType2D.Dynamic;
+                    _rigidbody.bodyType = RigidbodyType2D.Dynamic;
                 }
+                _climbGravityOverrideHandle = default;
                 _changedGravity = false;
                 _endKind = EndKind.Default;
 
