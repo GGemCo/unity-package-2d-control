@@ -18,6 +18,7 @@ namespace GGemCo2DControl
         // --- 캐시 ---
         private Rigidbody2D _rb;
         private Collider2D _col;
+        private CharacterPhysicsOverrideController _physicsOverrideController;
 
         // 애니메이션 길이 캐시
         private Dictionary<string, float> _clipLength = new();
@@ -58,6 +59,7 @@ namespace GGemCo2DControl
         // --- 입력/중복 ---
         private bool _isBusy;
         // ActionDash 필드 섹션
+        private CharacterPhysicsOverrideHandle _dashGravityOverrideHandle;
         private float _prevGravityScaleDash;
         private bool  _changedGravityDash; // 대시 중 중력 변경 여부
 
@@ -69,6 +71,7 @@ namespace GGemCo2DControl
 
             _rb  = actionCharacterBase.characterRigidbody2D;
             _col = actionCharacterBase.colliderMapObject;
+            _physicsOverrideController = actionCharacterBase.PhysicsOverrideController;
 
             if (_rb == null || _col == null)
             {
@@ -94,6 +97,7 @@ namespace GGemCo2DControl
         public override void OnDestroy()
         {
             base.OnDestroy();
+            RestoreGravityAfterDash();
             actionCharacterBase.OnAnimationEventDash -= OnAnimationEventDash;
         }
         
@@ -361,6 +365,21 @@ namespace GGemCo2DControl
         private void ApplyNoGravityDuringDash()
         {
             if (_rb == null || _changedGravityDash) return;
+
+            if (_physicsOverrideController != null)
+            {
+                _dashGravityOverrideHandle = _physicsOverrideController.AcquireGravityOverride(
+                    ownerKey: this,
+                    lifecycleOwner: actionCharacterBase,
+                    channel: CharacterPhysicsOverrideChannel.Action,
+                    priority: CharacterPhysicsOverridePriority.ActionDash,
+                    gravityScale: 0f,
+                    reason: "ActionDash");
+
+                _changedGravityDash = _dashGravityOverrideHandle.IsValid;
+                return;
+            }
+
             _prevGravityScaleDash = _rb.gravityScale;
             _rb.gravityScale = 0f;                // 대시 동안 중력 제거
             _changedGravityDash = true;
@@ -369,11 +388,19 @@ namespace GGemCo2DControl
         private void RestoreGravityAfterDash()
         {
             if (_rb == null) return;
-            if (_changedGravityDash)
+            if (!_changedGravityDash) return;
+
+            if (_dashGravityOverrideHandle.IsValid && _physicsOverrideController != null)
+            {
+                _physicsOverrideController.ReleaseGravityOverride(ref _dashGravityOverrideHandle);
+            }
+            else
             {
                 _rb.gravityScale = _prevGravityScaleDash; // 원복
-                _changedGravityDash = false;
             }
+
+            _dashGravityOverrideHandle = default;
+            _changedGravityDash = false;
         }
 
     }

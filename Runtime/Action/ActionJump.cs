@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using GGemCo2DCore;
 using UnityEngine;
 
@@ -17,6 +17,7 @@ namespace GGemCo2DControl
         // --- 캐시 ---
         private Rigidbody2D _rb;
         private Collider2D _col;
+        private CharacterPhysicsOverrideController _physicsOverrideController;
 
         // Animator/클립 정보(폴백 판단 및 길이 계산용)
         private Dictionary<string, float> _clipLength = new();
@@ -28,6 +29,7 @@ namespace GGemCo2DControl
         // --- 내부 계산치 ---
         private float _baseGravityScale;
         private float _jumpVelocityY;
+        private CharacterPhysicsOverrideHandle _jumpGravityOverrideHandle;
         private float _prevGravityScale;
 
         // --- Phase ---
@@ -90,6 +92,7 @@ namespace GGemCo2DControl
 
             _rb = actionCharacterBase.characterRigidbody2D;
             _col = actionCharacterBase.colliderMapObject;
+            _physicsOverrideController = actionCharacterBase.PhysicsOverrideController;
 
             if (_rb == null || _col == null)
             {
@@ -112,6 +115,7 @@ namespace GGemCo2DControl
         public override void OnDestroy() 
         {
             base.OnDestroy();
+            ReleaseJumpGravityOverride();
             actionCharacterBase.OnAnimationEventJump -= OnAnimationEventJump;
         }
 
@@ -195,10 +199,7 @@ namespace GGemCo2DControl
             if (!actionCharacterBase.IsStatusJump())
                 actionCharacterBase.SetStatusJump();
 
-            // 중력 스케일 변경 및 복구 대상 표시
-            _prevGravityScale = _rb.gravityScale;
-            _rb.gravityScale = _baseGravityScale;
-            _changedGravity = true;
+            ApplyJumpGravityOverride();
 
             // Height/Speed에 맞춘 최소 vy를 보장
             float vy = Mathf.Max(initialVelocity.y, _jumpVelocityY);
@@ -246,10 +247,7 @@ namespace GGemCo2DControl
 
             actionCharacterBase.SetStatusJump();
 
-            // 점프 입력: 중력 스케일 변경 및 복구 대상 표시
-            _prevGravityScale = _rb.gravityScale;
-            _rb.gravityScale  = _baseGravityScale;
-            _changedGravity   = true;
+            ApplyJumpGravityOverride();
 
             float vy = Mathf.Max(_rb.GetLinearVelocity().y, _jumpVelocityY);
             _rb.SetLinearVelocity(new Vector2(_rb.GetLinearVelocity().x, vy));
@@ -497,15 +495,56 @@ namespace GGemCo2DControl
             return DefaultOneshotTimeout;
         }
 
+        private void ApplyJumpGravityOverride()
+        {
+            if (_rb == null)
+                return;
+
+            ReleaseJumpGravityOverride();
+
+            if (_physicsOverrideController != null)
+            {
+                _jumpGravityOverrideHandle = _physicsOverrideController.AcquireGravityOverride(
+                    ownerKey: this,
+                    lifecycleOwner: actionCharacterBase,
+                    channel: CharacterPhysicsOverrideChannel.Action,
+                    priority: CharacterPhysicsOverridePriority.ActionJump,
+                    gravityScale: _baseGravityScale,
+                    reason: "ActionJump");
+
+                _changedGravity = _jumpGravityOverrideHandle.IsValid;
+                return;
+            }
+
+            _prevGravityScale = _rb.gravityScale;
+            _rb.gravityScale = _baseGravityScale;
+            _changedGravity = true;
+        }
+
+        private void ReleaseJumpGravityOverride()
+        {
+            if (!_changedGravity)
+                return;
+
+            if (_jumpGravityOverrideHandle.IsValid && _physicsOverrideController != null)
+            {
+                _physicsOverrideController.ReleaseGravityOverride(ref _jumpGravityOverrideHandle);
+            }
+            else if (_rb != null)
+            {
+                _rb.gravityScale = _prevGravityScale;
+            }
+
+            _jumpGravityOverrideHandle = default;
+            _changedGravity = false;
+        }
+
         private void FinishAndStop()
         {
             _phase = JumpPhase.None;
 
             // 점프 입력으로만 중력을 바꿨을 때 복구
-            if (_changedGravity && _rb != null)
-                _rb.gravityScale = _prevGravityScale;
-
-            _changedGravity = false;
+            ReleaseJumpGravityOverride();
 
             if (!_suppressStatusRelease)
                 actionCharacterBase.Stop();
@@ -622,13 +661,16 @@ namespace GGemCo2DControl
             if (skipLandAnimation || !_hasEnd)
             {
                 // 점프 입력으로 중력을 바꿨었다면 선택적으로 복구
-                if (restoreGravity && _changedGravity)
+                if (restoreGravity)
                 {
-                    _rb.gravityScale = _prevGravityScale;
+                    ReleaseJumpGravityOverride();
+                }
+                else
+                {
+                    _changedGravity = false;
                 }
 
                 _phase = JumpPhase.None;
-                _changedGravity = false; // 복구 처리 완료
 
                 if (!_suppressStatusRelease)
                     actionCharacterBase.Stop();   // 프로젝트 표준 상태 복귀(Idle/Run 등)
