@@ -33,7 +33,7 @@ namespace GGemCo2DControl
         {
             // GcLogger.Log($"GameLoaderManagerControl RegisterSteps");
             // 설정 스크립터블 오브젝트 
-            var addrSettings = Object.FindFirstObjectByType<AddressableLoaderSettingsControl>() ??
+            var addrSettings = CompatObjectFind.FindFirst<AddressableLoaderSettingsControl>() ??
                                new GameObject("AddressableLoaderSettingsControl")
                                    .AddComponent<AddressableLoaderSettingsControl>();
             var step = new AddressableTaskStep(
@@ -46,7 +46,7 @@ namespace GGemCo2DControl
             sender.Register(step);
 
             // Input Action Asset
-            var addressableLoaderInputAction = Object.FindFirstObjectByType<AddressableLoaderInputAction>() ??
+            var addressableLoaderInputAction = CompatObjectFind.FindFirst<AddressableLoaderInputAction>() ??
                                                new GameObject("AddressableLoaderInputAction")
                                                    .AddComponent<AddressableLoaderInputAction>();
             step = new AddressableTaskStep(
