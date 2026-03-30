@@ -130,6 +130,7 @@ namespace GGemCo2DControl
         public void Dash()
         {
             if (_rb == null) return;
+            if (IsHitStopped()) return;
             if (_isBusy) return;
 
             if (actionCharacterBase.IsStatusAttack()) return;
@@ -151,9 +152,10 @@ namespace GGemCo2DControl
         {
             if (_rb == null) return;
             if (_phase == DashPhase.None) return;
+            if (IsHitStopped()) return;
 
             // 워치독
-            if (_awaitingEventFor != DashPhase.None && Time.time >= _awaitingDeadline)
+            if (_awaitingEventFor != DashPhase.None && Time.unscaledTime >= _awaitingDeadline)
             {
                 if (_awaitingEventFor == DashPhase.StartOneShot) HandleDashStartOneShotEnd();
                 else if (_awaitingEventFor == DashPhase.EndOneShot) HandleDashEndOneShotEnd();
@@ -161,7 +163,7 @@ namespace GGemCo2DControl
 
             if (_phase == DashPhase.PlayLoop)
             {
-                float dt = Time.deltaTime;
+                float dt = Time.unscaledDeltaTime;
                 _elapsed += dt;
 
                 float t = Mathf.Clamp01(_elapsed / _dashDuration);
@@ -260,7 +262,7 @@ namespace GGemCo2DControl
         private void StartAwaiting(DashPhase phase, string clipName)
         {
             _awaitingEventFor = phase;
-            _awaitingDeadline = Time.time + GetClipDurationWithFallback(clipName);
+            _awaitingDeadline = Time.unscaledTime + GetClipDurationWithFallback(clipName);
         }
 
         private void ClearAwaiting()

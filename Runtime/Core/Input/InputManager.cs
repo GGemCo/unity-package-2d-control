@@ -381,6 +381,11 @@ namespace GGemCo2DControl
 
         private void Update()
         {
+            if (_characterBase != null && _characterBase.IsHitStopped)
+            {
+                return;
+            }
+
             _simulationToolHandler?.Tick();
 
             // 80ms 입력 버퍼 마감 처리(가상 릴리즈)
@@ -487,6 +492,7 @@ namespace GGemCo2DControl
         private void FixedUpdate()
         {
             if (_characterBase.IsStatusDead()) return;
+            if (_characterBase.IsHitStopped) return;
 
             // todo. 정리 필요
             if (_characterBase.IsStatusCastingSkill()) return;

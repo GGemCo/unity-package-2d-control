@@ -191,6 +191,7 @@ namespace GGemCo2DControl
         public void BeginJumpFromExternal(Vector2 initialVelocity, float desiredJumpHeight, float timeToApex, bool playStartOneShot)
         {
             if (_rb == null) return;
+            if (IsHitStopped()) return;
 
             // Jump 물리 상수 재계산
             RecalculatePhysicsConstants(desiredJumpHeight, timeToApex);
@@ -240,6 +241,7 @@ namespace GGemCo2DControl
         public void Jump()
         {
             if (_rb == null) return;
+            if (IsHitStopped()) return;
 
             if (actionCharacterBase.IsStatusAttack()) return;
             if (actionCharacterBase.IsStatusAttackComboWait()) return;
@@ -262,6 +264,8 @@ namespace GGemCo2DControl
         /// </summary>
         public void Update()
         {
+            if (IsHitStopped()) return;
+
             _suppressStatusRelease = false;
             UpdateInternal(allowPassiveFallDetection: true);
         }
@@ -273,6 +277,8 @@ namespace GGemCo2DControl
         /// </summary>
         public void TickActiveFsmOnly(bool suppressStatusRelease = false)
         {
+            if (IsHitStopped()) return;
+
             _suppressStatusRelease = suppressStatusRelease;
             UpdateInternal(allowPassiveFallDetection: false);
         }
@@ -372,7 +378,7 @@ namespace GGemCo2DControl
             _wasGrounded = grounded;
 
             // 2) 이벤트 워치독 (이벤트 미도착 시 자동 완료)
-            if (_awaitingEventFor != JumpPhase.None && Time.time >= _awaitingDeadline)
+            if (_awaitingEventFor != JumpPhase.None && Time.unscaledTime >= _awaitingDeadline)
             {
                 switch (_awaitingEventFor)
                 {
@@ -478,7 +484,7 @@ namespace GGemCo2DControl
         private void StartAwaiting(JumpPhase phase, string clipName)
         {
             _awaitingEventFor = phase;
-            _awaitingDeadline = Time.time + GetClipDurationWithFallback(clipName);
+            _awaitingDeadline = Time.unscaledTime + GetClipDurationWithFallback(clipName);
         }
 
         private void ClearAwaiting()

@@ -1,4 +1,5 @@
 ﻿using GGemCo2DCore;
+using UnityEngine;
 
 namespace GGemCo2DControl
 {
@@ -31,7 +32,24 @@ namespace GGemCo2DControl
         }
 
         protected abstract void ApplySettings();
-        
+
+        protected bool IsHitStopped()
+        {
+            return actionCharacterBase != null && actionCharacterBase.IsHitStopped;
+        }
+
+        protected float AdvanceHitStopAwareUnscaled(ref float elapsedSeconds)
+        {
+            if (IsHitStopped())
+            {
+                return 0f;
+            }
+
+            float delta = Time.unscaledDeltaTime;
+            elapsedSeconds += delta;
+            return delta;
+        }
+
         protected bool HasAnimation(string stateName)
         {
             // 1) 캐릭터 애니메이션 컨트롤러가 "존재 여부"를 제공한다면 우선 사용

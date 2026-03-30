@@ -11,6 +11,7 @@ namespace GGemCo2DControl
         private GGemCoAttackComboSettings _attackComboSettings;
         private Coroutine _coroutineDontAttack;
         private Coroutine _coroutineWaitEnd;
+        private float _attackWaitElapsedSeconds;
 
         public override void Initialize(InputManager inputManager, CharacterBase characterBase, CharacterBaseController characterBaseController)
         {
@@ -66,6 +67,7 @@ namespace GGemCo2DControl
             if (_coroutineDontAttack == null) return;
             actionInputManager.StopCoroutine(_coroutineDontAttack);
             _coroutineDontAttack = null;
+            _attackWaitElapsedSeconds = 0f;
         }
         private void MoveForward(string attackAnimName)
         {
@@ -81,13 +83,20 @@ namespace GGemCo2DControl
         }
         private IEnumerator CoroutinePlayAttackEndAnimation()
         {
-            // GcLogger.Log($"PlayAttackEndAnimation wait time:{_attackComboSettings.GetWaitTime(_currentCombo)}");
-            yield return new WaitForSeconds(_attackComboSettings.GetWaitTime(_currentCombo));
+            _attackWaitElapsedSeconds = 0f;
+            float waitSeconds = _attackComboSettings.GetWaitTime(_currentCombo);
+            while (_attackWaitElapsedSeconds < waitSeconds)
+            {
+                AdvanceHitStopAwareUnscaled(ref _attackWaitElapsedSeconds);
+                yield return null;
+            }
+
             actionCharacterBase.CharacterAnimationController?.PlayAttackEndAnimation();
         }
 
         public void Attack()
         {
+            if (IsHitStopped()) return;
             if (actionCharacterBase.IsStatusAttack()) return;
             if (actionCharacterBase.IsStatusDead()) return;
             if (_countCombo <= 0) return;
