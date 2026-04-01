@@ -473,7 +473,7 @@ namespace GGemCo2DControl
         {
             if (_autoMove == null || _characterBase == null) return;
 
-            bool locked = _characterBase.IsStatusDontControl() || _characterBase.IsStatusDead();
+            bool locked = _characterBase.IsDontControl() || _characterBase.IsStatusDead();
             _autoMove.TickSuspendByControlLocked(locked);
         }
 
@@ -509,7 +509,7 @@ namespace GGemCo2DControl
             // DontControl(그로기/컷씬 등) 중에는 입력/자동 이동을 포함한 제어 로직을 중지한다.
             // - CrowdControl 모션 재생 중에는 Jump가 새 상태를 획득하지 못하도록 passive fall 감지를 막는다.
             // - 이미 활성화된 Jump FSM만 필요 시 유지하여, 외부 상태(DontControl)를 덮어쓰지 않도록 한다.
-            if (_characterBase.IsStatusDontControl())
+            if (_characterBase.IsDontControl())
             {
                 bool isCrowdControlMotionPlaying =
                     _motionController != null && _motionController.IsPlaying(MotionChannel.CrowdControl);
@@ -639,14 +639,14 @@ namespace GGemCo2DControl
         // Attack
         private void OnAttackPress(InputAction.CallbackContext ctx)
         {
-            if (_characterBase != null && _characterBase.IsStatusDontControl()) return;
+            if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Attack, Vector2.zero)) return;
             _releaseResolver?.PushPress(PlayerButtonId.Attack, Time.unscaledTime);
         }
 
         private void OnAttackRelease(InputAction.CallbackContext ctx)
         {
-            if (_characterBase != null && _characterBase.IsStatusDontControl()) return;
+            if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Attack, Vector2.zero)) return;
             _releaseResolver?.PushRelease(PlayerButtonId.Attack, Time.unscaledTime);
         }
@@ -654,7 +654,7 @@ namespace GGemCo2DControl
         // Guard
         private void OnGuardPress(InputAction.CallbackContext ctx)
         {
-            if (_characterBase != null && _characterBase.IsStatusDontControl()) return;
+            if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Guard, Vector2.zero)) return;
 
             // Guard는 "홀드" 입력이므로 릴리즈 버퍼(Chord) 시스템을 통하지 않고 즉시 시작합니다.
@@ -665,7 +665,7 @@ namespace GGemCo2DControl
 
         private void OnGuardRelease(InputAction.CallbackContext ctx)
         {
-            if (_characterBase != null && _characterBase.IsStatusDontControl()) return;
+            if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Guard, Vector2.zero)) return;
             _guardHandler?.HandleRelease();
         }
@@ -673,14 +673,14 @@ namespace GGemCo2DControl
         // Jump
         private void OnJumpPress(InputAction.CallbackContext ctx)
         {
-            if (_characterBase != null && _characterBase.IsStatusDontControl()) return;
+            if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Jump, Vector2.zero)) return;
             _releaseResolver?.PushPress(PlayerButtonId.Jump, Time.unscaledTime);
         }
 
         private void OnJumpRelease(InputAction.CallbackContext ctx)
         {
-            if (_characterBase != null && _characterBase.IsStatusDontControl()) return;
+            if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Jump, Vector2.zero)) return;
             _releaseResolver?.PushRelease(PlayerButtonId.Jump, Time.unscaledTime);
         }
@@ -688,14 +688,14 @@ namespace GGemCo2DControl
         // Dash
         private void OnDashPress(InputAction.CallbackContext ctx)
         {
-            if (_characterBase != null && _characterBase.IsStatusDontControl()) return;
+            if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Dash, Vector2.zero)) return;
             _releaseResolver?.PushPress(PlayerButtonId.Dash, Time.unscaledTime);
         }
 
         private void OnDashRelease(InputAction.CallbackContext ctx)
         {
-            if (_characterBase != null && _characterBase.IsStatusDontControl()) return;
+            if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Dash, Vector2.zero)) return;
             _releaseResolver?.PushRelease(PlayerButtonId.Dash, Time.unscaledTime);
         }
@@ -705,14 +705,14 @@ namespace GGemCo2DControl
         /// </summary>
         private void OnInteractionPress(InputAction.CallbackContext ctx)
         {
-            if (_characterBase != null && _characterBase.IsStatusDontControl()) return;
+            if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Interaction, Vector2.zero)) return;
             _releaseResolver?.PushPress(PlayerButtonId.Interaction, Time.unscaledTime);
         }
 
         private void OnInteractionRelease(InputAction.CallbackContext ctx)
         {
-            if (_characterBase != null && _characterBase.IsStatusDontControl()) return;
+            if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Interaction, Vector2.zero)) return;
             _releaseResolver?.PushRelease(PlayerButtonId.Interaction, Time.unscaledTime);
         }
@@ -722,7 +722,7 @@ namespace GGemCo2DControl
         /// </summary>
         private void OnSimulationToolPress(InputAction.CallbackContext ctx)
         {
-            if (_characterBase != null && _characterBase.IsStatusDontControl()) return;
+            if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.SimulationTool, Vector2.zero)) return;
             _simulationToolPressCtx = ctx;
             _releaseResolver?.PushPress(PlayerButtonId.SimulationTool, Time.unscaledTime);
@@ -730,7 +730,7 @@ namespace GGemCo2DControl
 
         private void OnSimulationToolRelease(InputAction.CallbackContext ctx)
         {
-            if (_characterBase != null && _characterBase.IsStatusDontControl()) return;
+            if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.SimulationTool, Vector2.zero)) return;
             _simulationToolReleaseCtx = ctx;
             _releaseResolver?.PushRelease(PlayerButtonId.SimulationTool, Time.unscaledTime);
