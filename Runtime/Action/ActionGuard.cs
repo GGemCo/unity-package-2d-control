@@ -56,12 +56,15 @@ namespace GGemCo2DControl
         private bool _justGuardSuppressHitReaction;
 
         private float _guardStartedTime = -999f;
+        private bool _isCharacterStop;
 
         public override void Initialize(InputManager inputManager, CharacterBase characterBase, CharacterBaseController characterBaseController)
         {
             // ApplySettings에서 playerActionSettings 사용
             base.Initialize(inputManager, characterBase, characterBaseController);
             actionCharacterBase.OnAnimationEventGuardEnd += OnAnimationEventGuardEnd;
+            // 탈진 시스템을 사용하면, CharacterBase.Stop 처리를 하지 않는다.
+            _isCharacterStop = !(playerActionSettings && playerActionSettings.enableExhaustion);
         }
 
         public override void OnDestroy()
@@ -161,14 +164,14 @@ namespace GGemCo2DControl
             // 사망 시 즉시 해제
             if (actionCharacterBase.IsStatusDead())
             {
-                CancelGuard(true);
+                CancelGuard(true, false);
                 return;
             }
 
             // 스테미나 0이면 입력과 무관하게 즉시 해제
             if (actionCharacterBase.CurrentStamina.Value <= 0)
             {
-                CancelGuard(true);
+                CancelGuard(true, _isCharacterStop);
                 return;
             }
 
@@ -189,13 +192,13 @@ namespace GGemCo2DControl
                 if (!TrySpendStamina(_guardStaminaTickCost))
                 {
                     // 유지 불가 → 즉시 해제
-                    CancelGuard(true);
+                    CancelGuard(true, _isCharacterStop);
                     return;
                 }
 
                 if (actionCharacterBase.CurrentStamina.Value <= 0)
                 {
-                    CancelGuard(true);
+                    CancelGuard(true, _isCharacterStop);
                     return;
                 }
             }
@@ -213,13 +216,13 @@ namespace GGemCo2DControl
 
             if (!TrySpendStamina(_guardSuccessStaminaCost))
             {
-                CancelGuard(true);
+                CancelGuard(true, _isCharacterStop);
                 return false;
             }
 
             if (actionCharacterBase.CurrentStamina.Value <= 0)
             {
-                CancelGuard(true);
+                CancelGuard(true, _isCharacterStop);
                 return false;
             }
 
@@ -247,7 +250,7 @@ namespace GGemCo2DControl
             }
         }
 
-        private void BeginEnd()
+        private void BeginEnd(bool isStop = true)
         {
             if (_phase == GuardPhase.End) return;
 
@@ -259,7 +262,7 @@ namespace GGemCo2DControl
             }
             else
             {
-                FinishGuard();
+                FinishGuard(isStop);
             }
         }
 
@@ -268,13 +271,14 @@ namespace GGemCo2DControl
             FinishGuard();
         }
 
-        private void FinishGuard()
+        private void FinishGuard(bool isStop = true)
         {
             _phase = GuardPhase.None;
             _staminaTickElapsed = 0f;
             _guardStartedTime = -999f;
             // 상태 복귀는 Stop이 담당(기존 설계 유지)
-            actionCharacterBase?.Stop(true);
+            if (isStop)
+                actionCharacterBase?.Stop(true);
         }
 
         public bool TryResolveIncomingHit(MetadataDamage metadataDamage, out GuardResolutionResult result)
@@ -356,15 +360,15 @@ namespace GGemCo2DControl
             return Math.Max(0L, (long)Mathf.Ceil(damage * multiplier));
         }
 
-        public void CancelGuard(bool skipEndAnimation = false)
+        public void CancelGuard(bool skipEndAnimation = false, bool isStop = true)
         {
             if (skipEndAnimation || !_hasEnd)
             {
-                FinishGuard();
+                FinishGuard(isStop);
                 return;
             }
 
-            BeginEnd();
+            BeginEnd(isStop);
         }
 
         private bool TrySpendStamina(long amount)

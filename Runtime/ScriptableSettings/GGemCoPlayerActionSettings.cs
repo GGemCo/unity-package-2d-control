@@ -245,6 +245,29 @@ namespace GGemCo2DControl
         [Tooltip("틱 회복량 값\n- Flat: 스테미나 값(정수로 반올림)\n- PercentOfMax: 최대 스테미나 대비 비율(0~1)")]
         public float noGuardStaminaTickValue;
 
+        [Header("스테미나 탈진")]
+        [Tooltip("스테미나가 0이 되었을 때 탈진 상태로 진입할지 여부")]
+        public bool enableExhaustion = true;
+
+        [Tooltip("탈진 유지 시간(초)\n- 이 시간 동안 전용 회복이 진행됩니다.")]
+        public float exhaustionDurationSeconds = 2f;
+
+        [Tooltip("탈진 중 회복할 최대 스테미나 비율(0~1)\n예) 0.3 = 최대 스테미나의 30%까지 회복")]
+        [Range(0f, 1f)]
+        public float exhaustionRecoverMaxRatio = 0.3f;
+
+        [Tooltip("탈진 시작 애니메이션 이름")]
+        public string exhaustionStartAnimation = "moveset_exhaustion_start";
+
+        [Tooltip("탈진 루프 애니메이션 이름")]
+        public string exhaustionLoopAnimation = "moveset_exhaustion_loop";
+
+        [Tooltip("탈진 종료 애니메이션 이름")]
+        public string exhaustionEndAnimation = "moveset_exhaustion_end";
+
+        [Tooltip("탈진 중 피격으로 Damage 애니메이션에 들어간 뒤, 끝나면 다시 탈진 루프로 복귀할지 여부")]
+        public bool resumeExhaustionLoopAfterHit = true;
+
         // ============================================================
 
         private void Reset()

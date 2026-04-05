@@ -35,6 +35,7 @@ namespace GGemCo2DControl
         // 방어 처리
         private ActionGuard _actionGuard;
         private StaminaRegenController _staminaRegen;
+        private PlayerExhaustionController _exhaustion;
 
         // 점프
         private ActionJump _actionJump;
@@ -186,6 +187,7 @@ namespace GGemCo2DControl
 
             // 스테미나 회복 설정 스냅샷 갱신
             _staminaRegen?.ApplySettings(_playerActionSettings);
+            _exhaustion?.ApplySettings(_playerActionSettings);
         }
 
         private void InitializeControls()
@@ -199,6 +201,9 @@ namespace GGemCo2DControl
             // "가드가 아닐 때" 스테미나 회복 정책
             _staminaRegen = new StaminaRegenController(_characterBase, _actionGuard);
             _staminaRegen.ApplySettings(_playerActionSettings);
+
+            _exhaustion = new PlayerExhaustionController(_characterBase, _actionGuard, CancelActionsForExhaustion);
+            _exhaustion.ApplySettings(_playerActionSettings);
 
             _actionMove = new ActionMove();
             _actionMove.Initialize(this, _characterBase, _characterBaseController);
@@ -348,11 +353,8 @@ namespace GGemCo2DControl
             _bindings?.Unbind();
             _bindings = null;
 
-            if (_releaseResolver != null)
-            {
-                _releaseResolver.Resolved -= OnResolvedChord;
-                _releaseResolver = null;
-            }
+            _exhaustion?.Dispose();
+            _exhaustion = null;
 
             if (_releaseResolver != null)
             {
@@ -394,8 +396,14 @@ namespace GGemCo2DControl
             // Guard 유지(스테미나 틱/자동 해제) 처리
             _actionGuard?.Tick(Time.deltaTime);
 
-            // 스테미나 회복(가드 중이 아닐 때)
-            _staminaRegen?.Tick(Time.deltaTime);
+            // 탈진 처리(스테미나 0 진입/전용 회복/애니메이션)
+            _exhaustion?.Tick(Time.deltaTime);
+
+            // 일반 스테미나 회복은 탈진 중에는 중단합니다.
+            if (!(_exhaustion?.IsExhausting ?? false))
+            {
+                _staminaRegen?.Tick(Time.deltaTime);
+            }
         }
 
         public bool TryResolveIncomingHit(MetadataDamage metadataDamage, out GuardResolutionResult result)
@@ -448,6 +456,23 @@ namespace GGemCo2DControl
                 _simulationToolPressCtx = default;
                 _simulationToolReleaseCtx = default;
             }
+        }
+
+        private void CancelActionsForExhaustion()
+        {
+            _releaseResolver?.Clear();
+            _simulationToolPressCtx = default;
+            _simulationToolReleaseCtx = default;
+
+            _actionJump?.CancelJump(skipLandAnimation: true, restoreGravity: true);
+            _actionDash?.CancelDash(skipEndAnimation: true);
+            _actionClimb?.CancelClimb(skipEndAnimation: true, restoreGravity: true);
+            _actionPushPull?.Cancel();
+            _toolAction?.Cancel();
+            _actionWall?.CancelWall(restorePrevious: false);
+            _actionGuard?.CancelGuard(true);
+
+            _autoMove?.ReleaseAll();
         }
 
         private void OnDisable()
@@ -739,6 +764,9 @@ namespace GGemCo2DControl
         // === Chord 확정(릴리즈) 처리 ===
         private void OnResolvedChord(ResolvedButtonChord chord)
         {
+            if (_characterBase != null && _characterBase.IsDontControl())
+                return;
+
             // 0) Interaction은 토글 동작이라 동시입력에서도 우선 처리(예시 정책)
             //    - 후보가 없을 때 다른 액션까지 수행하고 싶다면, 아래 3)에서 설명하는 "bool 반환" 방식으로 개선 권장
             if (chord.Buttons.Contains(PlayerButtonId.Interaction))
