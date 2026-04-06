@@ -57,6 +57,8 @@ namespace GGemCo2DControl
 
         public bool IsExhausting => _phase != ExhaustionPhase.None;
 
+        public event Action<bool> StateChanged;
+
         public PlayerExhaustionController(CharacterBase character, ActionGuard guard, Action onEnterExhaustion)
         {
             _character = character;
@@ -230,6 +232,8 @@ namespace GGemCo2DControl
             if (_character == null || !_enabled)
                 return;
 
+            bool wasExhausting = IsExhausting;
+
             _onEnterExhaustion?.Invoke();
 
             if (_controlLockToken == null)
@@ -275,6 +279,11 @@ namespace GGemCo2DControl
             else
             {
                 BeginRecoverLoopPhase();
+            }
+
+            if (!wasExhausting)
+            {
+                StateChanged?.Invoke(true);
             }
         }
 
@@ -408,6 +417,8 @@ namespace GGemCo2DControl
 
         private void ResetState(bool releaseControlLock, bool stopToIdle)
         {
+            bool wasExhausting = IsExhausting;
+
             _phase = ExhaustionPhase.None;
             _phaseElapsed = 0f;
             _recoverElapsed = 0f;
@@ -426,6 +437,10 @@ namespace GGemCo2DControl
             if (stopToIdle && _character != null)
             {
                 _character.Stop(true);
+            }
+            if (wasExhausting)
+            {
+                StateChanged?.Invoke(false);
             }
         }
     }

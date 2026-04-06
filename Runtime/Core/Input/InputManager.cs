@@ -1,4 +1,4 @@
-﻿using GGemCo2DCore;
+using GGemCo2DCore;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -8,13 +8,23 @@ namespace GGemCo2DControl
     /// Player Input Asset에 등록한 키보드, 마우스, 게임 패드등의 입력 처리
     /// Player 에 AddComponent 된다.
     /// </summary>
-    public class InputManager : MonoBehaviour, IAutoMoveMovementDriver, IIncomingHitGuardResolver, IIncomingHitActionCanceler, ISkillStartActionCanceler
+    public class InputManager : MonoBehaviour, IAutoMoveMovementDriver, IIncomingHitGuardResolver, IIncomingHitActionCanceler, ISkillStartActionCanceler, IPlayerExhaustionStateSource
     {
         /// <summary>
         /// Control 패키지의 InputManager가 실제 이동 실행(Run/Move)을 담당합니다.
         /// (AutoMove가 활성화되어도 PlayerAutoMoveController가 Run()을 중복 호출하지 않도록 합니다.)
         /// </summary>
         public bool DrivesAutoMoveMovement => true;
+
+        /// <summary>
+        /// 현재 탈진 상태 여부입니다.
+        /// </summary>
+        public bool IsExhausting => _exhaustion?.IsExhausting ?? false;
+
+        /// <summary>
+        /// 탈진 상태가 시작/종료될 때 외부 시스템(UI 등)에 전달합니다.
+        /// </summary>
+        public event System.Action<bool> ExhaustionStateChanged;
 
         private CharacterBase _characterBase;
         private CharacterBaseController _characterBaseController;
@@ -203,6 +213,7 @@ namespace GGemCo2DControl
             _staminaRegen.ApplySettings(_playerActionSettings);
 
             _exhaustion = new PlayerExhaustionController(_characterBase, _actionGuard, CancelActionsForExhaustion);
+            _exhaustion.StateChanged += OnExhaustionStateChanged;
             _exhaustion.ApplySettings(_playerActionSettings);
 
             _actionMove = new ActionMove();
@@ -353,8 +364,12 @@ namespace GGemCo2DControl
             _bindings?.Unbind();
             _bindings = null;
 
-            _exhaustion?.Dispose();
-            _exhaustion = null;
+            if (_exhaustion != null)
+            {
+                _exhaustion.StateChanged -= OnExhaustionStateChanged;
+                _exhaustion.Dispose();
+                _exhaustion = null;
+            }
 
             if (_releaseResolver != null)
             {
@@ -456,6 +471,11 @@ namespace GGemCo2DControl
                 _simulationToolPressCtx = default;
                 _simulationToolReleaseCtx = default;
             }
+        }
+
+        private void OnExhaustionStateChanged(bool isExhausting)
+        {
+            ExhaustionStateChanged?.Invoke(isExhausting);
         }
 
         private void CancelActionsForExhaustion()
