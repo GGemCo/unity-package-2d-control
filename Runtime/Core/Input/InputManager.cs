@@ -1,4 +1,4 @@
-using GGemCo2DCore;
+﻿using GGemCo2DCore;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -8,7 +8,7 @@ namespace GGemCo2DControl
     /// Player Input Asset에 등록한 키보드, 마우스, 게임 패드등의 입력 처리
     /// Player 에 AddComponent 된다.
     /// </summary>
-    public class InputManager : MonoBehaviour, IAutoMoveMovementDriver, IIncomingHitGuardResolver, IIncomingHitActionCanceler, ISkillStartActionCanceler, IPlayerExhaustionStateSource
+    public class InputManager : MonoBehaviour, IAutoMoveMovementDriver, IIncomingHitGuardResolver, IIncomingHitActionCanceler, ISkillStartActionCanceler, IPlayerExhaustionStateSource, ICameraVerticalFollowStateSource
     {
         /// <summary>
         /// Control 패키지의 InputManager가 실제 이동 실행(Run/Move)을 담당합니다.
@@ -20,6 +20,11 @@ namespace GGemCo2DControl
         /// 현재 탈진 상태 여부입니다.
         /// </summary>
         public bool IsExhausting => _exhaustion?.IsExhausting ?? false;
+
+        /// <summary>
+        /// 점프 중 카메라의 세로 추적 영향도를 낮춰야 하는 상태인지 반환합니다. 항상 적용하기위해 true 로 설정
+        /// </summary>
+        public bool IsVerticalFollowInfluenceActive => true;
 
         /// <summary>
         /// 탈진 상태가 시작/종료될 때 외부 시스템(UI 등)에 전달합니다.
