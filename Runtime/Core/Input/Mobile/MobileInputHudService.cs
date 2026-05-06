@@ -1,6 +1,8 @@
+using GGemCo2DCore;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
+using SceneManager = UnityEngine.SceneManagement.SceneManager;
 
 namespace GGemCo2DControl
 {
@@ -25,6 +27,7 @@ namespace GGemCo2DControl
         private bool _hasLoggedMissingRootView;
         private bool _isRefreshing;
         private bool _hasPendingRefresh;
+        private MobileInputHudCutsceneSuppressor _cutsceneSuppressor;
 
         public static MobileInputHudService EnsureInstance()
         {
@@ -48,8 +51,10 @@ namespace GGemCo2DControl
 
             Instance = this;
             DontDestroyOnLoad(gameObject);
+            _cutsceneSuppressor = new MobileInputHudCutsceneSuppressor(this);
             SceneManager.sceneLoaded += OnSceneLoaded;
             SceneManager.sceneUnloaded += OnSceneUnloaded;
+            BindCutsceneSuppressorToCurrentScene();
         }
 
         private void OnDestroy()
@@ -61,6 +66,8 @@ namespace GGemCo2DControl
 
             SceneManager.sceneLoaded -= OnSceneLoaded;
             SceneManager.sceneUnloaded -= OnSceneUnloaded;
+            _cutsceneSuppressor?.Dispose();
+            _cutsceneSuppressor = null;
             DestroyRootView();
             UnsubscribeSettings();
         }
@@ -122,6 +129,7 @@ namespace GGemCo2DControl
 
         private void RefreshInternal()
         {
+            BindCutsceneSuppressorToCurrentScene();
             ResolveSettings();
             ValidateRootViewState();
             bool shouldShow = ShouldEnableHud();
@@ -166,6 +174,12 @@ namespace GGemCo2DControl
             }
         }
 
+        /// <summary>
+        /// 지정한 사유로 모바일 HUD 표시를 억제하거나 억제를 해제합니다.
+        /// 여러 사유가 동시에 등록될 수 있으며 모든 사유가 해제되어야 HUD가 다시 표시됩니다.
+        /// </summary>
+        /// <param name="reason">표시 억제 사유를 식별하는 문자열입니다.</param>
+        /// <param name="suppressed">해당 사유로 숨기려면 true, 해제하려면 false입니다.</param>
         public void SetSuppressed(string reason, bool suppressed)
         {
             _visibilityService.SetSuppressed(reason, suppressed);
@@ -207,6 +221,7 @@ namespace GGemCo2DControl
 
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
+            BindCutsceneSuppressorToCurrentScene();
             ValidateRootViewState(forceRecreate: true);
             Refresh();
         }
@@ -224,6 +239,19 @@ namespace GGemCo2DControl
                 _viewPrefabSource = null;
                 _visibilityService.Bind(null);
             }
+        }
+
+        /// <summary>
+        /// 현재 SceneGame의 CutsceneManager를 모바일 HUD 컷신 억제 브리지에 연결합니다.
+        /// 씬 로드 직후 또는 서비스 생성 직후 호출되어 컷신 진행 상태와 조이스틱 표시 상태를 동기화합니다.
+        /// </summary>
+        private void BindCutsceneSuppressorToCurrentScene()
+        {
+            CutsceneManager cutsceneManager = SceneGame.Instance != null
+                ? SceneGame.Instance.CutsceneManager
+                : null;
+
+            _cutsceneSuppressor?.Bind(cutsceneManager);
         }
 
         private void ValidateRootViewState(bool forceRecreate = false)
