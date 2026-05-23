@@ -314,7 +314,15 @@ namespace GGemCo2DControl
             else if (grounded)
                 _airborneTime = 0f;
 
+            JumpPhase phaseBeforeTick = _phase;
             TickActiveJumpFsm(grounded);
+
+            // 점프 중에는 물리 이동으로 NPC/몬스터 Body 안쪽에 진입할 수 있으므로,
+            // 활성 점프 프레임 동안 약한 겹침 해소를 계속 시도합니다.
+            if (phaseBeforeTick != JumpPhase.None || _phase != JumpPhase.None)
+            {
+                actionCharacterBase?.TrySeparateCharacterBodyOverlaps();
+            }
         }
 
         private void TryEnterPassiveFall(bool grounded)
@@ -467,6 +475,8 @@ namespace GGemCo2DControl
                     break;
 
                 case JumpPhase.LandOneShot:
+                    RequestLandingSeparation();
+
                     if (_hasEnd)
                     {
                         PlayAnimSafe(_animJumpEnd);
@@ -479,6 +489,16 @@ namespace GGemCo2DControl
                     }
                     break;
             }
+        }
+
+
+        /// <summary>
+        /// 점프 착지 직후 다른 캐릭터 Body Collider와 겹친 경우 자연스럽게 떨어지도록 강화 분리 보정을 요청합니다.
+        /// </summary>
+        private void RequestLandingSeparation()
+        {
+            actionCharacterBase?.RequestLandingCharacterBodySeparation();
+            actionCharacterBase?.TrySeparateCharacterBodyOverlaps();
         }
 
         private void StartAwaiting(JumpPhase phase, string clipName)
