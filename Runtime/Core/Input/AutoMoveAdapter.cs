@@ -135,9 +135,11 @@ namespace GGemCo2DControl
                 {
                     _suspend.ReleaseSuspend(_playerAttackRangeSuspendToken);
                     _playerAttackRangeSuspendToken = AutoMoveSuspendToken.None;
-                    _controlLockedSuspendToken = AutoMoveSuspendToken.None;
+
+                    // PlayerAttackRange 해제 시점에 ControlLocked 토큰 참조를 초기화해야 한다면,
+                    // 먼저 실제 토큰을 서비스에 반납해 _suspendTokens 누수가 없도록 보장한다.
+                    ForceReleaseControlLockedSuspendToken();
                     _isSuspendedByPlayerAttackRange = false;
-                    _isSuspendedByControlLocked = false;
                 }
             }
         }
@@ -189,15 +191,25 @@ namespace GGemCo2DControl
                 _playerAttackRangeSuspendToken = AutoMoveSuspendToken.None;
             }
 
-            if (_controlLockedSuspendToken.IsValid)
-            {
-                _suspend.ReleaseSuspend(_controlLockedSuspendToken);
-                _controlLockedSuspendToken = AutoMoveSuspendToken.None;
-            }
+            ForceReleaseControlLockedSuspendToken();
 
             _isSuspendedByWall = false;
             _isSuspendedByGuard = false;
             _isSuspendedByPlayerAttackRange = false;
+        }
+
+        /// <summary>
+        /// ControlLocked 사유로 획득한 Suspend 토큰을 안전하게 해제합니다.
+        /// 토큰 참조만 초기화하는 실수를 방지하기 위해, 항상 서비스 반납 후 상태를 리셋합니다.
+        /// </summary>
+        private void ForceReleaseControlLockedSuspendToken()
+        {
+            if (_controlLockedSuspendToken.IsValid)
+            {
+                _suspend.ReleaseSuspend(_controlLockedSuspendToken);
+            }
+
+            _controlLockedSuspendToken = AutoMoveSuspendToken.None;
             _isSuspendedByControlLocked = false;
         }
     }

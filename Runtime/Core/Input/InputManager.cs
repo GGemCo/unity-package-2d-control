@@ -106,6 +106,8 @@ namespace GGemCo2DControl
 
         // AutoMove(Core)
         private AutoMoveAdapter _autoMove;
+        private IAutoMoveVectorProvider _autoMoveProvider;
+        private MapManager _mapManagerForLoadEvents;
 
         // 플레이어 공격 영역에 몬스터 진입 상태
         private PlayerAttackAreaState _attackAreaState;
@@ -136,8 +138,9 @@ namespace GGemCo2DControl
             _motionController = GetComponent<ICharacterMotionController>();
 
             // AutoMove: 이동 벡터 오버라이드/입력 잠금 + Suspend 관리
+            _autoMoveProvider = GetComponent<IAutoMoveVectorProvider>();
             _autoMove = new AutoMoveAdapter(
-                GetComponent<IAutoMoveVectorProvider>(),
+                _autoMoveProvider,
                 GetComponent<IAutoMoveSuspendService>());
 
             if (_characterBase.colliderHitArea)
@@ -160,6 +163,15 @@ namespace GGemCo2DControl
 
             InitializeControls();
             InitializeInputPlayer();
+        }
+
+        /// <summary>
+        /// 컴포넌트가 활성화될 때 맵 로드 시작 이벤트를 구독합니다.
+        /// 맵 전환 직전에 AutoMove 잠금 토큰을 소유자 경로로 정리하기 위한 진입점입니다.
+        /// </summary>
+        private void OnEnable()
+        {
+            SubscribeMapLoadStartEventIfNeeded();
         }
 
         private void ApplySettings()
@@ -343,6 +355,8 @@ namespace GGemCo2DControl
 
         private void OnDestroy()
         {
+            UnsubscribeMapLoadStartEvent();
+
             _actionAttack?.OnDestroy();
             _actionGuard?.OnDestroy();
             _actionMove?.OnDestroy();
@@ -401,8 +415,71 @@ namespace GGemCo2DControl
             player?.onEventDeadByEndGround.RemoveAllListeners();
         }
 
+        /// <summary>
+        /// SceneGame.MapManager의 맵 로드 시작 이벤트를 안전하게 구독합니다.
+        /// 이미 구독 중이거나 SceneGame 초기화 전이면 구독을 건너뜁니다.
+        /// </summary>
+        private void SubscribeMapLoadStartEventIfNeeded()
+        {
+            if (_mapManagerForLoadEvents != null)
+            {
+                return;
+            }
+
+            SceneGame sceneGame = SceneGame.Instance;
+            if (sceneGame == null || sceneGame.mapManager == null)
+            {
+                return;
+            }
+
+            _mapManagerForLoadEvents = sceneGame.mapManager;
+            _mapManagerForLoadEvents.OnLoadStartMap += OnMapLoadStart;
+        }
+
+        /// <summary>
+        /// 맵 로드 시작 이벤트 구독을 해제합니다.
+        /// </summary>
+        private void UnsubscribeMapLoadStartEvent()
+        {
+            if (_mapManagerForLoadEvents == null)
+            {
+                return;
+            }
+
+            _mapManagerForLoadEvents.OnLoadStartMap -= OnMapLoadStart;
+            _mapManagerForLoadEvents = null;
+        }
+
+        /// <summary>
+        /// 맵 로드가 시작되면 AutoMove 관련 런타임 상태를 정리합니다.
+        /// - Suspend 토큰은 소유자(<see cref="AutoMoveAdapter"/>) 경로로 해제합니다.
+        /// - 진행 중 오토워크는 취소해 다음 맵 로드 시 이전 요청이 이어지지 않도록 합니다.
+        /// </summary>
+        private void OnMapLoadStart()
+        {
+            CleanupAutoMoveStateOnMapLoadStart();
+        }
+
+        /// <summary>
+        /// 맵 전환 시작 시 AutoMove 잠금 토큰과 이동 요청 상태를 안전하게 정리합니다.
+        /// </summary>
+        private void CleanupAutoMoveStateOnMapLoadStart()
+        {
+            _autoMove?.ReleaseAll();
+
+            if (_autoMoveProvider is PlayerAutoMoveController autoMoveController)
+            {
+                autoMoveController.Cancel();
+            }
+        }
+
         private void Update()
         {
+            if (_mapManagerForLoadEvents == null)
+            {
+                SubscribeMapLoadStartEventIfNeeded();
+            }
+
             if (_characterBase != null && _characterBase.IsHitStopped)
             {
                 return;
@@ -504,6 +581,7 @@ namespace GGemCo2DControl
         {
             // Wall Action 등에서 Suspend를 쥔 상태로 비활성화될 수 있으므로, 누락 없이 해제한다.
             _autoMove?.ReleaseAll();
+            UnsubscribeMapLoadStartEvent();
         }
 
         private void UpdateAutoMoveSuspendByWall()
