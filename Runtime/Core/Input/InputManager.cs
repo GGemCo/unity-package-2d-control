@@ -8,7 +8,7 @@ namespace GGemCo2DControl
     /// Player Input Asset에 등록한 키보드, 마우스, 게임 패드등의 입력 처리
     /// Player 에 AddComponent 된다.
     /// </summary>
-    public class InputManager : MonoBehaviour, IAutoMoveMovementDriver, IIncomingHitGuardResolver, IIncomingHitActionCanceler, ISkillStartActionCanceler, IPlayerExhaustionStateSource, ICameraVerticalFollowStateSource
+    public class InputManager : MonoBehaviour, IAutoMoveMovementDriver, IIncomingHitGuardResolver, IIncomingHitActionCanceler, ISkillStartActionCanceler, IMapClearActionCanceler, IPlayerExhaustionStateSource, ICameraVerticalFollowStateSource
     {
         /// <summary>
         /// Control 패키지의 InputManager가 실제 이동 실행(Run/Move)을 담당합니다.
@@ -527,6 +527,37 @@ namespace GGemCo2DControl
             _actionGuard?.CancelGuard(true);
 
             _autoMove?.ReleaseAll();
+        }
+
+        /// <summary>
+        /// 맵 클리어 종료 정책이 확정되었을 때 진행 중인 플레이어 조작 상태를 정리합니다.
+        /// 월드맵 UI가 열리기 전 자동 이동 요청을 완전히 취소하고, 점프/대시/가드/상호작용 등 잔여 액션이 다음 화면으로 이어지지 않게 합니다.
+        /// </summary>
+        public void CancelActionsOnMapClear()
+        {
+            _releaseResolver?.Clear();
+            _simulationToolPressCtx = default;
+            _simulationToolReleaseCtx = default;
+
+            _actionJump?.CancelJump(skipLandAnimation: true, restoreGravity: true);
+            _actionDash?.CancelDash(skipEndAnimation: true);
+            _actionClimb?.CancelClimb(skipEndAnimation: true, restoreGravity: true);
+            _actionPushPull?.Cancel();
+            _toolAction?.Cancel();
+            _actionWall?.CancelWall(restorePrevious: false);
+            _actionGuard?.CancelGuard(true);
+
+            _autoMove?.ReleaseAll();
+
+            if (_autoMoveProvider is PlayerAutoMoveController autoMoveController)
+            {
+                autoMoveController.Cancel();
+            }
+
+            if (_characterBase != null && !_characterBase.IsStatusDead())
+            {
+                _characterBase.Stop();
+            }
         }
 
         /// <summary>
