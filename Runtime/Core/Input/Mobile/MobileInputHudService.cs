@@ -28,6 +28,7 @@ namespace GGemCo2DControl
         private bool _isRefreshing;
         private bool _hasPendingRefresh;
         private MobileInputHudCutsceneSuppressor _cutsceneSuppressor;
+        private MobileInputHudInteractionSuppressor _interactionSuppressor;
 
         public static MobileInputHudService EnsureInstance()
         {
@@ -52,9 +53,11 @@ namespace GGemCo2DControl
             Instance = this;
             DontDestroyOnLoad(gameObject);
             _cutsceneSuppressor = new MobileInputHudCutsceneSuppressor(this);
+            _interactionSuppressor = new MobileInputHudInteractionSuppressor(this);
             SceneManager.sceneLoaded += OnSceneLoaded;
             SceneManager.sceneUnloaded += OnSceneUnloaded;
             BindCutsceneSuppressorToCurrentScene();
+            BindInteractionSuppressorToCurrentScene();
         }
 
         private void OnDestroy()
@@ -68,6 +71,8 @@ namespace GGemCo2DControl
             SceneManager.sceneUnloaded -= OnSceneUnloaded;
             _cutsceneSuppressor?.Dispose();
             _cutsceneSuppressor = null;
+            _interactionSuppressor?.Dispose();
+            _interactionSuppressor = null;
             DestroyRootView();
             UnsubscribeSettings();
         }
@@ -130,6 +135,7 @@ namespace GGemCo2DControl
         private void RefreshInternal()
         {
             BindCutsceneSuppressorToCurrentScene();
+            BindInteractionSuppressorToCurrentScene();
             ResolveSettings();
             ValidateRootViewState();
             bool shouldShow = ShouldEnableHud();
@@ -222,6 +228,7 @@ namespace GGemCo2DControl
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
             BindCutsceneSuppressorToCurrentScene();
+            BindInteractionSuppressorToCurrentScene();
             ValidateRootViewState(forceRecreate: true);
             Refresh();
         }
@@ -252,6 +259,19 @@ namespace GGemCo2DControl
                 : null;
 
             _cutsceneSuppressor?.Bind(cutsceneManager);
+        }
+
+        /// <summary>
+        /// 현재 SceneGame의 InteractionManager를 모바일 HUD 인터랙션 억제 브리지에 연결합니다.
+        /// 씬 로드 직후 또는 서비스 갱신 직후 호출되어 NPC 대화 진행 상태와 조이스틱 표시 상태를 동기화합니다.
+        /// </summary>
+        private void BindInteractionSuppressorToCurrentScene()
+        {
+            InteractionManager interactionManager = SceneGame.Instance != null
+                ? SceneGame.Instance.InteractionManager
+                : null;
+
+            _interactionSuppressor?.Bind(interactionManager);
         }
 
         private void ValidateRootViewState(bool forceRecreate = false)

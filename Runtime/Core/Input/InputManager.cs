@@ -8,7 +8,7 @@ namespace GGemCo2DControl
     /// Player Input Asset에 등록한 키보드, 마우스, 게임 패드등의 입력 처리
     /// Player 에 AddComponent 된다.
     /// </summary>
-    public class InputManager : MonoBehaviour, IAutoMoveMovementDriver, IIncomingHitGuardResolver, IIncomingHitActionCanceler, ISkillStartActionCanceler, IMapClearActionCanceler, IPlayerExhaustionStateSource, ICameraVerticalFollowStateSource
+    public class InputManager : MonoBehaviour, IAutoMoveMovementDriver, IIncomingHitGuardResolver, IIncomingHitActionCanceler, ISkillStartActionCanceler, IMapClearActionCanceler, IInteractionActionCanceler, IPlayerExhaustionStateSource, ICameraVerticalFollowStateSource
     {
         /// <summary>
         /// Control 패키지의 InputManager가 실제 이동 실행(Run/Move)을 담당합니다.
@@ -534,6 +534,37 @@ namespace GGemCo2DControl
         /// 월드맵 UI가 열리기 전 자동 이동 요청을 완전히 취소하고, 점프/대시/가드/상호작용 등 잔여 액션이 다음 화면으로 이어지지 않게 합니다.
         /// </summary>
         public void CancelActionsOnMapClear()
+        {
+            _releaseResolver?.Clear();
+            _simulationToolPressCtx = default;
+            _simulationToolReleaseCtx = default;
+
+            _actionJump?.CancelJump(skipLandAnimation: true, restoreGravity: true);
+            _actionDash?.CancelDash(skipEndAnimation: true);
+            _actionClimb?.CancelClimb(skipEndAnimation: true, restoreGravity: true);
+            _actionPushPull?.Cancel();
+            _toolAction?.Cancel();
+            _actionWall?.CancelWall(restorePrevious: false);
+            _actionGuard?.CancelGuard(true);
+
+            _autoMove?.ReleaseAll();
+
+            if (_autoMoveProvider is PlayerAutoMoveController autoMoveController)
+            {
+                autoMoveController.Cancel();
+            }
+
+            if (_characterBase != null && !_characterBase.IsStatusDead())
+            {
+                _characterBase.Stop();
+            }
+        }
+
+        /// <summary>
+        /// NPC 인터랙션 시작 직전에 진행 중인 플레이어 조작 상태를 정리합니다.
+        /// 대화 중에는 UI 터치만 처리되어야 하므로 입력 버퍼, 이동계 액션, 가드, 자동 이동 요청을 모두 종료합니다.
+        /// </summary>
+        public void CancelActionsOnInteractionStart()
         {
             _releaseResolver?.Clear();
             _simulationToolPressCtx = default;
