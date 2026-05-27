@@ -50,6 +50,10 @@ namespace GGemCo2DControl
         private ConfigSortingLayer.Keys _guardSuccessVfxSortingLayer;
         private int _guardSuccessVfxSortingOrder;
         private Vector3 _guardSuccessVfxOffset;
+        private int _justGuardSuccessVfxUid;
+        private ConfigSortingLayer.Keys _justGuardSuccessVfxSortingLayer;
+        private int _justGuardSuccessVfxSortingOrder;
+        private Vector3 _justGuardSuccessVfxOffset;
 
         // 스테미나 틱 누적(프레임 드랍 보정)
         private float _staminaTickElapsed;
@@ -123,6 +127,10 @@ namespace GGemCo2DControl
             _guardSuccessVfxSortingLayer = playerActionSettings.guardSuccessVfxSortingLayer;
             _guardSuccessVfxSortingOrder = playerActionSettings.guardSuccessVfxSortingOrder;
             _guardSuccessVfxOffset = playerActionSettings.guardSuccessVfxOffset;
+            _justGuardSuccessVfxUid = playerActionSettings.justGuardSuccessVfxUid;
+            _justGuardSuccessVfxSortingLayer = playerActionSettings.justGuardSuccessVfxSortingLayer;
+            _justGuardSuccessVfxSortingOrder = playerActionSettings.justGuardSuccessVfxSortingOrder;
+            _justGuardSuccessVfxOffset = playerActionSettings.justGuardSuccessVfxOffset;
 
             _enableJustGuard = playerActionSettings.enableJustGuard;
             _justGuardOpenDelay = Mathf.Max(0f, playerActionSettings.justGuardOpenDelay);
@@ -234,7 +242,7 @@ namespace GGemCo2DControl
         /// - 성공 비용을 차감
         /// - 부족하면 즉시 가드 해제 후 false 반환
         /// </summary>
-        public bool OnGuardSuccess()
+        public bool OnGuardSuccess(bool isJustGuard)
         {
             if (!IsGuarding) return false;
             if (actionCharacterBase == null) return false;
@@ -252,7 +260,7 @@ namespace GGemCo2DControl
             }
 
             TryPlayGuardSuccessAnimation();
-            TryPlayGuardSuccessVfx();
+            TryPlayGuardSuccessVfx(isJustGuard);
             return true;
         }
 
@@ -358,23 +366,37 @@ namespace GGemCo2DControl
         /// <summary>
         /// 가드 성공 시점에 설정된 VFX를 단발로 재생합니다.
         /// </summary>
-        private void TryPlayGuardSuccessVfx()
+        private void TryPlayGuardSuccessVfx(bool isJustGuard)
         {
-            if (_guardSuccessVfxUid <= 0) return;
             if (actionCharacterBase == null) return;
+
+            int vfxUid = _guardSuccessVfxUid;
+            ConfigSortingLayer.Keys sortingLayer = _guardSuccessVfxSortingLayer;
+            int sortingOrder = _guardSuccessVfxSortingOrder;
+            Vector3 positionOffset = _guardSuccessVfxOffset;
+
+            if (isJustGuard && _justGuardSuccessVfxUid > 0)
+            {
+                vfxUid = _justGuardSuccessVfxUid;
+                sortingLayer = _justGuardSuccessVfxSortingLayer;
+                sortingOrder = _justGuardSuccessVfxSortingOrder;
+                positionOffset = _justGuardSuccessVfxOffset;
+            }
+
+            if (vfxUid <= 0) return;
 
             SceneGame scene = SceneGame.Instance;
             if (scene == null || scene.VfxManager == null) return;
 
             var spawnRequest = new VfxSpawnRequest
             {
-                VfxUid = _guardSuccessVfxUid,
+                VfxUid = vfxUid,
                 Owner = actionCharacterBase,
                 Target = actionCharacterBase,
                 WorldPosition = actionCharacterBase.transform.position,
-                PositionOffset = _guardSuccessVfxOffset,
-                SortingLayerOverride = _guardSuccessVfxSortingLayer,
-                SortingOrderOverride = _guardSuccessVfxSortingOrder,
+                PositionOffset = positionOffset,
+                SortingLayerOverride = sortingLayer,
+                SortingOrderOverride = sortingOrder,
                 ForceOneShot = true,
             };
 
@@ -392,7 +414,7 @@ namespace GGemCo2DControl
             if (_guardFrontOnly && !IsIncomingAttackFromFront(metadataDamage.attacker)) return false;
 
             bool isJustGuard = IsInJustGuardWindow(Time.time);
-            if (!OnGuardSuccess())
+            if (!OnGuardSuccess(isJustGuard))
             {
                 return false;
             }

@@ -221,6 +221,19 @@ namespace GGemCo2DControl
         [Tooltip("방어 성공 VFX 위치 오프셋(World 기준)")]
         public Vector3 guardSuccessVfxOffset = Vector3.zero;
 
+        [Header("저스트 가드 성공 VFX")]
+        [Tooltip("저스트 가드 성공 시 재생할 vfx_effect 테이블 Uid")]
+        public int justGuardSuccessVfxUid;
+
+        [Tooltip("저스트 가드 성공 VFX Sorting Layer")]
+        public ConfigSortingLayer.Keys justGuardSuccessVfxSortingLayer = ConfigSortingLayer.Keys.CharacterTop;
+
+        [Tooltip("저스트 가드 성공 VFX Sorting Order")]
+        public int justGuardSuccessVfxSortingOrder;
+
+        [Tooltip("저스트 가드 성공 VFX 위치 오프셋(World 기준)")]
+        public Vector3 justGuardSuccessVfxOffset = Vector3.zero;
+
         [Header("저스트 가드")]
         [Tooltip("저스트 가드 기능 활성화 여부")]
         public bool enableJustGuard = true;
