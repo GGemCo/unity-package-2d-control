@@ -242,6 +242,7 @@ namespace GGemCo2DControl
         /// - 성공 비용을 차감
         /// - 부족하면 즉시 가드 해제 후 false 반환
         /// </summary>
+        /// <param name="isJustGuard">저스트 가드 성공 여부입니다. true이면 저스트 가드 전용 VFX 우선 정책을 적용합니다.</param>
         public bool OnGuardSuccess(bool isJustGuard)
         {
             if (!IsGuarding) return false;
@@ -366,6 +367,7 @@ namespace GGemCo2DControl
         /// <summary>
         /// 가드 성공 시점에 설정된 VFX를 단발로 재생합니다.
         /// </summary>
+        /// <param name="isJustGuard">저스트 가드 성공 여부입니다.</param>
         private void TryPlayGuardSuccessVfx(bool isJustGuard)
         {
             if (actionCharacterBase == null) return;
@@ -388,19 +390,88 @@ namespace GGemCo2DControl
             SceneGame scene = SceneGame.Instance;
             if (scene == null || scene.VfxManager == null) return;
 
+            Vector2 visualDirection = ResolveGuardSuccessVfxDirection(actionCharacterBase);
+            Vector3 mirroredOffset = ResolveGuardSuccessVfxOffsetByDirection(positionOffset, visualDirection);
             var spawnRequest = new VfxSpawnRequest
             {
                 VfxUid = vfxUid,
                 Owner = actionCharacterBase,
                 Target = actionCharacterBase,
                 WorldPosition = actionCharacterBase.transform.position,
-                PositionOffset = positionOffset,
+                PositionOffset = mirroredOffset,
                 SortingLayerOverride = sortingLayer,
                 SortingOrderOverride = sortingOrder,
                 ForceOneShot = true,
+                // 가드 성공 VFX는 회전보다 좌우 반전 일치가 우선이므로, 방향 회전은 비활성화합니다.
+                UseDirection = true,
+                Direction = visualDirection,
+                SourceDirection = visualDirection,
+                DisableDirectionRotation = true,
             };
 
             scene.VfxManager.CreateVfx(spawnRequest);
+        }
+
+        /// <summary>
+        /// 가드 성공 VFX의 좌우 방향에 맞춰 X 오프셋을 보정합니다.
+        /// 캐릭터가 좌측(Flip) 방향이면 입력된 X 오프셋 부호를 반전하여
+        /// 오른쪽 기준으로 작성된 오프셋이 좌우 대칭으로 적용되도록 보장합니다.
+        /// </summary>
+        /// <param name="offset">설정에서 입력된 원본 위치 오프셋입니다.</param>
+        /// <param name="visualDirection">VFX 좌우 반전에 사용되는 방향 벡터입니다.</param>
+        /// <returns>좌우 방향 보정이 반영된 오프셋입니다.</returns>
+        private static Vector3 ResolveGuardSuccessVfxOffsetByDirection(Vector3 offset, Vector2 visualDirection)
+        {
+            if (Mathf.Abs(offset.x) <= 0.0001f)
+                return offset;
+
+            if (Mathf.Abs(visualDirection.x) <= 0.0001f)
+                return offset;
+
+            if (visualDirection.x < 0f)
+                offset.x = -offset.x;
+
+            return offset;
+        }
+
+        /// <summary>
+        /// 가드 성공 VFX에 적용할 좌우 방향을 계산합니다.
+        /// 가능한 경우 <see cref="CharacterBase.CurrentFacing"/>을 우선 사용하고,
+        /// X축 해석이 어려운 경우에는 캐릭터 Flip 상태를 기준으로 좌우 방향을 보정합니다.
+        /// </summary>
+        /// <param name="character">방향 기준이 되는 캐릭터입니다.</param>
+        /// <returns>VFX 좌우 반전에 사용할 정규화된 수평 방향 벡터입니다.</returns>
+        private static Vector2 ResolveGuardSuccessVfxDirection(CharacterBase character)
+        {
+            if (character == null)
+                return Vector2.right;
+
+            Vector2 facing = CharacterConstants.FacingToVector2(character.CurrentFacing);
+            if (Mathf.Abs(facing.x) > 0.0001f)
+                return facing.x > 0f ? Vector2.right : Vector2.left;
+
+            return ResolveHorizontalDirectionByFlipState(character);
+        }
+
+        /// <summary>
+        /// 캐릭터의 Flip 상태를 기준으로 좌우 수평 방향을 계산합니다.
+        /// 기본 스프라이트 방향(<see cref="CharacterBase.defaultFacingDirection8"/>)을 함께 고려하여
+        /// IsFlipped 값이 의미하는 실제 월드 좌우를 안정적으로 복원합니다.
+        /// </summary>
+        /// <param name="character">방향 기준 캐릭터입니다.</param>
+        /// <returns>오른쪽 또는 왼쪽 단위 벡터입니다.</returns>
+        private static Vector2 ResolveHorizontalDirectionByFlipState(CharacterBase character)
+        {
+            if (character == null)
+                return Vector2.right;
+
+            bool isFlipped = character.IsFlipped();
+            return character.defaultFacingDirection8 switch
+            {
+                CharacterConstants.FacingDirection8.Left => isFlipped ? Vector2.right : Vector2.left,
+                CharacterConstants.FacingDirection8.Right => isFlipped ? Vector2.left : Vector2.right,
+                _ => character.transform.localScale.x < 0f ? Vector2.left : Vector2.right,
+            };
         }
 
         public bool TryResolveIncomingHit(MetadataDamage metadataDamage, out GuardResolutionResult result)
