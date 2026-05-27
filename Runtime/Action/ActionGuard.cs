@@ -46,6 +46,10 @@ namespace GGemCo2DControl
 
         // [Tooltip("guardStaminaTickInterval 시간마다 얼마나 차감할 것인지")]
         private long _guardStaminaTickCost;
+        private int _guardSuccessVfxUid;
+        private ConfigSortingLayer.Keys _guardSuccessVfxSortingLayer;
+        private int _guardSuccessVfxSortingOrder;
+        private Vector3 _guardSuccessVfxOffset;
 
         // 스테미나 틱 누적(프레임 드랍 보정)
         private float _staminaTickElapsed;
@@ -115,6 +119,10 @@ namespace GGemCo2DControl
             _guardSuccessStaminaCost = playerActionSettings.guardSuccessStaminaCost;
             _guardStaminaTickInterval = playerActionSettings.guardStaminaTickInterval;
             _guardStaminaTickCost = playerActionSettings.guardStaminaTickCost;
+            _guardSuccessVfxUid = playerActionSettings.guardSuccessVfxUid;
+            _guardSuccessVfxSortingLayer = playerActionSettings.guardSuccessVfxSortingLayer;
+            _guardSuccessVfxSortingOrder = playerActionSettings.guardSuccessVfxSortingOrder;
+            _guardSuccessVfxOffset = playerActionSettings.guardSuccessVfxOffset;
 
             _enableJustGuard = playerActionSettings.enableJustGuard;
             _justGuardOpenDelay = Mathf.Max(0f, playerActionSettings.justGuardOpenDelay);
@@ -244,6 +252,7 @@ namespace GGemCo2DControl
             }
 
             TryPlayGuardSuccessAnimation();
+            TryPlayGuardSuccessVfx();
             return true;
         }
 
@@ -344,6 +353,32 @@ namespace GGemCo2DControl
         {
             _isGuardSuccessAnimationPlaying = false;
             _guardSuccessAnimationElapsed = 0f;
+        }
+
+        /// <summary>
+        /// 가드 성공 시점에 설정된 VFX를 단발로 재생합니다.
+        /// </summary>
+        private void TryPlayGuardSuccessVfx()
+        {
+            if (_guardSuccessVfxUid <= 0) return;
+            if (actionCharacterBase == null) return;
+
+            SceneGame scene = SceneGame.Instance;
+            if (scene == null || scene.VfxManager == null) return;
+
+            var spawnRequest = new VfxSpawnRequest
+            {
+                VfxUid = _guardSuccessVfxUid,
+                Owner = actionCharacterBase,
+                Target = actionCharacterBase,
+                WorldPosition = actionCharacterBase.transform.position,
+                PositionOffset = _guardSuccessVfxOffset,
+                SortingLayerOverride = _guardSuccessVfxSortingLayer,
+                SortingOrderOverride = _guardSuccessVfxSortingOrder,
+                ForceOneShot = true,
+            };
+
+            scene.VfxManager.CreateVfx(spawnRequest);
         }
 
         public bool TryResolveIncomingHit(MetadataDamage metadataDamage, out GuardResolutionResult result)

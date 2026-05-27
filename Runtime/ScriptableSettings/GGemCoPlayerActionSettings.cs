@@ -208,6 +208,19 @@ namespace GGemCo2DControl
         [Tooltip("guardStaminaTickInterval 시간마다 얼마나 차감할 것인지")]
         public long guardStaminaTickCost;
 
+        [Header("방어 성공 VFX")]
+        [Tooltip("방어 성공 시 재생할 vfx_effect 테이블 Uid")]
+        public int guardSuccessVfxUid;
+
+        [Tooltip("방어 성공 VFX Sorting Layer")]
+        public ConfigSortingLayer.Keys guardSuccessVfxSortingLayer = ConfigSortingLayer.Keys.CharacterTop;
+
+        [Tooltip("방어 성공 VFX Sorting Order")]
+        public int guardSuccessVfxSortingOrder;
+
+        [Tooltip("방어 성공 VFX 위치 오프셋(World 기준)")]
+        public Vector3 guardSuccessVfxOffset = Vector3.zero;
+
         [Header("저스트 가드")]
         [Tooltip("저스트 가드 기능 활성화 여부")]
         public bool enableJustGuard = true;
