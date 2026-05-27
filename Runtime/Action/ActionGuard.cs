@@ -27,9 +27,13 @@ namespace GGemCo2DControl
         private string _animGuardStart;
         private string _animGuardWait;
         private string _animGuardEnd;
+        private string _animGuardSuccess;
 
         // --- 애니메이션 존재 여부 캐시 ---
-        private bool _hasStart, _hasWait, _hasEnd;
+        private bool _hasStart, _hasWait, _hasEnd, _hasSuccess;
+        private float _guardSuccessDurationSeconds;
+        private bool _isGuardSuccessAnimationPlaying;
+        private float _guardSuccessAnimationElapsed;
         
         // [Tooltip("방어 시작시 차감되는 스테미나")]
         private long _guardStartStaminaCost;
@@ -89,9 +93,19 @@ namespace GGemCo2DControl
             _animGuardStart = prefix;
             _animGuardWait = prefix + "_wait";
             _animGuardEnd = prefix + "_end";
+            _animGuardSuccess = prefix + "_success";
             _hasStart = HasAnimation(_animGuardStart);
             _hasWait = HasAnimation(_animGuardWait);
             _hasEnd = HasAnimation(_animGuardEnd);
+            _hasSuccess = HasAnimation(_animGuardSuccess);
+
+            _guardSuccessDurationSeconds = 0f;
+            if (_hasSuccess && actionCharacterBase?.CharacterAnimationController != null)
+            {
+                _guardSuccessDurationSeconds = Mathf.Max(
+                    0f,
+                    actionCharacterBase.CharacterAnimationController.GetCharacterAnimationDuration(_animGuardSuccess, false));
+            }
         }
 
         private void InitializeGuardSettings()
@@ -133,6 +147,7 @@ namespace GGemCo2DControl
             // Tick 초기화
             _staminaTickElapsed = 0f;
             _guardStartedTime = Time.time;
+            ClearGuardSuccessAnimationState();
 
             // 이동 멈춤
             actionCharacterBase.directionNormalize = Vector3.zero;
@@ -174,6 +189,8 @@ namespace GGemCo2DControl
                 CancelGuard(true, _isCharacterStop);
                 return;
             }
+
+            TickGuardSuccessAnimation(deltaTime);
 
             // 틱 차감 비활성
             if (_guardStaminaTickInterval <= 0f || _guardStaminaTickCost <= 0f)
@@ -226,6 +243,7 @@ namespace GGemCo2DControl
                 return false;
             }
 
+            TryPlayGuardSuccessAnimation();
             return true;
         }
 
@@ -255,6 +273,7 @@ namespace GGemCo2DControl
             if (_phase == GuardPhase.End) return;
 
             _phase = GuardPhase.End;
+            ClearGuardSuccessAnimationState();
 
             if (_hasEnd)
             {
@@ -276,9 +295,55 @@ namespace GGemCo2DControl
             _phase = GuardPhase.None;
             _staminaTickElapsed = 0f;
             _guardStartedTime = -999f;
+            ClearGuardSuccessAnimationState();
             // 상태 복귀는 Stop이 담당(기존 설계 유지)
             if (isStop)
                 actionCharacterBase?.Stop(true);
+        }
+
+        /// <summary>
+        /// 가드 성공 애니메이션을 재생합니다.
+        /// - 성공 애니메이션이 없으면 기존 동작을 유지합니다.
+        /// - 가드 성공이 연속으로 들어오면 재생 시간을 갱신합니다.
+        /// </summary>
+        private void TryPlayGuardSuccessAnimation()
+        {
+            if (!_hasSuccess) return;
+            if (!IsActivelyGuarding) return;
+
+            _isGuardSuccessAnimationPlaying = true;
+            _guardSuccessAnimationElapsed = 0f;
+            actionCharacterBase.CharacterAnimationController?.PlayCharacterAnimation(_animGuardSuccess);
+        }
+
+        /// <summary>
+        /// 성공 애니메이션 재생 시간을 추적하고, 종료 후 guard_wait 상태로 복귀합니다.
+        /// </summary>
+        private void TickGuardSuccessAnimation(float deltaTime)
+        {
+            if (!_isGuardSuccessAnimationPlaying) return;
+
+            // 가드 상태가 아니면 성공 연출 상태를 즉시 정리합니다.
+            if (!IsActivelyGuarding)
+            {
+                ClearGuardSuccessAnimationState();
+                return;
+            }
+
+            _guardSuccessAnimationElapsed += Mathf.Max(0f, deltaTime);
+            if (_guardSuccessAnimationElapsed < _guardSuccessDurationSeconds) return;
+
+            ClearGuardSuccessAnimationState();
+            BeginWait();
+        }
+
+        /// <summary>
+        /// 가드 성공 애니메이션 재생 상태를 초기화합니다.
+        /// </summary>
+        private void ClearGuardSuccessAnimationState()
+        {
+            _isGuardSuccessAnimationPlaying = false;
+            _guardSuccessAnimationElapsed = 0f;
         }
 
         public bool TryResolveIncomingHit(MetadataDamage metadataDamage, out GuardResolutionResult result)
