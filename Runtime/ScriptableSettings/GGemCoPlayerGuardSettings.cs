@@ -143,6 +143,25 @@ namespace GGemCo2DControl
         [Tooltip("가드 브레이크 시 기본으로 표시할 피드백 텍스트입니다.")]
         public string guardBreakFeedbackText = "GUARD BREAK";
 
+
+        [Header("가드 브레이크 애니메이션 동기화")]
+        [Tooltip("가드 브레이크 결과로 Crowd Control이 적용될 때, guard_break 애니메이션을 CC Duration에 맞춰 재생합니다.")]
+        public bool syncGuardBreakAnimationToCrowdControl = true;
+
+        [Tooltip("guard_break 클립이 CC Duration보다 긴 경우에만 TimeScale을 올립니다. 짧은 클립은 느리게 늘리지 않습니다.")]
+        public bool onlySpeedUpGuardBreakAnimationWhenLonger = true;
+
+        [Tooltip("guard_break 애니메이션에 적용할 최대 TimeScale입니다.")]
+        [Min(1f)]
+        public float guardBreakAnimationMaxTimeScale = 3f;
+
+        [Tooltip("CC Duration이 너무 짧을 때 사용할 최소 동기화 시간입니다.")]
+        [Min(0.01f)]
+        public float guardBreakAnimationMinTargetDuration = 0.05f;
+
+        [Tooltip("CC의 EaseType을 guard_break 애니메이션 재생 속도에도 적용합니다.")]
+        public bool applyCrowdControlEasingToGuardBreakAnimation = true;
+
         [Header("가드 브레이크 VFX")]
         [Tooltip("가드 브레이크 시 재생할 vfx_effect 테이블 Uid. 공격별 VFX UID가 있으면 공격별 설정이 우선 적용됩니다.")]
         public int guardBreakVfxUid;
@@ -252,6 +271,11 @@ namespace GGemCo2DControl
         private void Reset()
         {
             prefixGuardAnimation = "guard";
+            syncGuardBreakAnimationToCrowdControl = true;
+            onlySpeedUpGuardBreakAnimationWhenLonger = true;
+            guardBreakAnimationMaxTimeScale = 3f;
+            guardBreakAnimationMinTargetDuration = 0.05f;
+            applyCrowdControlEasingToGuardBreakAnimation = true;
             guardAttackTypeRules = new List<GuardAttackTypeRule>
             {
                 new GuardAttackTypeRule

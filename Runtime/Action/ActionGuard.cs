@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using GGemCo2DCore;
 using UnityEngine;
 
@@ -70,6 +70,12 @@ namespace GGemCo2DControl
         private ConfigSortingLayer.Keys _guardBreakVfxSortingLayer;
         private int _guardBreakVfxSortingOrder;
         private Vector3 _guardBreakVfxOffset;
+        private bool _syncGuardBreakAnimationToCrowdControl;
+        private bool _onlySpeedUpGuardBreakAnimationWhenLonger;
+        private float _guardBreakAnimationMaxTimeScale;
+        private float _guardBreakAnimationMinTargetDuration;
+        private bool _applyCrowdControlEasingToGuardBreakAnimation;
+        private float _guardBreakAnimationActiveDurationSeconds;
 
         // 스테미나 틱 누적(프레임 드랍 보정)
         private float _staminaTickElapsed;
@@ -172,6 +178,11 @@ namespace GGemCo2DControl
             _guardBreakVfxSortingLayer = playerGuardSettings.guardBreakVfxSortingLayer;
             _guardBreakVfxSortingOrder = playerGuardSettings.guardBreakVfxSortingOrder;
             _guardBreakVfxOffset = playerGuardSettings.guardBreakVfxOffset;
+            _syncGuardBreakAnimationToCrowdControl = playerGuardSettings.syncGuardBreakAnimationToCrowdControl;
+            _onlySpeedUpGuardBreakAnimationWhenLonger = playerGuardSettings.onlySpeedUpGuardBreakAnimationWhenLonger;
+            _guardBreakAnimationMaxTimeScale = Mathf.Max(1f, playerGuardSettings.guardBreakAnimationMaxTimeScale);
+            _guardBreakAnimationMinTargetDuration = Mathf.Max(0.01f, playerGuardSettings.guardBreakAnimationMinTargetDuration);
+            _applyCrowdControlEasingToGuardBreakAnimation = playerGuardSettings.applyCrowdControlEasingToGuardBreakAnimation;
 
             _enableJustGuard = playerGuardSettings.enableJustGuard;
             _justGuardOpenDelay = Mathf.Max(0f, playerGuardSettings.justGuardOpenDelay);
@@ -428,6 +439,7 @@ namespace GGemCo2DControl
         private void ClearGuardBreakAnimationState()
         {
             _guardBreakAnimationElapsed = 0f;
+            _guardBreakAnimationActiveDurationSeconds = 0f;
         }
 
         /// <summary>
@@ -444,8 +456,12 @@ namespace GGemCo2DControl
                 return;
             }
 
+            float activeDuration = _guardBreakAnimationActiveDurationSeconds > 0f
+                ? _guardBreakAnimationActiveDurationSeconds
+                : _guardBreakDurationSeconds;
+
             _guardBreakAnimationElapsed += Mathf.Max(0f, deltaTime);
-            if (_guardBreakAnimationElapsed < _guardBreakDurationSeconds) return;
+            if (_guardBreakAnimationElapsed < activeDuration) return;
 
             FinishGuard(_isCharacterStop);
         }
@@ -620,7 +636,7 @@ namespace GGemCo2DControl
 
             if (ShouldBreakGuard(metadataDamage, isJustGuard))
             {
-                BeginGuardBreak(metadataDamage);
+                BeginGuardBreak(metadataDamage, crowdControlUid: 0);
                 result = CreateGuardBreakResult(metadataDamage, crowdControlUid: 0);
                 return true;
             }
@@ -665,7 +681,7 @@ namespace GGemCo2DControl
                     return true;
 
                 case GuardResolutionOutcome.GuardBroken:
-                    BeginGuardBreak(metadataDamage);
+                    BeginGuardBreak(metadataDamage, crowdControlUid);
                     result = CreateGuardBreakResult(metadataDamage, crowdControlUid);
                     return true;
 
@@ -733,6 +749,7 @@ namespace GGemCo2DControl
                 RemainingDamage = CalculateReducedDamage(metadataDamage.damage, ResolveGuardBreakDamageMultiplier(metadataDamage)),
                 SuppressHitReaction = true,
                 CrowdControlUid = crowdControlUid,
+                CrowdControlAnimationOverride = BuildGuardBreakCrowdControlAnimationOverride(crowdControlUid),
                 FeedbackText = ResolveGuardBreakFeedbackText(metadataDamage),
                 FeedbackColor = Color.red,
             };
@@ -762,7 +779,8 @@ namespace GGemCo2DControl
         /// 가드 브레이크 상태로 전환하고, 가드 유지/성공 연출을 정리합니다.
         /// </summary>
         /// <param name="metadataDamage">가드 브레이크를 발생시킨 데미지 메타데이터입니다.</param>
-        private void BeginGuardBreak(MetadataDamage metadataDamage)
+        /// <param name="crowdControlUid">가드 브레이크 결과로 적용할 Crowd Control UID입니다.</param>
+        private void BeginGuardBreak(MetadataDamage metadataDamage, int crowdControlUid)
         {
             _phase = GuardPhase.Break;
             _requiresReleaseBeforeReGuard = true;
@@ -784,14 +802,69 @@ namespace GGemCo2DControl
 
             TryPlayGuardBreakVfx(metadataDamage);
 
-            if (_hasBreak)
-            {
-                actionCharacterBase.CharacterAnimationController?.PlayCharacterAnimation(_animGuardBreak);
-            }
-            else
+            if (!_hasBreak)
             {
                 FinishGuard(_isCharacterStop);
+                return;
             }
+
+            CrowdControlAnimationOverride animationOverride = BuildGuardBreakCrowdControlAnimationOverride(crowdControlUid);
+            if (animationOverride.IsValid)
+            {
+                _guardBreakAnimationActiveDurationSeconds = animationOverride.ResolvePlaybackDuration(_guardBreakDurationSeconds);
+                return;
+            }
+
+            _guardBreakAnimationActiveDurationSeconds = _guardBreakDurationSeconds;
+            actionCharacterBase.CharacterAnimationController?.PlayCharacterAnimation(_animGuardBreak);
+        }
+
+        /// <summary>
+        /// 가드 브레이크 결과 CC에 전달할 애니메이션 오버라이드 데이터를 생성합니다.
+        /// </summary>
+        /// <param name="crowdControlUid">가드 브레이크 결과로 적용할 Crowd Control UID입니다.</param>
+        /// <returns>유효한 CC와 설정이 있으면 guard_break 애니메이션 오버라이드입니다.</returns>
+        private CrowdControlAnimationOverride BuildGuardBreakCrowdControlAnimationOverride(int crowdControlUid)
+        {
+            if (!_syncGuardBreakAnimationToCrowdControl)
+                return default;
+            if (crowdControlUid <= 0)
+                return default;
+            if (!_hasBreak || string.IsNullOrWhiteSpace(_animGuardBreak))
+                return default;
+
+            CrowdControlRuntimeData crowdControl = ResolveCrowdControlRuntimeData(crowdControlUid);
+            if (crowdControl == null)
+                return default;
+            if (crowdControl.Duration <= 0f)
+                return default;
+
+            return new CrowdControlAnimationOverride
+            {
+                UseInitialAnimationOverride = true,
+                InitialAnimationName = _animGuardBreak,
+                Loop = false,
+                ForceReset = true,
+                FitToTargetDurationWhenLonger = _onlySpeedUpGuardBreakAnimationWhenLonger,
+                TargetDurationSeconds = crowdControl.Duration,
+                MinTargetDurationSeconds = _guardBreakAnimationMinTargetDuration,
+                MaxTimeScale = _guardBreakAnimationMaxTimeScale,
+                UseEasing = _applyCrowdControlEasingToGuardBreakAnimation,
+                EaseType = crowdControl.EaseType,
+                SuppressRuntimePhaseAnimations = true,
+            };
+        }
+
+        /// <summary>
+        /// Crowd Control UID로 런타임 데이터를 조회합니다.
+        /// </summary>
+        /// <param name="crowdControlUid">조회할 Crowd Control UID입니다.</param>
+        /// <returns>조회된 런타임 데이터입니다. 없으면 null입니다.</returns>
+        private static CrowdControlRuntimeData ResolveCrowdControlRuntimeData(int crowdControlUid)
+        {
+            return TableLoaderManager.Instance != null
+                ? TableLoaderManager.Instance.GetCrowdControlRuntimeData(crowdControlUid, logIfMissing: false)
+                : null;
         }
 
         /// <summary>
