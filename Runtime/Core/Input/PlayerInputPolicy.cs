@@ -13,6 +13,7 @@ namespace GGemCo2DControl
     internal sealed class PlayerInputPolicy
     {
         private readonly CharacterBase _character;
+        private readonly ActionAttack _attack;
         private readonly ActionDash _dash;
         private readonly ActionJump _jump;
         private readonly ActionClimb _climb;
@@ -32,9 +33,11 @@ namespace GGemCo2DControl
         public bool CanJumpUseSkill { get; set; }
         public bool CanDashUseSkill { get; set; }
         public bool CanAttackPlayJump { get; set; }
+        public AttackGuardCancelPolicy AttackGuardCancelPolicy { get; set; } = AttackGuardCancelPolicy.AttackAndComboWait;
 
         public PlayerInputPolicy(
             CharacterBase character,
+            ActionAttack attack,
             ActionDash dash,
             ActionJump jump,
             ActionClimb climb,
@@ -44,6 +47,7 @@ namespace GGemCo2DControl
             System.Func<Vector2> getMoveInput)
         {
             _character = character;
+            _attack = attack;
             _dash = dash;
             _jump = jump;
             _climb = climb;
@@ -143,6 +147,11 @@ namespace GGemCo2DControl
                 return false;
             }
 
+            if (!TryCancelAttackForGuard(out denyLog))
+            {
+                return false;
+            }
+
             // 스킬 사용 중 가드: 정책 미정이면 보수적으로 허용(원하면 차단 조건 추가)
             // var skill = _getSkillCancelable?.Invoke();
             // if (skill != null && skill.IsSkillRunning) { ... }
@@ -150,7 +159,47 @@ namespace GGemCo2DControl
             return true;
         }
 
-public bool TryPrepareJump(out string denyLog)
+        /// <summary>
+        /// 현재 공격 상태가 가드 입력으로 취소 가능한지 확인하고, 가능하면 공격 예약 작업을 정리합니다.
+        /// </summary>
+        /// <param name="denyLog">가드 입력을 거부할 때 출력할 로그입니다.</param>
+        /// <returns>가드 입력을 계속 진행할 수 있으면 <see langword="true"/>입니다.</returns>
+        private bool TryCancelAttackForGuard(out string denyLog)
+        {
+            denyLog = null;
+
+            if (!_character.IsStatusAttack() && !_character.IsStatusAttackComboWait())
+            {
+                return true;
+            }
+
+            switch (AttackGuardCancelPolicy)
+            {
+                case AttackGuardCancelPolicy.None:
+                    denyLog = "공격 중 가드는 불가능 합니다.";
+                    return false;
+
+                case AttackGuardCancelPolicy.AttackComboWaitOnly:
+                    if (!_character.IsStatusAttackComboWait())
+                    {
+                        denyLog = "공격 애니메이션 중 가드는 불가능 합니다.";
+                        return false;
+                    }
+                    break;
+
+                case AttackGuardCancelPolicy.AttackAndComboWait:
+                    break;
+
+                default:
+                    denyLog = "알 수 없는 공격 중 가드 캔슬 정책입니다.";
+                    return false;
+            }
+
+            _attack?.CancelAttackByActionInterrupt();
+            return true;
+        }
+
+        public bool TryPrepareJump(out string denyLog)
         {
             denyLog = null;
             if (_character.IsStatusDead()) return false;

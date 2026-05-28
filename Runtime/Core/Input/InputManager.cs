@@ -225,13 +225,20 @@ namespace GGemCo2DControl
         }
 
         /// <summary>
-        /// 플레이어 가드 설정 변경 사항을 스테미나 회복/탈진 컨트롤러에 반영합니다.
+        /// 플레이어 가드 설정 변경 사항을 스테미나 회복/탈진/입력 정책 컨트롤러에 반영합니다.
         /// </summary>
         private void ApplyGuardSettings()
         {
             // 스테미나 회복 설정 스냅샷 갱신
             _staminaRegen?.ApplySettings(_playerGuardSettings);
             _exhaustion?.ApplySettings(_playerGuardSettings);
+
+            if (_policy != null)
+            {
+                _policy.AttackGuardCancelPolicy = _playerGuardSettings != null
+                    ? _playerGuardSettings.attackGuardCancelPolicy
+                    : AttackGuardCancelPolicy.AttackAndComboWait;
+            }
         }
 
         private void InitializeControls()
@@ -316,6 +323,7 @@ namespace GGemCo2DControl
             // === Input Policy / Handlers ===
             _policy = new PlayerInputPolicy(
                 _characterBase,
+                _actionAttack,
                 _actionDash,
                 _actionJump,
                 _actionClimb,

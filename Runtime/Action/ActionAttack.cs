@@ -62,12 +62,33 @@ namespace GGemCo2DControl
             _currentCombo++;
         }
 
+        /// <summary>
+        /// 공격 콤보 대기 후 attack_end 애니메이션을 재생하기 위해 예약된 코루틴을 중단합니다.
+        /// </summary>
         private void StopCoroutineAttackWait()
         {
             if (_coroutineDontAttack == null) return;
             actionInputManager.StopCoroutine(_coroutineDontAttack);
             _coroutineDontAttack = null;
             _attackWaitElapsedSeconds = 0f;
+        }
+
+        /// <summary>
+        /// 다른 액션이 공격을 인터럽트할 때 남아 있는 공격 후속 예약과 콤보 상태를 정리합니다.
+        /// </summary>
+        public void CancelAttackByActionInterrupt()
+        {
+            StopPendingAttackRoutines();
+            ClearAttackCombo();
+        }
+
+        /// <summary>
+        /// 공격 액션이 예약한 모든 코루틴을 중단합니다.
+        /// </summary>
+        private void StopPendingAttackRoutines()
+        {
+            StopCoroutineAttackWait();
+            StopWaitEnd();
         }
         private void MoveForward(string attackAnimName)
         {
@@ -191,13 +212,19 @@ namespace GGemCo2DControl
                 _coroutineWaitEnd = null;
             }
         }
+        /// <summary>
+        /// 캐릭터 정지 시 공격 액션의 예약 작업을 정리합니다.
+        /// </summary>
+        /// <param name="sender">정지 이벤트를 발생시킨 캐릭터입니다.</param>
+        /// <param name="e">정지 이벤트 처리 상태입니다.</param>
         private void OnStop(CharacterBase sender, EventArgsOnStop e)
         {
+            // Stop(true)로 가드, CC, 탈진 등 다른 액션이 시작될 때도 attack_end 예약이 남지 않도록 먼저 정리합니다.
+            StopPendingAttackRoutines();
+            ClearAttackCombo();
+
             // 이미 다른 상위 시스템이 처리했으면 패스
             if (e.Handled) return;
-            
-            StopWaitEnd();
-            ClearAttackCombo();
             
             // 처리 완료 선언 (레거시 폴백 차단)
             e.Handled = true;

@@ -33,6 +33,27 @@ namespace GGemCo2DControl
     }
 
     /// <summary>
+    /// 공격 중 가드 입력을 허용할 구간을 정의합니다.
+    /// </summary>
+    public enum AttackGuardCancelPolicy
+    {
+        /// <summary>
+        /// 공격 상태에서는 가드 입력으로 공격을 취소하지 않습니다.
+        /// </summary>
+        None = 0,
+
+        /// <summary>
+        /// 공격 본 애니메이션이 끝난 뒤 콤보 대기 구간에서만 가드로 취소합니다.
+        /// </summary>
+        AttackComboWaitOnly = 1,
+
+        /// <summary>
+        /// 공격 본 애니메이션과 콤보 대기 구간 모두에서 가드로 취소합니다.
+        /// </summary>
+        AttackAndComboWait = 2,
+    }
+
+    /// <summary>
     /// 플레이어 가드, 저스트 가드, 가드 브레이크, 스태미나 회복/탈진 정책을 관리하는 설정입니다.
     /// </summary>
     [CreateAssetMenu(fileName = ConfigScriptableObjectControl.PlayerGuard.FileName, menuName = ConfigScriptableObjectControl.PlayerGuard.MenuName, order = ConfigScriptableObjectControl.PlayerGuard.Ordering)]
@@ -132,6 +153,10 @@ namespace GGemCo2DControl
 
         [Tooltip("guardStaminaTickInterval 시간마다 얼마나 차감할 것인지")]
         public long guardStaminaTickCost;
+
+        [Header("가드 입력 캔슬")]
+        [Tooltip("공격 중 가드 입력을 허용할 구간입니다. 기본값은 기존 동작 유지를 위해 공격 본 애니메이션과 콤보 대기 구간 모두에서 허용합니다.")]
+        public AttackGuardCancelPolicy attackGuardCancelPolicy = AttackGuardCancelPolicy.AttackAndComboWait;
 
         [Header("방어 성공 VFX")]
         [Tooltip("방어 성공 시 재생할 vfx_effect 테이블 Uid")]
