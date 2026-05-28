@@ -98,6 +98,7 @@ namespace GGemCo2DControl
         private float _guardStartedTime = -999f;
         private bool _isCharacterStop;
         private bool _requiresReleaseBeforeReGuard;
+        private bool _pendingReleaseAfterControlUnlock;
 
         public override void Initialize(InputManager inputManager, CharacterBase characterBase, CharacterBaseController characterBaseController)
         {
@@ -217,6 +218,9 @@ namespace GGemCo2DControl
             // 이미 가드 중이면 유지 (중복 호출 방지)
             if (IsGuarding) return;
 
+            // 새 가드 입력이 정상 진입하면 이전 CC 해제 예약 상태는 더 이상 유효하지 않습니다.
+            _pendingReleaseAfterControlUnlock = false;
+
             // Guard 시작 비용 지불(부족하면 진입 불가)
             if (!TrySpendStamina(_guardStartStaminaCost))
             {
@@ -260,6 +264,11 @@ namespace GGemCo2DControl
             if (actionCharacterBase.IsStatusDead())
             {
                 CancelGuard(true, false);
+                return;
+            }
+
+            if (TryProcessPendingReleaseAfterControlUnlock())
+            {
                 return;
             }
 
@@ -386,18 +395,51 @@ namespace GGemCo2DControl
 
         /// <summary>
         /// Guard 버튼 Up(Released) 처리.
+        /// CC처럼 조작 불가 상태에서 Release 입력이 들어오면 즉시 종료 애니메이션을 끼워 넣지 않고,
+        /// 조작 가능 상태로 복귀한 뒤 가드 상태만 안전하게 정리하도록 예약합니다.
         /// </summary>
         public void GuardUp()
         {
             // 가드 브레이크 이후 재가드 잠금은 Release 입력이 들어온 시점에 해제합니다.
             _requiresReleaseBeforeReGuard = false;
 
-            if (!IsGuarding) return;
+            if (!IsGuarding)
+            {
+                _pendingReleaseAfterControlUnlock = false;
+                return;
+            }
 
             // 브레이크 연출 중 Release가 들어오면 재가드 잠금만 해제하고, 브레이크 연출은 유지합니다.
             if (_phase == GuardPhase.Break) return;
 
+            if (actionCharacterBase != null && actionCharacterBase.IsDontControl())
+            {
+                _pendingReleaseAfterControlUnlock = true;
+                _staminaTickElapsed = 0f;
+                ClearGuardSuccessAnimationState();
+                return;
+            }
+
+            _pendingReleaseAfterControlUnlock = false;
             BeginEnd();
+        }
+
+        /// <summary>
+        /// 조작 불가 상태에서 들어온 가드 해제 예약을 처리합니다.
+        /// CC 진행 중에는 유지 비용과 성공 애니메이션 복귀 처리를 멈추고,
+        /// CC가 끝난 뒤 종료 애니메이션 없이 가드 상태를 정리합니다.
+        /// </summary>
+        /// <returns>해제 예약을 대기 중이거나 처리했으면 <see langword="true"/>입니다.</returns>
+        private bool TryProcessPendingReleaseAfterControlUnlock()
+        {
+            if (!_pendingReleaseAfterControlUnlock) return false;
+
+            if (actionCharacterBase != null && actionCharacterBase.IsDontControl())
+                return true;
+
+            _pendingReleaseAfterControlUnlock = false;
+            CancelGuard(skipEndAnimation: true, isStop: _isCharacterStop);
+            return true;
         }
 
         private void BeginWait()
@@ -438,6 +480,7 @@ namespace GGemCo2DControl
             _phase = GuardPhase.None;
             _staminaTickElapsed = 0f;
             _guardStartedTime = -999f;
+            _pendingReleaseAfterControlUnlock = false;
             ClearGuardSuccessAnimationState();
             ClearGuardBreakAnimationState();
             // 상태 복귀는 Stop이 담당(기존 설계 유지)
@@ -841,6 +884,7 @@ namespace GGemCo2DControl
         {
             _phase = GuardPhase.Break;
             _requiresReleaseBeforeReGuard = true;
+            _pendingReleaseAfterControlUnlock = false;
             _staminaTickElapsed = 0f;
             _guardStartedTime = -999f;
             ClearGuardSuccessAnimationState();

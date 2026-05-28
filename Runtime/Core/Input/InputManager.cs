@@ -879,10 +879,14 @@ namespace GGemCo2DControl
             _guardHandler?.HandlePress();
         }
 
+        /// <summary>
+        /// Guard 버튼 Release 입력을 처리합니다.
+        /// Release는 새 행동 시작이 아니라 진행 중인 가드 상태를 정리하는 입력이므로,
+        /// CC/DontControl 상태에서도 <see cref="ActionGuard"/>까지 전달합니다.
+        /// </summary>
+        /// <param name="ctx">Input System에서 전달된 입력 콜백 컨텍스트입니다.</param>
         private void OnGuardRelease(InputAction.CallbackContext ctx)
         {
-            if (_characterBase != null && _characterBase.IsDontControl()) return;
-            if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Guard, Vector2.zero)) return;
             _guardHandler?.HandleRelease();
         }
 
