@@ -50,6 +50,12 @@ namespace GGemCo2DControl
         // [Tooltip("방어 성공시 차감되는 스테미나")]
         private long _guardSuccessStaminaCost;
 
+        // [Tooltip("저스트 가드 성공시 스테미나 소모 정책")]
+        private JustGuardStaminaCostPolicy _justGuardSuccessStaminaCostPolicy;
+
+        // [Tooltip("저스트 가드 성공시 차감되는 스테미나 값")]
+        private float _justGuardSuccessStaminaCostValue;
+
         // [Tooltip("가드를 하는 중이면, 몇 초 마다 차감할 것인지")]
         private float _guardStaminaTickInterval;
 
@@ -159,6 +165,8 @@ namespace GGemCo2DControl
             if (!playerGuardSettings) return;
             _guardStartStaminaCost = playerGuardSettings.guardStartStaminaCost;
             _guardSuccessStaminaCost = playerGuardSettings.guardSuccessStaminaCost;
+            _justGuardSuccessStaminaCostPolicy = playerGuardSettings.justGuardSuccessStaminaCostPolicy;
+            _justGuardSuccessStaminaCostValue = Mathf.Max(0f, playerGuardSettings.justGuardSuccessStaminaCostValue);
             _guardStaminaTickInterval = playerGuardSettings.guardStaminaTickInterval;
             _guardStaminaTickCost = playerGuardSettings.guardStaminaTickCost;
             _guardSuccessVfxUid = playerGuardSettings.guardSuccessVfxUid;
@@ -310,7 +318,8 @@ namespace GGemCo2DControl
             if (!IsGuarding) return false;
             if (actionCharacterBase == null) return false;
 
-            if (!TrySpendStamina(_guardSuccessStaminaCost))
+            long staminaCost = ResolveGuardSuccessStaminaCost(isJustGuard);
+            if (!TrySpendStamina(staminaCost))
             {
                 CancelGuard(true, _isCharacterStop);
                 return false;
@@ -325,6 +334,54 @@ namespace GGemCo2DControl
             TryPlayGuardSuccessAnimation();
             TryPlayGuardSuccessVfx(isJustGuard);
             return true;
+        }
+
+        /// <summary>
+        /// 가드 성공 타입에 따라 실제로 소모할 스테미나 값을 계산합니다.
+        /// </summary>
+        /// <param name="isJustGuard">저스트 가드 성공 여부입니다.</param>
+        /// <returns>이번 가드 성공에 필요한 스테미나 소모량입니다.</returns>
+        private long ResolveGuardSuccessStaminaCost(bool isJustGuard)
+        {
+            if (!isJustGuard)
+                return Math.Max(0L, _guardSuccessStaminaCost);
+
+            switch (_justGuardSuccessStaminaCostPolicy)
+            {
+                case JustGuardStaminaCostPolicy.None:
+                    return 0;
+
+                case JustGuardStaminaCostPolicy.Fixed:
+                    return Mathf.Max(0, Mathf.RoundToInt(_justGuardSuccessStaminaCostValue));
+
+                case JustGuardStaminaCostPolicy.PercentOfMax:
+                    return ResolveJustGuardPercentStaminaCost();
+
+                case JustGuardStaminaCostPolicy.SameAsGuardSuccess:
+                    return Math.Max(0L, _guardSuccessStaminaCost);
+
+                default:
+                    return 0;
+            }
+        }
+
+        /// <summary>
+        /// 최대 스테미나 비율 기반 저스트 가드 성공 스테미나 소모량을 계산합니다.
+        /// 너무 작은 비율 때문에 0으로 반올림되는 경우에는 최소 1을 반환합니다.
+        /// </summary>
+        /// <returns>비율 정책으로 계산된 스테미나 소모량입니다.</returns>
+        private long ResolveJustGuardPercentStaminaCost()
+        {
+            if (actionCharacterBase == null) return 0;
+
+            long maxStamina = actionCharacterBase.TotalStamina.Value;
+            if (maxStamina <= 0) return 0;
+
+            float ratio = Mathf.Clamp01(_justGuardSuccessStaminaCostValue);
+            if (ratio <= 0f) return 0;
+
+            long amount = Mathf.RoundToInt(maxStamina * ratio);
+            return amount <= 0 ? 1 : amount;
         }
 
         /// <summary>

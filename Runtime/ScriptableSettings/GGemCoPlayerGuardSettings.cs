@@ -5,6 +5,33 @@ using UnityEngine;
 
 namespace GGemCo2DControl
 {
+
+    /// <summary>
+    /// 저스트 가드 성공 시 스테미나 소모량을 계산하는 정책입니다.
+    /// </summary>
+    public enum JustGuardStaminaCostPolicy
+    {
+        /// <summary>
+        /// 저스트 가드 성공 시 스테미나를 소모하지 않습니다.
+        /// </summary>
+        None = 0,
+
+        /// <summary>
+        /// 설정된 고정값만큼 스테미나를 소모합니다.
+        /// </summary>
+        Fixed = 1,
+
+        /// <summary>
+        /// 최대 스테미나에 대한 비율로 스테미나를 소모합니다.
+        /// </summary>
+        PercentOfMax = 2,
+
+        /// <summary>
+        /// 일반 가드 성공 스테미나 소모량과 동일하게 소모합니다.
+        /// </summary>
+        SameAsGuardSuccess = 3,
+    }
+
     /// <summary>
     /// 플레이어 가드, 저스트 가드, 가드 브레이크, 스태미나 회복/탈진 정책을 관리하는 설정입니다.
     /// </summary>
@@ -97,7 +124,7 @@ namespace GGemCo2DControl
         [Tooltip("방어 시작시 차감되는 스테미나")]
         public long guardStartStaminaCost;
 
-        [Tooltip("방어 성공시 차감되는 스테미나")]
+        [Tooltip("일반 가드 성공시 차감되는 스테미나입니다. 저스트 가드 성공 비용은 아래 저스트 가드 설정을 사용합니다.")]
         public long guardSuccessStaminaCost;
 
         [Tooltip("가드를 하는 중이면, 몇 초 마다 차감할 것인지")]
@@ -193,6 +220,14 @@ namespace GGemCo2DControl
         [Range(0f, 1f)]
         public float justGuardDamageMultiplier = 0f;
 
+        [Header("저스트 가드 성공 스테미나")]
+        [Tooltip("저스트 가드 성공 시 스테미나를 어떻게 소모할지 결정합니다. 기본값(None)은 소모하지 않습니다.")]
+        public JustGuardStaminaCostPolicy justGuardSuccessStaminaCostPolicy = JustGuardStaminaCostPolicy.None;
+
+        [Tooltip("저스트 가드 성공 스테미나 소모 값입니다. Fixed는 고정값, PercentOfMax는 최대 스테미나 대비 비율(0~1)로 사용합니다.")]
+        [Min(0f)]
+        public float justGuardSuccessStaminaCostValue;
+
         [Tooltip("공격이 캐릭터 정면에서 들어온 경우에만 가드/저스트가드를 허용할지 여부")]
         public bool guardFrontOnly = true;
 
@@ -276,6 +311,8 @@ namespace GGemCo2DControl
             guardBreakAnimationMaxTimeScale = 3f;
             guardBreakAnimationMinTargetDuration = 0.05f;
             applyCrowdControlEasingToGuardBreakAnimation = true;
+            justGuardSuccessStaminaCostPolicy = JustGuardStaminaCostPolicy.None;
+            justGuardSuccessStaminaCostValue = 0f;
             guardAttackTypeRules = new List<GuardAttackTypeRule>
             {
                 new GuardAttackTypeRule
