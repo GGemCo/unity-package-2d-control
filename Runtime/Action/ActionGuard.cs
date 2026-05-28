@@ -14,12 +14,18 @@ namespace GGemCo2DControl
         public bool IsGuarding => _phase != GuardPhase.None;
         public bool IsActivelyGuarding => _phase == GuardPhase.Start || _phase == GuardPhase.Wait;
 
+        /// <summary>
+        /// 가드 브레이크 이후 가드 키 Release가 들어오기 전까지 재가드를 막아야 하는지 여부입니다.
+        /// </summary>
+        public bool RequiresReleaseBeforeReGuard => _requiresReleaseBeforeReGuard;
+
         private enum GuardPhase
         {
             None,
             Start,
             Wait,
             End,
+            Break,
         }
 
         private GuardPhase _phase;
@@ -28,12 +34,15 @@ namespace GGemCo2DControl
         private string _animGuardWait;
         private string _animGuardEnd;
         private string _animGuardSuccess;
+        private string _animGuardBreak;
 
         // --- 애니메이션 존재 여부 캐시 ---
-        private bool _hasStart, _hasWait, _hasEnd, _hasSuccess;
+        private bool _hasStart, _hasWait, _hasEnd, _hasSuccess, _hasBreak;
         private float _guardSuccessDurationSeconds;
+        private float _guardBreakDurationSeconds;
         private bool _isGuardSuccessAnimationPlaying;
         private float _guardSuccessAnimationElapsed;
+        private float _guardBreakAnimationElapsed;
         
         // [Tooltip("방어 시작시 차감되는 스테미나")]
         private long _guardStartStaminaCost;
@@ -54,6 +63,13 @@ namespace GGemCo2DControl
         private ConfigSortingLayer.Keys _justGuardSuccessVfxSortingLayer;
         private int _justGuardSuccessVfxSortingOrder;
         private Vector3 _justGuardSuccessVfxOffset;
+        private long _guardBreakStaminaCost;
+        private float _guardBreakDamageMultiplier;
+        private string _guardBreakFeedbackText;
+        private int _guardBreakVfxUid;
+        private ConfigSortingLayer.Keys _guardBreakVfxSortingLayer;
+        private int _guardBreakVfxSortingOrder;
+        private Vector3 _guardBreakVfxOffset;
 
         // 스테미나 틱 누적(프레임 드랍 보정)
         private float _staminaTickElapsed;
@@ -69,6 +85,7 @@ namespace GGemCo2DControl
 
         private float _guardStartedTime = -999f;
         private bool _isCharacterStop;
+        private bool _requiresReleaseBeforeReGuard;
 
         public override void Initialize(InputManager inputManager, CharacterBase characterBase, CharacterBaseController characterBaseController)
         {
@@ -102,17 +119,29 @@ namespace GGemCo2DControl
             _animGuardWait = prefix + "_wait";
             _animGuardEnd = prefix + "_end";
             _animGuardSuccess = prefix + "_success";
+            _animGuardBreak = prefix + "_break";
             _hasStart = HasAnimation(_animGuardStart);
             _hasWait = HasAnimation(_animGuardWait);
             _hasEnd = HasAnimation(_animGuardEnd);
             _hasSuccess = HasAnimation(_animGuardSuccess);
+            _hasBreak = HasAnimation(_animGuardBreak);
 
             _guardSuccessDurationSeconds = 0f;
-            if (_hasSuccess && actionCharacterBase?.CharacterAnimationController != null)
+            _guardBreakDurationSeconds = 0f;
+            if (actionCharacterBase?.CharacterAnimationController == null) return;
+
+            if (_hasSuccess)
             {
                 _guardSuccessDurationSeconds = Mathf.Max(
                     0f,
                     actionCharacterBase.CharacterAnimationController.GetCharacterAnimationDuration(_animGuardSuccess, false));
+            }
+
+            if (_hasBreak)
+            {
+                _guardBreakDurationSeconds = Mathf.Max(
+                    0f,
+                    actionCharacterBase.CharacterAnimationController.GetCharacterAnimationDuration(_animGuardBreak, false));
             }
         }
 
@@ -131,6 +160,15 @@ namespace GGemCo2DControl
             _justGuardSuccessVfxSortingLayer = playerActionSettings.justGuardSuccessVfxSortingLayer;
             _justGuardSuccessVfxSortingOrder = playerActionSettings.justGuardSuccessVfxSortingOrder;
             _justGuardSuccessVfxOffset = playerActionSettings.justGuardSuccessVfxOffset;
+            _guardBreakStaminaCost = playerActionSettings.guardBreakStaminaCost;
+            _guardBreakDamageMultiplier = Mathf.Clamp01(playerActionSettings.guardBreakDamageMultiplier);
+            _guardBreakFeedbackText = string.IsNullOrWhiteSpace(playerActionSettings.guardBreakFeedbackText)
+                ? "GUARD BREAK"
+                : playerActionSettings.guardBreakFeedbackText;
+            _guardBreakVfxUid = playerActionSettings.guardBreakVfxUid;
+            _guardBreakVfxSortingLayer = playerActionSettings.guardBreakVfxSortingLayer;
+            _guardBreakVfxSortingOrder = playerActionSettings.guardBreakVfxSortingOrder;
+            _guardBreakVfxOffset = playerActionSettings.guardBreakVfxOffset;
 
             _enableJustGuard = playerActionSettings.enableJustGuard;
             _justGuardOpenDelay = Mathf.Max(0f, playerActionSettings.justGuardOpenDelay);
@@ -149,6 +187,9 @@ namespace GGemCo2DControl
         {
             if (actionCharacterBase == null) return;
             if (actionCharacterBase.IsStatusDead()) return;
+
+            // 가드 브레이크 이후에는 사용자가 가드 키를 한 번 뗀 뒤 다시 눌러야 합니다.
+            if (_requiresReleaseBeforeReGuard) return;
 
             // 이미 가드 중이면 유지 (중복 호출 방지)
             if (IsGuarding) return;
@@ -196,6 +237,12 @@ namespace GGemCo2DControl
             if (actionCharacterBase.IsStatusDead())
             {
                 CancelGuard(true, false);
+                return;
+            }
+
+            if (_phase == GuardPhase.Break)
+            {
+                TickGuardBreakAnimation(deltaTime);
                 return;
             }
 
@@ -270,7 +317,13 @@ namespace GGemCo2DControl
         /// </summary>
         public void GuardUp()
         {
+            // 가드 브레이크 이후 재가드 잠금은 Release 입력이 들어온 시점에 해제합니다.
+            _requiresReleaseBeforeReGuard = false;
+
             if (!IsGuarding) return;
+
+            // 브레이크 연출 중 Release가 들어오면 재가드 잠금만 해제하고, 브레이크 연출은 유지합니다.
+            if (_phase == GuardPhase.Break) return;
 
             BeginEnd();
         }
@@ -314,6 +367,7 @@ namespace GGemCo2DControl
             _staminaTickElapsed = 0f;
             _guardStartedTime = -999f;
             ClearGuardSuccessAnimationState();
+            ClearGuardBreakAnimationState();
             // 상태 복귀는 Stop이 담당(기존 설계 유지)
             if (isStop)
                 actionCharacterBase?.Stop(true);
@@ -365,6 +419,34 @@ namespace GGemCo2DControl
         }
 
         /// <summary>
+        /// 가드 브레이크 애니메이션 재생 상태를 초기화합니다.
+        /// </summary>
+        private void ClearGuardBreakAnimationState()
+        {
+            _guardBreakAnimationElapsed = 0f;
+        }
+
+        /// <summary>
+        /// 가드 브레이크 연출 시간을 추적하고, 종료 후 가드 상태를 완전히 해제합니다.
+        /// </summary>
+        /// <param name="deltaTime">프레임 경과 시간입니다.</param>
+        private void TickGuardBreakAnimation(float deltaTime)
+        {
+            if (_phase != GuardPhase.Break) return;
+
+            if (!_hasBreak || _guardBreakDurationSeconds <= 0f)
+            {
+                FinishGuard(_isCharacterStop);
+                return;
+            }
+
+            _guardBreakAnimationElapsed += Mathf.Max(0f, deltaTime);
+            if (_guardBreakAnimationElapsed < _guardBreakDurationSeconds) return;
+
+            FinishGuard(_isCharacterStop);
+        }
+
+        /// <summary>
         /// 가드 성공 시점에 설정된 VFX를 단발로 재생합니다.
         /// </summary>
         /// <param name="isJustGuard">저스트 가드 성공 여부입니다.</param>
@@ -403,6 +485,43 @@ namespace GGemCo2DControl
                 SortingOrderOverride = sortingOrder,
                 ForceOneShot = true,
                 // 가드 성공 VFX는 회전보다 좌우 반전 일치가 우선이므로, 방향 회전은 비활성화합니다.
+                UseDirection = true,
+                Direction = visualDirection,
+                SourceDirection = visualDirection,
+                DisableDirectionRotation = true,
+            };
+
+            scene.VfxManager.CreateVfx(spawnRequest);
+        }
+
+        /// <summary>
+        /// 가드 브레이크 시점에 설정된 VFX를 단발로 재생합니다.
+        /// </summary>
+        /// <param name="metadataDamage">가드 브레이크를 발생시킨 데미지 메타데이터입니다.</param>
+        private void TryPlayGuardBreakVfx(MetadataDamage metadataDamage)
+        {
+            if (actionCharacterBase == null) return;
+
+            int vfxUid = metadataDamage != null && metadataDamage.GuardBreakVfxUid > 0
+                ? metadataDamage.GuardBreakVfxUid
+                : _guardBreakVfxUid;
+            if (vfxUid <= 0) return;
+
+            SceneGame scene = SceneGame.Instance;
+            if (scene == null || scene.VfxManager == null) return;
+
+            Vector2 visualDirection = ResolveGuardSuccessVfxDirection(actionCharacterBase);
+            Vector3 mirroredOffset = ResolveGuardSuccessVfxOffsetByDirection(_guardBreakVfxOffset, visualDirection);
+            var spawnRequest = new VfxSpawnRequest
+            {
+                VfxUid = vfxUid,
+                Owner = actionCharacterBase,
+                Target = actionCharacterBase,
+                WorldPosition = actionCharacterBase.transform.position,
+                PositionOffset = mirroredOffset,
+                SortingLayerOverride = _guardBreakVfxSortingLayer,
+                SortingOrderOverride = _guardBreakVfxSortingOrder,
+                ForceOneShot = true,
                 UseDirection = true,
                 Direction = visualDirection,
                 SourceDirection = visualDirection,
@@ -482,31 +601,134 @@ namespace GGemCo2DControl
             if (actionCharacterBase == null) return false;
             if (metadataDamage == null) return false;
             if (metadataDamage.damage <= 0) return false;
+            if (metadataDamage.GuardInteractionMode == GuardInteractionMode.IgnoreGuard) return false;
             if (_guardFrontOnly && !IsIncomingAttackFromFront(metadataDamage.attacker)) return false;
 
             bool isJustGuard = IsInJustGuardWindow(Time.time);
-            if (!OnGuardSuccess(isJustGuard))
+
+            if (ShouldBreakGuard(metadataDamage, isJustGuard))
+            {
+                BeginGuardBreak(metadataDamage);
+                result = new GuardResolutionResult
+                {
+                    IsResolved = true,
+                    IsJustGuard = false,
+                    Outcome = GuardResolutionOutcome.GuardBroken,
+                    RemainingDamage = CalculateReducedDamage(metadataDamage.damage, ResolveGuardBreakDamageMultiplier(metadataDamage)),
+                    SuppressHitReaction = true,
+                    FeedbackText = ResolveGuardBreakFeedbackText(metadataDamage),
+                    FeedbackColor = Color.red,
+                };
+
+                if (!playerActionSettings.showGuardDebugText)
+                    result.FeedbackText = string.Empty;
+                return true;
+            }
+
+            bool treatJustGuardAsNormalGuard =
+                metadataDamage.GuardInteractionMode == GuardInteractionMode.BreakGuard &&
+                isJustGuard &&
+                metadataDamage.GuardBreakJustGuardPolicy == GuardBreakJustGuardPolicy.TreatAsNormalGuard;
+            bool resolvedAsJustGuard = isJustGuard && !treatJustGuardAsNormalGuard;
+
+            if (!OnGuardSuccess(resolvedAsJustGuard))
             {
                 return false;
             }
 
-            float damageMultiplier = isJustGuard ? _justGuardDamageMultiplier : _guardDamageMultiplier;
-            bool suppressHitReaction = isJustGuard ? _justGuardSuppressHitReaction : _guardSuppressHitReaction;
+            float damageMultiplier = resolvedAsJustGuard ? _justGuardDamageMultiplier : _guardDamageMultiplier;
+            bool suppressHitReaction = resolvedAsJustGuard ? _justGuardSuppressHitReaction : _guardSuppressHitReaction;
 
             long remainingDamage = CalculateReducedDamage(metadataDamage.damage, damageMultiplier);
 
             result = new GuardResolutionResult
             {
                 IsResolved = true,
-                IsJustGuard = isJustGuard,
+                IsJustGuard = resolvedAsJustGuard,
+                Outcome = resolvedAsJustGuard ? GuardResolutionOutcome.JustGuarded : GuardResolutionOutcome.Guarded,
                 RemainingDamage = remainingDamage,
                 SuppressHitReaction = suppressHitReaction,
-                FeedbackText = isJustGuard ? "JUST GUARD" : "GUARD",
-                FeedbackColor = isJustGuard ? Color.yellow : Color.cyan,
+                FeedbackText = resolvedAsJustGuard ? "JUST GUARD" : "GUARD",
+                FeedbackColor = resolvedAsJustGuard ? Color.yellow : Color.cyan,
             };
             if (!playerActionSettings.showGuardDebugText)
                 result.FeedbackText = string.Empty;
             return true;
+        }
+
+        /// <summary>
+        /// 현재 공격 메타데이터와 저스트 가드 판정 결과를 기준으로 가드 브레이크를 실행해야 하는지 확인합니다.
+        /// </summary>
+        /// <param name="metadataDamage">공격 메타데이터입니다.</param>
+        /// <param name="isJustGuard">현재 입력 타이밍이 저스트 가드 구간인지 여부입니다.</param>
+        /// <returns>가드 브레이크를 실행해야 하면 <see langword="true"/>입니다.</returns>
+        private static bool ShouldBreakGuard(MetadataDamage metadataDamage, bool isJustGuard)
+        {
+            if (metadataDamage == null) return false;
+            if (metadataDamage.GuardInteractionMode != GuardInteractionMode.BreakGuard) return false;
+            if (!isJustGuard) return true;
+
+            return metadataDamage.GuardBreakJustGuardPolicy == GuardBreakJustGuardPolicy.BreakEvenJustGuard;
+        }
+
+        /// <summary>
+        /// 가드 브레이크 상태로 전환하고, 가드 유지/성공 연출을 정리합니다.
+        /// </summary>
+        /// <param name="metadataDamage">가드 브레이크를 발생시킨 데미지 메타데이터입니다.</param>
+        private void BeginGuardBreak(MetadataDamage metadataDamage)
+        {
+            _phase = GuardPhase.Break;
+            _requiresReleaseBeforeReGuard = true;
+            _staminaTickElapsed = 0f;
+            _guardStartedTime = -999f;
+            ClearGuardSuccessAnimationState();
+            ClearGuardBreakAnimationState();
+
+            long staminaCost = metadataDamage != null && metadataDamage.GuardBreakStaminaCost > 0
+                ? metadataDamage.GuardBreakStaminaCost
+                : _guardBreakStaminaCost;
+            TrySpendStamina(staminaCost);
+
+            if (actionCharacterBase != null)
+            {
+                actionCharacterBase.directionNormalize = Vector3.zero;
+                actionCharacterBase.Stop(true);
+            }
+
+            TryPlayGuardBreakVfx(metadataDamage);
+
+            if (_hasBreak)
+            {
+                actionCharacterBase.CharacterAnimationController?.PlayCharacterAnimation(_animGuardBreak);
+            }
+            else
+            {
+                FinishGuard(_isCharacterStop);
+            }
+        }
+
+        /// <summary>
+        /// 가드 브레이크 시 실제 HP에 적용할 데미지 배율을 계산합니다.
+        /// </summary>
+        /// <param name="metadataDamage">공격 메타데이터입니다.</param>
+        /// <returns>0~1 범위로 보정된 데미지 배율입니다.</returns>
+        private float ResolveGuardBreakDamageMultiplier(MetadataDamage metadataDamage)
+        {
+            if (metadataDamage == null) return _guardBreakDamageMultiplier;
+            return Mathf.Clamp01(metadataDamage.GuardBreakDamageMultiplier);
+        }
+
+        /// <summary>
+        /// 가드 브레이크 시 표시할 피드백 텍스트를 계산합니다.
+        /// </summary>
+        /// <param name="metadataDamage">공격 메타데이터입니다.</param>
+        /// <returns>화면에 표시할 가드 브레이크 텍스트입니다.</returns>
+        private string ResolveGuardBreakFeedbackText(MetadataDamage metadataDamage)
+        {
+            if (metadataDamage != null && !string.IsNullOrWhiteSpace(metadataDamage.GuardBreakFeedbackText))
+                return metadataDamage.GuardBreakFeedbackText;
+
+            return string.IsNullOrWhiteSpace(_guardBreakFeedbackText) ? "GUARD BREAK" : _guardBreakFeedbackText;
         }
 
         private bool IsInJustGuardWindow(float now)

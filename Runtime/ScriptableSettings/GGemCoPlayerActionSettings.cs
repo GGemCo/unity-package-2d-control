@@ -234,6 +234,30 @@ namespace GGemCo2DControl
         [Tooltip("저스트 가드 성공 VFX 위치 오프셋(World 기준)")]
         public Vector3 justGuardSuccessVfxOffset = Vector3.zero;
 
+        [Header("가드 브레이크")]
+        [Tooltip("가드 브레이크 시 추가로 차감할 스테미나입니다. 공격별 설정이 0이면 이 값을 사용합니다.")]
+        public long guardBreakStaminaCost;
+
+        [Tooltip("가드 브레이크 시 기본으로 적용할 데미지 배율입니다. 공격 메타데이터가 없을 때 사용합니다. 0=HP 피해 없음, 1=원래 데미지 모두 적용")]
+        [Range(0f, 1f)]
+        public float guardBreakDamageMultiplier = 0f;
+
+        [Tooltip("가드 브레이크 시 기본으로 표시할 피드백 텍스트입니다.")]
+        public string guardBreakFeedbackText = "GUARD BREAK";
+
+        [Header("가드 브레이크 VFX")]
+        [Tooltip("가드 브레이크 시 재생할 vfx_effect 테이블 Uid. 공격별 VFX UID가 있으면 공격별 설정이 우선 적용됩니다.")]
+        public int guardBreakVfxUid;
+
+        [Tooltip("가드 브레이크 VFX Sorting Layer")]
+        public ConfigSortingLayer.Keys guardBreakVfxSortingLayer = ConfigSortingLayer.Keys.CharacterTop;
+
+        [Tooltip("가드 브레이크 VFX Sorting Order")]
+        public int guardBreakVfxSortingOrder;
+
+        [Tooltip("가드 브레이크 VFX 위치 오프셋(World 기준)")]
+        public Vector3 guardBreakVfxOffset = Vector3.zero;
+
         [Header("저스트 가드")]
         [Tooltip("저스트 가드 기능 활성화 여부")]
         public bool enableJustGuard = true;
