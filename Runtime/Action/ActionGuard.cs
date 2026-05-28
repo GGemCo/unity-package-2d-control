@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using GGemCo2DCore;
 using UnityEngine;
 
@@ -89,11 +89,11 @@ namespace GGemCo2DControl
 
         public override void Initialize(InputManager inputManager, CharacterBase characterBase, CharacterBaseController characterBaseController)
         {
-            // ApplySettings에서 playerActionSettings 사용
+            // ApplySettings에서 playerGuardSettings 사용
             base.Initialize(inputManager, characterBase, characterBaseController);
             actionCharacterBase.OnAnimationEventGuardEnd += OnAnimationEventGuardEnd;
             // 탈진 시스템을 사용하면, CharacterBase.Stop 처리를 하지 않는다.
-            _isCharacterStop = !(playerActionSettings && playerActionSettings.enableExhaustion);
+            _isCharacterStop = !(playerGuardSettings && playerGuardSettings.enableExhaustion);
         }
 
         public override void OnDestroy()
@@ -111,8 +111,8 @@ namespace GGemCo2DControl
         private void ApplyGuardAnimationNames()
         {
             // Settings가 없거나 값이 비어있으면 기본값으로 폴백
-            var prefix = playerActionSettings != null && !string.IsNullOrWhiteSpace(playerActionSettings.prefixGuardAnimation)
-                ? playerActionSettings.prefixGuardAnimation
+            var prefix = playerGuardSettings != null && !string.IsNullOrWhiteSpace(playerGuardSettings.prefixGuardAnimation)
+                ? playerGuardSettings.prefixGuardAnimation
                 : "guard";
 
             _animGuardStart = prefix;
@@ -145,39 +145,43 @@ namespace GGemCo2DControl
             }
         }
 
+        /// <summary>
+        /// 가드 전용 설정 자산에서 런타임 캐시 값을 초기화합니다.
+        /// </summary>
         private void InitializeGuardSettings()
         {
-            if (!playerActionSettings) return;
-            _guardStartStaminaCost = playerActionSettings.guardStartStaminaCost;
-            _guardSuccessStaminaCost = playerActionSettings.guardSuccessStaminaCost;
-            _guardStaminaTickInterval = playerActionSettings.guardStaminaTickInterval;
-            _guardStaminaTickCost = playerActionSettings.guardStaminaTickCost;
-            _guardSuccessVfxUid = playerActionSettings.guardSuccessVfxUid;
-            _guardSuccessVfxSortingLayer = playerActionSettings.guardSuccessVfxSortingLayer;
-            _guardSuccessVfxSortingOrder = playerActionSettings.guardSuccessVfxSortingOrder;
-            _guardSuccessVfxOffset = playerActionSettings.guardSuccessVfxOffset;
-            _justGuardSuccessVfxUid = playerActionSettings.justGuardSuccessVfxUid;
-            _justGuardSuccessVfxSortingLayer = playerActionSettings.justGuardSuccessVfxSortingLayer;
-            _justGuardSuccessVfxSortingOrder = playerActionSettings.justGuardSuccessVfxSortingOrder;
-            _justGuardSuccessVfxOffset = playerActionSettings.justGuardSuccessVfxOffset;
-            _guardBreakStaminaCost = playerActionSettings.guardBreakStaminaCost;
-            _guardBreakDamageMultiplier = Mathf.Clamp01(playerActionSettings.guardBreakDamageMultiplier);
-            _guardBreakFeedbackText = string.IsNullOrWhiteSpace(playerActionSettings.guardBreakFeedbackText)
+            if (!playerGuardSettings) return;
+            _guardStartStaminaCost = playerGuardSettings.guardStartStaminaCost;
+            _guardSuccessStaminaCost = playerGuardSettings.guardSuccessStaminaCost;
+            _guardStaminaTickInterval = playerGuardSettings.guardStaminaTickInterval;
+            _guardStaminaTickCost = playerGuardSettings.guardStaminaTickCost;
+            _guardSuccessVfxUid = playerGuardSettings.guardSuccessVfxUid;
+            _guardSuccessVfxSortingLayer = playerGuardSettings.guardSuccessVfxSortingLayer;
+            _guardSuccessVfxSortingOrder = playerGuardSettings.guardSuccessVfxSortingOrder;
+            _guardSuccessVfxOffset = playerGuardSettings.guardSuccessVfxOffset;
+            _justGuardSuccessVfxUid = playerGuardSettings.justGuardSuccessVfxUid;
+            _justGuardSuccessVfxSortingLayer = playerGuardSettings.justGuardSuccessVfxSortingLayer;
+            _justGuardSuccessVfxSortingOrder = playerGuardSettings.justGuardSuccessVfxSortingOrder;
+            _justGuardSuccessVfxOffset = playerGuardSettings.justGuardSuccessVfxOffset;
+            _guardBreakStaminaCost = playerGuardSettings.guardBreakStaminaCost;
+            _guardBreakDamageMultiplier = Mathf.Clamp01(playerGuardSettings.guardBreakDamageMultiplier);
+            _guardBreakFeedbackText = string.IsNullOrWhiteSpace(playerGuardSettings.guardBreakFeedbackText)
                 ? "GUARD BREAK"
-                : playerActionSettings.guardBreakFeedbackText;
-            _guardBreakVfxUid = playerActionSettings.guardBreakVfxUid;
-            _guardBreakVfxSortingLayer = playerActionSettings.guardBreakVfxSortingLayer;
-            _guardBreakVfxSortingOrder = playerActionSettings.guardBreakVfxSortingOrder;
-            _guardBreakVfxOffset = playerActionSettings.guardBreakVfxOffset;
+                : playerGuardSettings.guardBreakFeedbackText;
+            _guardBreakVfxUid = playerGuardSettings.guardBreakVfxUid;
+            _guardBreakVfxSortingLayer = playerGuardSettings.guardBreakVfxSortingLayer;
+            _guardBreakVfxSortingOrder = playerGuardSettings.guardBreakVfxSortingOrder;
+            _guardBreakVfxOffset = playerGuardSettings.guardBreakVfxOffset;
 
-            _enableJustGuard = playerActionSettings.enableJustGuard;
-            _justGuardOpenDelay = Mathf.Max(0f, playerActionSettings.justGuardOpenDelay);
-            _justGuardWindowDuration = Mathf.Max(0f, playerActionSettings.justGuardWindowDuration);
-            _guardDamageMultiplier = Mathf.Clamp01(playerActionSettings.guardDamageMultiplier);
-            _justGuardDamageMultiplier = Mathf.Clamp01(playerActionSettings.justGuardDamageMultiplier);
-            _guardFrontOnly = playerActionSettings.guardFrontOnly;
-            _guardSuppressHitReaction = playerActionSettings.guardSuppressHitReaction;
-            _justGuardSuppressHitReaction = playerActionSettings.justGuardSuppressHitReaction;
+            _enableJustGuard = playerGuardSettings.enableJustGuard;
+            _justGuardOpenDelay = Mathf.Max(0f, playerGuardSettings.justGuardOpenDelay);
+            _justGuardWindowDuration = Mathf.Max(0f, playerGuardSettings.justGuardWindowDuration);
+            _guardDamageMultiplier = Mathf.Clamp01(playerGuardSettings.guardDamageMultiplier);
+            _justGuardDamageMultiplier = Mathf.Clamp01(playerGuardSettings.justGuardDamageMultiplier);
+            _guardFrontOnly = playerGuardSettings.guardFrontOnly;
+            _guardSuppressHitReaction = playerGuardSettings.guardSuppressHitReaction;
+            _justGuardSuppressHitReaction = playerGuardSettings.justGuardSuppressHitReaction;
+            _isCharacterStop = !(playerGuardSettings && playerGuardSettings.enableExhaustion);
         }
 
         /// <summary>
@@ -593,6 +597,12 @@ namespace GGemCo2DControl
             };
         }
 
+        /// <summary>
+        /// 들어오는 피격 메타데이터를 기준으로 가드, 저스트 가드, 가드 브레이크 판정을 수행합니다.
+        /// </summary>
+        /// <param name="metadataDamage">공격 타입과 데미지 정보를 포함한 피격 메타데이터입니다.</param>
+        /// <param name="result">가드 판정 결과와 추가 CC 정보를 반환합니다.</param>
+        /// <returns>가드 시스템이 이번 피격을 처리했으면 <see langword="true"/>입니다.</returns>
         public bool TryResolveIncomingHit(MetadataDamage metadataDamage, out GuardResolutionResult result)
         {
             result = default;
@@ -605,23 +615,13 @@ namespace GGemCo2DControl
             if (_guardFrontOnly && !IsIncomingAttackFromFront(metadataDamage.attacker)) return false;
 
             bool isJustGuard = IsInJustGuardWindow(Time.time);
+            if (TryResolveByAttackTypeRule(metadataDamage, isJustGuard, out result))
+                return result.IsResolved;
 
             if (ShouldBreakGuard(metadataDamage, isJustGuard))
             {
                 BeginGuardBreak(metadataDamage);
-                result = new GuardResolutionResult
-                {
-                    IsResolved = true,
-                    IsJustGuard = false,
-                    Outcome = GuardResolutionOutcome.GuardBroken,
-                    RemainingDamage = CalculateReducedDamage(metadataDamage.damage, ResolveGuardBreakDamageMultiplier(metadataDamage)),
-                    SuppressHitReaction = true,
-                    FeedbackText = ResolveGuardBreakFeedbackText(metadataDamage),
-                    FeedbackColor = Color.red,
-                };
-
-                if (!playerActionSettings.showGuardDebugText)
-                    result.FeedbackText = string.Empty;
+                result = CreateGuardBreakResult(metadataDamage, crowdControlUid: 0);
                 return true;
             }
 
@@ -636,24 +636,111 @@ namespace GGemCo2DControl
                 return false;
             }
 
+            result = CreateGuardSuccessResult(metadataDamage, resolvedAsJustGuard, crowdControlUid: 0);
+            return true;
+        }
+
+        /// <summary>
+        /// <see cref="GGemCoPlayerGuardSettings"/>에 등록된 공격 방어 타입 규칙으로 가드 결과를 계산합니다.
+        /// </summary>
+        /// <param name="metadataDamage">공격 타입과 데미지 정보를 포함한 피격 메타데이터입니다.</param>
+        /// <param name="isJustGuard">현재 입력 타이밍이 저스트 가드 구간인지 여부입니다.</param>
+        /// <param name="result">가드 판정 결과입니다.</param>
+        /// <returns>타입 규칙으로 결과를 확정했으면 <see langword="true"/>입니다.</returns>
+        private bool TryResolveByAttackTypeRule(MetadataDamage metadataDamage, bool isJustGuard, out GuardResolutionResult result)
+        {
+            result = default;
+
+            if (playerGuardSettings == null)
+                return false;
+            if (!playerGuardSettings.TryGetGuardAttackTypeRule(metadataDamage.GuardAttackType, out var rule) || rule == null)
+                return false;
+
+            GuardResolutionOutcome outcome = rule.ResolveOutcome(isJustGuard);
+            int crowdControlUid = rule.ResolveCrowdControlUid(outcome);
+
+            switch (outcome)
+            {
+                case GuardResolutionOutcome.None:
+                    return true;
+
+                case GuardResolutionOutcome.GuardBroken:
+                    BeginGuardBreak(metadataDamage);
+                    result = CreateGuardBreakResult(metadataDamage, crowdControlUid);
+                    return true;
+
+                case GuardResolutionOutcome.JustGuarded:
+                    if (!OnGuardSuccess(true))
+                        return false;
+                    result = CreateGuardSuccessResult(metadataDamage, true, crowdControlUid);
+                    return true;
+
+                case GuardResolutionOutcome.Guarded:
+                    if (!OnGuardSuccess(false))
+                        return false;
+                    result = CreateGuardSuccessResult(metadataDamage, false, crowdControlUid);
+                    return true;
+
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// 일반 가드 또는 저스트 가드 성공 결과를 생성합니다.
+        /// </summary>
+        /// <param name="metadataDamage">원본 피격 메타데이터입니다.</param>
+        /// <param name="resolvedAsJustGuard">저스트 가드로 처리되었는지 여부입니다.</param>
+        /// <param name="crowdControlUid">가드 결과로 추가 적용할 Crowd Control UID입니다.</param>
+        /// <returns>가드 성공 판정 결과입니다.</returns>
+        private GuardResolutionResult CreateGuardSuccessResult(MetadataDamage metadataDamage, bool resolvedAsJustGuard, int crowdControlUid)
+        {
             float damageMultiplier = resolvedAsJustGuard ? _justGuardDamageMultiplier : _guardDamageMultiplier;
             bool suppressHitReaction = resolvedAsJustGuard ? _justGuardSuppressHitReaction : _guardSuppressHitReaction;
-
             long remainingDamage = CalculateReducedDamage(metadataDamage.damage, damageMultiplier);
 
-            result = new GuardResolutionResult
+            var result = new GuardResolutionResult
             {
                 IsResolved = true,
                 IsJustGuard = resolvedAsJustGuard,
                 Outcome = resolvedAsJustGuard ? GuardResolutionOutcome.JustGuarded : GuardResolutionOutcome.Guarded,
                 RemainingDamage = remainingDamage,
                 SuppressHitReaction = suppressHitReaction,
+                CrowdControlUid = crowdControlUid,
                 FeedbackText = resolvedAsJustGuard ? "JUST GUARD" : "GUARD",
                 FeedbackColor = resolvedAsJustGuard ? Color.yellow : Color.cyan,
             };
-            if (!playerActionSettings.showGuardDebugText)
+
+            if (playerGuardSettings == null || !playerGuardSettings.showGuardDebugText)
                 result.FeedbackText = string.Empty;
-            return true;
+
+            return result;
+        }
+
+        /// <summary>
+        /// 가드 브레이크 판정 결과를 생성합니다.
+        /// </summary>
+        /// <param name="metadataDamage">원본 피격 메타데이터입니다.</param>
+        /// <param name="crowdControlUid">가드 브레이크 결과로 추가 적용할 Crowd Control UID입니다.</param>
+        /// <returns>가드 브레이크 판정 결과입니다.</returns>
+        private GuardResolutionResult CreateGuardBreakResult(MetadataDamage metadataDamage, int crowdControlUid)
+        {
+            var result = new GuardResolutionResult
+            {
+                IsResolved = true,
+                IsJustGuard = false,
+                Outcome = GuardResolutionOutcome.GuardBroken,
+                RemainingDamage = CalculateReducedDamage(metadataDamage.damage, ResolveGuardBreakDamageMultiplier(metadataDamage)),
+                SuppressHitReaction = true,
+                CrowdControlUid = crowdControlUid,
+                FeedbackText = ResolveGuardBreakFeedbackText(metadataDamage),
+                FeedbackColor = Color.red,
+            };
+
+            if (playerGuardSettings == null || !playerGuardSettings.showGuardDebugText)
+                result.FeedbackText = string.Empty;
+
+            return result;
         }
 
         /// <summary>

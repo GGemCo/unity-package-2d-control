@@ -17,6 +17,7 @@ namespace GGemCo2DControl
 
         [HideInInspector] public GGemCoAttackComboSettings attackComboSettings;
         [HideInInspector] public GGemCoPlayerActionSettings playerActionSettings;
+        [HideInInspector] public GGemCoPlayerGuardSettings playerGuardSettings;
         [HideInInspector] public GGemCoMobileHudSettings mobileHudSettings;
 
         public delegate void DelegateLoadSettings(GGemCoAttackComboSettings attackComboSettings, GGemCoPlayerActionSettings playerActionSettings);
@@ -55,12 +56,14 @@ namespace GGemCo2DControl
             {
                 var taskAttackCombo = LoadSettingsAsync<GGemCoAttackComboSettings>(ConfigAddressableSettingControl.AttackComboSettings.Key);
                 var taskPlayerSettings = LoadSettingsAsync<GGemCoPlayerActionSettings>(ConfigAddressableSettingControl.PlayerActionSettings.Key);
+                var taskPlayerGuardSettings = LoadSettingsAsync<GGemCoPlayerGuardSettings>(ConfigAddressableSettingControl.PlayerGuardSettings.Key);
                 var taskMobileHudSettings = LoadSettingsAsync<GGemCoMobileHudSettings>(ConfigAddressableSettingControl.MobileHudSettings.Key, optional: true);
 
-                await Task.WhenAll(taskAttackCombo, taskPlayerSettings, taskMobileHudSettings);
+                await Task.WhenAll(taskAttackCombo, taskPlayerSettings, taskPlayerGuardSettings, taskMobileHudSettings);
 
                 attackComboSettings = taskAttackCombo.Result;
                 playerActionSettings = taskPlayerSettings.Result;
+                playerGuardSettings = taskPlayerGuardSettings.Result;
                 mobileHudSettings = taskMobileHudSettings.Result;
 
                 OnLoadSettings?.Invoke(attackComboSettings, playerActionSettings);

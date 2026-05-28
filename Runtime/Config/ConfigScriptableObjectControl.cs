@@ -16,6 +16,7 @@ namespace GGemCo2DControl
         {
             AttackCombo,
             PlayerAction,
+            PlayerGuard,
             MobileHud,
         }
 
@@ -26,6 +27,7 @@ namespace GGemCo2DControl
         {
             AttackCombo,
             PlayerAction,
+            PlayerGuard,
             MobileHud,
         }
 
@@ -48,6 +50,15 @@ namespace GGemCo2DControl
             public const int Ordering =
                 (int)ConfigScriptableObjectCommon.PackageOrder.Control +
                 (int)ControlLocalOrder.PlayerAction;
+        }
+
+        public static class PlayerGuard
+        {
+            public const string FileName = BaseName + "PlayerGuardSettings";
+            public const string MenuName = BasePath + FileName;
+            public const int Ordering =
+                (int)ConfigScriptableObjectCommon.PackageOrder.Control +
+                (int)ControlLocalOrder.PlayerGuard;
         }
 
         public static class MobileHud
@@ -82,6 +93,14 @@ namespace GGemCo2DControl
                         typeof(GGemCoPlayerActionSettings))
                 },
                 {
+                    ControlSettingsKey.PlayerGuard,
+                    new ConfigScriptableObjectCommon.MenuInfo(
+                        PlayerGuard.FileName,
+                        PlayerGuard.MenuName,
+                        PlayerGuard.Ordering,
+                        typeof(GGemCoPlayerGuardSettings))
+                },
+                {
                     ControlSettingsKey.MobileHud,
                     new ConfigScriptableObjectCommon.MenuInfo(
                         MobileHud.FileName,
@@ -99,6 +118,7 @@ namespace GGemCo2DControl
             {
                 { AttackCombo.FileName, typeof(GGemCoAttackComboSettings) },
                 { PlayerAction.FileName, typeof(GGemCoPlayerActionSettings) },
+                { PlayerGuard.FileName, typeof(GGemCoPlayerGuardSettings) },
                 { MobileHud.FileName, typeof(GGemCoMobileHudSettings) },
             };
 

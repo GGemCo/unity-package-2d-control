@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using GGemCo2DCore;
 using R3;
 using UnityEngine;
@@ -72,7 +72,11 @@ namespace GGemCo2DControl
             _staminaSubscription = _character.CurrentStamina.Subscribe(OnCurrentStaminaChanged);
         }
 
-        public void ApplySettings(GGemCoPlayerActionSettings settings)
+        /// <summary>
+        /// 가드 설정 자산의 탈진 정책을 런타임 캐시에 반영합니다.
+        /// </summary>
+        /// <param name="settings">플레이어 가드 설정 자산입니다.</param>
+        public void ApplySettings(GGemCoPlayerGuardSettings settings)
         {
             if (settings == null)
             {

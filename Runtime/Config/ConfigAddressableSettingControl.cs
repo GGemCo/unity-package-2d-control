@@ -7,6 +7,7 @@ namespace GGemCo2DControl
     {
         public static readonly AddressableAssetInfo AttackComboSettings = ConfigAddressableSetting.Make(nameof(AttackComboSettings));
         public static readonly AddressableAssetInfo PlayerActionSettings = ConfigAddressableSetting.Make(nameof(PlayerActionSettings));
+        public static readonly AddressableAssetInfo PlayerGuardSettings = ConfigAddressableSetting.Make(nameof(PlayerGuardSettings));
         public static readonly AddressableAssetInfo MobileHudSettings = ConfigAddressableSetting.Make(nameof(MobileHudSettings));
         
         /// <summary>
@@ -16,6 +17,7 @@ namespace GGemCo2DControl
         {
             AttackComboSettings,
             PlayerActionSettings,
+            PlayerGuardSettings,
             MobileHudSettings,
         };
     }

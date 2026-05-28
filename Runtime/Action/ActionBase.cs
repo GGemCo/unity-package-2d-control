@@ -10,6 +10,7 @@ namespace GGemCo2DControl
         public CharacterBase actionCharacterBase;
         protected CharacterBaseController actionCharacterBaseController;
         protected GGemCoPlayerActionSettings playerActionSettings;
+        protected GGemCoPlayerGuardSettings playerGuardSettings;
 
         public virtual void Initialize(InputManager inputManager, CharacterBase characterBase,
             CharacterBaseController characterBaseController)
@@ -18,16 +19,33 @@ namespace GGemCo2DControl
             actionCharacterBase = characterBase;
             actionCharacterBaseController = characterBaseController;
             playerActionSettings = AddressableLoaderSettingsControl.Instance.playerActionSettings;
+            playerGuardSettings = AddressableLoaderSettingsControl.Instance.playerGuardSettings;
 #if UNITY_EDITOR
             // 플레이 중 인스펙터 수정 → 즉시 반영
-            playerActionSettings.Changed += ApplySettings;
+            if (playerActionSettings != null)
+            {
+                playerActionSettings.Changed += ApplySettings;
+            }
+
+            if (playerGuardSettings != null)
+            {
+                playerGuardSettings.Changed += ApplySettings;
+            }
 #endif
             ApplySettings();
         }
         public virtual void OnDestroy()
         {
 #if UNITY_EDITOR
-            playerActionSettings.Changed -= ApplySettings;
+            if (playerActionSettings != null)
+            {
+                playerActionSettings.Changed -= ApplySettings;
+            }
+
+            if (playerGuardSettings != null)
+            {
+                playerGuardSettings.Changed -= ApplySettings;
+            }
 #endif
         }
 

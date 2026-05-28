@@ -95,6 +95,7 @@ namespace GGemCo2DControl
         private InteractionScanner2D _scanner;
         private InteractionInputHandler _interactionHandler;
         private GGemCoPlayerActionSettings _playerActionSettings;
+        private GGemCoPlayerGuardSettings _playerGuardSettings;
 
         // Simulation Tool: UI 위 클릭 방지(다음 프레임에서 판정)
         private SimulationToolInputHandler _simulationToolHandler;
@@ -125,12 +126,21 @@ namespace GGemCo2DControl
             _releaseResolver = new BufferedReleaseResolver(0.08f);
 
             _playerActionSettings = AddressableLoaderSettingsControl.Instance.playerActionSettings;
+            _playerGuardSettings = AddressableLoaderSettingsControl.Instance.playerGuardSettings;
             if (_playerActionSettings)
             {
                 ApplySettings();
 #if UNITY_EDITOR
                 // 플레이 중 인스펙터 수정 → 즉시 반영
                 _playerActionSettings.Changed += ApplySettings;
+#endif
+            }
+            if (_playerGuardSettings)
+            {
+                ApplyGuardSettings();
+#if UNITY_EDITOR
+                // 플레이 중 인스펙터 수정 → 즉시 반영
+                _playerGuardSettings.Changed += ApplyGuardSettings;
 #endif
             }
 
@@ -212,9 +222,16 @@ namespace GGemCo2DControl
                 _policy.CanAttackPlayJump = _canAttackPlayJump;
             }
 
+        }
+
+        /// <summary>
+        /// 플레이어 가드 설정 변경 사항을 스테미나 회복/탈진 컨트롤러에 반영합니다.
+        /// </summary>
+        private void ApplyGuardSettings()
+        {
             // 스테미나 회복 설정 스냅샷 갱신
-            _staminaRegen?.ApplySettings(_playerActionSettings);
-            _exhaustion?.ApplySettings(_playerActionSettings);
+            _staminaRegen?.ApplySettings(_playerGuardSettings);
+            _exhaustion?.ApplySettings(_playerGuardSettings);
         }
 
         private void InitializeControls()
@@ -227,11 +244,11 @@ namespace GGemCo2DControl
 
             // "가드가 아닐 때" 스테미나 회복 정책
             _staminaRegen = new StaminaRegenController(_characterBase, _actionGuard);
-            _staminaRegen.ApplySettings(_playerActionSettings);
+            _staminaRegen.ApplySettings(_playerGuardSettings);
 
             _exhaustion = new PlayerExhaustionController(_characterBase, _actionGuard, CancelActionsForExhaustion);
             _exhaustion.StateChanged += OnExhaustionStateChanged;
-            _exhaustion.ApplySettings(_playerActionSettings);
+            _exhaustion.ApplySettings(_playerGuardSettings);
 
             _actionMove = new ActionMove();
             _actionMove.Initialize(this, _characterBase, _characterBaseController);
@@ -309,6 +326,7 @@ namespace GGemCo2DControl
 
             // Settings 적용 값 주입
             ApplySettings();
+            ApplyGuardSettings();
 
             _attackHandler = new AttackInputHandler(_characterBase, _actionAttack, _policy);
             _guardHandler = new GuardInputHandler(_characterBase, _actionGuard, _policy);
@@ -408,6 +426,14 @@ namespace GGemCo2DControl
 #if UNITY_EDITOR
                 // 플레이 중 인스펙터 수정 → 즉시 반영
                 _playerActionSettings.Changed -= ApplySettings;
+#endif
+            }
+
+            if (_playerGuardSettings)
+            {
+#if UNITY_EDITOR
+                // 플레이 중 인스펙터 수정 → 즉시 반영
+                _playerGuardSettings.Changed -= ApplyGuardSettings;
 #endif
             }
 

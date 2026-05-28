@@ -1,4 +1,4 @@
-using GGemCo2DCore;
+﻿using GGemCo2DCore;
 using UnityEngine;
 
 namespace GGemCo2DControl
@@ -25,7 +25,11 @@ namespace GGemCo2DControl
             _guard = guard;
         }
 
-        public void ApplySettings(GGemCoPlayerActionSettings settings)
+        /// <summary>
+        /// 가드 설정 자산의 스테미나 회복 정책을 런타임 캐시에 반영합니다.
+        /// </summary>
+        /// <param name="settings">플레이어 가드 설정 자산입니다.</param>
+        public void ApplySettings(GGemCoPlayerGuardSettings settings)
         {
             if (!settings)
             {
