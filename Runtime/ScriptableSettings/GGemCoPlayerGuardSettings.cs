@@ -33,6 +33,28 @@ namespace GGemCo2DControl
     }
 
     /// <summary>
+    /// 가드 시작 시 스테미나 비용 계산 방식을 정의합니다.
+    /// </summary>
+    public enum GuardStartStaminaCostPolicy
+    {
+        /// <summary>
+        /// <see cref="GGemCoPlayerGuardSettings.guardStartStaminaCost"/> 값을 그대로 사용합니다.
+        /// </summary>
+        UseConfiguredValue = 0,
+
+        /// <summary>
+        /// 가드 시작 시 스테미나를 소모하지 않습니다.
+        /// </summary>
+        AlwaysFree = 1,
+
+        /// <summary>
+        /// <see cref="GGemCoPlayerGuardSettings.justGuardSuccessStaminaCostPolicy"/>가
+        /// <see cref="JustGuardStaminaCostPolicy.None"/>일 때 가드 시작 스테미나를 소모하지 않습니다.
+        /// </summary>
+        FreeWhenJustGuardSuccessPolicyNone = 2,
+    }
+
+    /// <summary>
     /// 공격 중 가드 입력을 허용할 구간을 정의합니다.
     /// </summary>
     public enum AttackGuardCancelPolicy
@@ -144,6 +166,9 @@ namespace GGemCo2DControl
 
         [Tooltip("방어 시작시 차감되는 스테미나")]
         public long guardStartStaminaCost;
+
+        [Tooltip("가드 시작 스테미나 비용 계산 정책입니다.")]
+        public GuardStartStaminaCostPolicy guardStartStaminaCostPolicy = GuardStartStaminaCostPolicy.FreeWhenJustGuardSuccessPolicyNone;
 
         [Tooltip("일반 가드 성공시 차감되는 스테미나입니다. 저스트 가드 성공 비용은 아래 저스트 가드 설정을 사용합니다.")]
         public long guardSuccessStaminaCost;
@@ -336,6 +361,7 @@ namespace GGemCo2DControl
             guardBreakAnimationMaxTimeScale = 3f;
             guardBreakAnimationMinTargetDuration = 0.05f;
             applyCrowdControlEasingToGuardBreakAnimation = true;
+            guardStartStaminaCostPolicy = GuardStartStaminaCostPolicy.FreeWhenJustGuardSuccessPolicyNone;
             justGuardSuccessStaminaCostPolicy = JustGuardStaminaCostPolicy.None;
             justGuardSuccessStaminaCostValue = 0f;
             guardAttackTypeRules = new List<GuardAttackTypeRule>

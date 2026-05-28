@@ -46,6 +46,7 @@ namespace GGemCo2DControl
         
         // [Tooltip("방어 시작시 차감되는 스테미나")]
         private long _guardStartStaminaCost;
+        private GuardStartStaminaCostPolicy _guardStartStaminaCostPolicy;
 
         // [Tooltip("방어 성공시 차감되는 스테미나")]
         private long _guardSuccessStaminaCost;
@@ -180,6 +181,7 @@ namespace GGemCo2DControl
         {
             if (!playerGuardSettings) return;
             _guardStartStaminaCost = playerGuardSettings.guardStartStaminaCost;
+            _guardStartStaminaCostPolicy = playerGuardSettings.guardStartStaminaCostPolicy;
             _guardSuccessStaminaCost = playerGuardSettings.guardSuccessStaminaCost;
             _justGuardSuccessStaminaCostPolicy = playerGuardSettings.justGuardSuccessStaminaCostPolicy;
             _justGuardSuccessStaminaCostValue = Mathf.Max(0f, playerGuardSettings.justGuardSuccessStaminaCostValue);
@@ -239,7 +241,8 @@ namespace GGemCo2DControl
             ClearControlUnlockGuardReservations();
 
             // Guard 시작 비용 지불(부족하면 진입 불가)
-            if (!TrySpendStamina(_guardStartStaminaCost))
+            long guardStartStaminaCost = ResolveGuardStartStaminaCost();
+            if (!TrySpendStamina(guardStartStaminaCost))
             {
                 // 스테미나가 부족하면 Guard 진입 자체를 막는다.
                 return;
@@ -393,6 +396,35 @@ namespace GGemCo2DControl
 
                 default:
                     return 0;
+            }
+        }
+
+        /// <summary>
+        /// 가드 시작 시 소모할 스테미나 비용을 정책에 따라 계산합니다.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="GuardStartStaminaCostPolicy.FreeWhenJustGuardSuccessPolicyNone"/> 정책에서는
+        /// 저스트 가드 성공 스테미나 정책이 <see cref="JustGuardStaminaCostPolicy.None"/>일 때
+        /// 시작 스테미나 비용도 함께 0으로 처리합니다.
+        /// </remarks>
+        /// <returns>가드 시작 시 실제로 소모할 스테미나 비용입니다.</returns>
+        private long ResolveGuardStartStaminaCost()
+        {
+            long configuredCost = Math.Max(0L, _guardStartStaminaCost);
+
+            switch (_guardStartStaminaCostPolicy)
+            {
+                case GuardStartStaminaCostPolicy.AlwaysFree:
+                    return 0L;
+
+                case GuardStartStaminaCostPolicy.FreeWhenJustGuardSuccessPolicyNone:
+                    return _justGuardSuccessStaminaCostPolicy == JustGuardStaminaCostPolicy.None
+                        ? 0L
+                        : configuredCost;
+
+                case GuardStartStaminaCostPolicy.UseConfiguredValue:
+                default:
+                    return configuredCost;
             }
         }
 
