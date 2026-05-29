@@ -1,4 +1,5 @@
-﻿using GGemCo2DCore;
+﻿using System.Collections.Generic;
+using GGemCo2DCore;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -90,6 +91,10 @@ namespace GGemCo2DControl
         private GuardInputHandler _guardHandler;
         private JumpInputHandler _jumpHandler;
         private DashInputHandler _dashHandler;
+
+        // 프로젝트 전용 공격 입력 override 핸들러 캐시
+        private readonly List<MonoBehaviour> _attackInputOverrideComponentBuffer = new();
+        private readonly List<IPlayerAttackInputOverrideHandler> _attackInputOverrideHandlers = new();
 
         // === 추가 필드 ===
         private InteractionScanner2D _scanner;
@@ -1023,7 +1028,7 @@ namespace GGemCo2DControl
                 }
                 else
                 {
-                    _attackHandler?.Handle();
+                    HandleAttackInput();
                 }
 
                 return true; // 소비
@@ -1038,7 +1043,7 @@ namespace GGemCo2DControl
             {
                 // “대시로 진입 → 공격” 느낌
                 _dashHandler?.Handle();
-                _attackHandler?.Handle();
+                HandleAttackInput();
                 return true;
             }
 
@@ -1069,11 +1074,77 @@ namespace GGemCo2DControl
                     : _simulationToolReleaseCtx;
                 _simulationToolHandler?.HandleResolved(ctx);
 
-                _attackHandler?.Handle();
+                HandleAttackInput();
                 return true;
             }
 
             return false; // 조합 미처리 → fallback으로
+        }
+
+        /// <summary>
+        /// 공격 입력을 처리합니다.
+        /// 프로젝트 전용 override 핸들러가 입력을 소비하면 기본 공격 액션을 실행하지 않습니다.
+        /// </summary>
+        private void HandleAttackInput()
+        {
+            if (TryHandleAttackInputOverride())
+            {
+                return;
+            }
+
+            _attackHandler?.Handle();
+        }
+
+        /// <summary>
+        /// 현재 플레이어 오브젝트에 부착된 공격 입력 override 핸들러를 순서대로 호출합니다.
+        /// </summary>
+        /// <returns>어느 하나의 핸들러가 공격 입력을 소비하면 true입니다.</returns>
+        private bool TryHandleAttackInputOverride()
+        {
+            RefreshAttackInputOverrideHandlers();
+
+            for (int i = 0; i < _attackInputOverrideHandlers.Count; i++)
+            {
+                IPlayerAttackInputOverrideHandler handler = _attackInputOverrideHandlers[i];
+                if (handler == null)
+                {
+                    continue;
+                }
+
+                if (handler.TryHandleAttackInput())
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 같은 GameObject에 부착된 MonoBehaviour 중 공격 입력 override 포트를 구현한 컴포넌트를 수집합니다.
+        /// </summary>
+        /// <remarks>
+        /// Bootstrapper가 런타임에 프로젝트 전용 컴포넌트를 뒤늦게 추가할 수 있으므로, 공격 입력 시점에 최신 목록을 다시 구성합니다.
+        /// </remarks>
+        private void RefreshAttackInputOverrideHandlers()
+        {
+            _attackInputOverrideHandlers.Clear();
+            _attackInputOverrideComponentBuffer.Clear();
+
+            GetComponents(_attackInputOverrideComponentBuffer);
+            for (int i = 0; i < _attackInputOverrideComponentBuffer.Count; i++)
+            {
+                MonoBehaviour component = _attackInputOverrideComponentBuffer[i];
+                if (component == null || !component.isActiveAndEnabled)
+                {
+                    continue;
+                }
+
+                if (component is IPlayerAttackInputOverrideHandler handler)
+                {
+                    _attackInputOverrideHandlers.Add(handler);
+                }
+            }
         }
 
         private void DispatchSingles(in ResolvedButtonChord chord)
@@ -1081,7 +1152,7 @@ namespace GGemCo2DControl
             // 기본 동작: 동시 입력이면 정해진 순서로 모두 실행
             if (chord.Buttons.Contains(PlayerButtonId.Attack))
             {
-                _attackHandler?.Handle();
+                HandleAttackInput();
             }
             
             if (chord.Buttons.Contains(PlayerButtonId.Guard))
