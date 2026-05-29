@@ -74,8 +74,21 @@ namespace GGemCo2DControl
             }
         }
 
+        /// <summary>
+        /// 개발용 Settings Override를 먼저 확인한 뒤, 없으면 Addressables에서 서비스용 Settings를 로드합니다.
+        /// </summary>
+        /// <typeparam name="T">로드할 ScriptableObject 타입입니다.</typeparam>
+        /// <param name="key">서비스용 Settings Addressables Key입니다.</param>
+        /// <param name="optional">true이면 Addressables에 등록되지 않아도 오류 로그를 출력하지 않습니다.</param>
+        /// <returns>개발용 또는 서비스용 Settings 에셋입니다.</returns>
         private async Task<T> LoadSettingsAsync<T>(string key, bool optional = false) where T : ScriptableObject
         {
+            // 에디터 Play Mode에서 작업자별 개발용 Settings가 등록되어 있으면 서비스용 Addressables보다 먼저 사용합니다.
+            if (SettingsRuntimeResolver.TryGetOverride(key, out T overrideSettings))
+            {
+                return overrideSettings;
+            }
+
             var locationsHandle = Addressables.LoadResourceLocationsAsync(key);
             await locationsHandle.Task;
 
