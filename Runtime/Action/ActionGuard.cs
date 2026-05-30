@@ -371,6 +371,42 @@ namespace GGemCo2DControl
         }
 
         /// <summary>
+        /// 가드 성공 결과를 같은 플레이어 오브젝트의 상위 시스템 포트에 전달합니다.
+        /// </summary>
+        /// <param name="metadataDamage">가드 판정에 사용된 데미지 메타데이터입니다.</param>
+        /// <param name="result">가드 성공 판정 결과입니다.</param>
+        private void NotifyGuardSuccessFeedback(MetadataDamage metadataDamage, GuardResolutionResult result)
+        {
+            if (!result.IsResolved)
+                return;
+            if (result.Outcome != GuardResolutionOutcome.Guarded &&
+                result.Outcome != GuardResolutionOutcome.JustGuarded)
+                return;
+            if (actionCharacterBase == null)
+                return;
+
+            var feedback = new PlayerGuardSuccessFeedback(
+                actionCharacterBase.gameObject,
+                metadataDamage != null ? metadataDamage.attacker : null,
+                metadataDamage,
+                result.IsJustGuard,
+                result.Outcome,
+                Time.time);
+
+            var behaviours = actionCharacterBase.GetComponents<MonoBehaviour>();
+            if (behaviours == null || behaviours.Length == 0)
+                return;
+
+            for (int i = 0; i < behaviours.Length; i++)
+            {
+                if (behaviours[i] is IPlayerGuardSuccessFeedbackSink sink)
+                {
+                    sink.NotifyPlayerGuardSuccess(in feedback);
+                }
+            }
+        }
+
+        /// <summary>
         /// 가드 성공 타입에 따라 실제로 소모할 스테미나 값을 계산합니다.
         /// </summary>
         /// <param name="isJustGuard">저스트 가드 성공 여부입니다.</param>
@@ -878,6 +914,7 @@ namespace GGemCo2DControl
             }
 
             result = CreateGuardSuccessResult(metadataDamage, resolvedAsJustGuard, crowdControlUid: 0);
+            NotifyGuardSuccessFeedback(metadataDamage, result);
             return true;
         }
 
@@ -914,6 +951,7 @@ namespace GGemCo2DControl
                     if (!OnGuardSuccess(true))
                         return false;
                     result = CreateGuardSuccessResult(metadataDamage, true, crowdControlUid);
+                    NotifyGuardSuccessFeedback(metadataDamage, result);
                     return true;
 
                 case GuardResolutionOutcome.Guarded:
@@ -921,6 +959,7 @@ namespace GGemCo2DControl
                         return false;
                     RequestResumeGuardWaitAfterControlUnlock(crowdControlUid);
                     result = CreateGuardSuccessResult(metadataDamage, false, crowdControlUid);
+                    NotifyGuardSuccessFeedback(metadataDamage, result);
                     return true;
 
                 default:

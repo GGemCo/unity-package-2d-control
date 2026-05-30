@@ -52,6 +52,23 @@ namespace GGemCo2DControl
         }
 
         /// <summary>
+        /// 현재 기본 공격 콤보 단계 정보를 조회합니다.
+        /// </summary>
+        /// <param name="state">현재 기본 공격 콤보 단계 정보입니다.</param>
+        /// <returns>유효한 기본 공격 콤보 단계가 있으면 <see langword="true"/>를 반환합니다.</returns>
+        public bool TryGetCurrentComboState(out AttackComboRuntimeState state)
+        {
+            state = default;
+            if (_countCombo <= 0 || _currentCombo < 0 || _currentCombo >= _countCombo)
+            {
+                return false;
+            }
+
+            state = new AttackComboRuntimeState(_currentCombo, _countCombo);
+            return true;
+        }
+
+        /// <summary>
         /// 현재 공격 콤보 단계에 설정된 HitStop 정책을 조회합니다.
         /// </summary>
         /// <param name="settings">현재 콤보 단계의 HitStop 설정입니다.</param>

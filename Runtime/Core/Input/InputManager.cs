@@ -9,7 +9,7 @@ namespace GGemCo2DControl
     /// Player Input Asset에 등록한 키보드, 마우스, 게임 패드등의 입력 처리
     /// Player 에 AddComponent 된다.
     /// </summary>
-    public class InputManager : MonoBehaviour, IAutoMoveMovementDriver, IIncomingHitGuardResolver, IIncomingHitActionCanceler, ISkillStartActionCanceler, IMapClearActionCanceler, IInteractionActionCanceler, IPlayerExhaustionStateSource, ICameraVerticalFollowStateSource, IAttackHitStopProvider
+    public class InputManager : MonoBehaviour, IAutoMoveMovementDriver, IIncomingHitGuardResolver, IIncomingHitActionCanceler, ISkillStartActionCanceler, IMapClearActionCanceler, IInteractionActionCanceler, IPlayerExhaustionStateSource, ICameraVerticalFollowStateSource, IAttackHitStopProvider, IAttackComboStateProvider
     {
         /// <summary>
         /// Control 패키지의 InputManager가 실제 이동 실행(Run/Move)을 담당합니다.
@@ -561,6 +561,20 @@ namespace GGemCo2DControl
                 return false;
 
             return _actionAttack.TryGetCurrentHitStopSettings(out settings);
+        }
+
+        /// <summary>
+        /// 현재 기본 공격 콤보 단계 정보를 조회합니다.
+        /// </summary>
+        /// <param name="state">현재 기본 공격 콤보 단계 정보입니다.</param>
+        /// <returns>유효한 기본 공격 콤보 단계가 있으면 <see langword="true"/>를 반환합니다.</returns>
+        public bool TryGetCurrentAttackComboState(out AttackComboRuntimeState state)
+        {
+            state = default;
+            if (_actionAttack == null)
+                return false;
+
+            return _actionAttack.TryGetCurrentComboState(out state);
         }
 
         /// <summary>
