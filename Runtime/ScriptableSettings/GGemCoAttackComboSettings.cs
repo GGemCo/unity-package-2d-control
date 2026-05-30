@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using GGemCo2DCore;
 
 namespace GGemCo2DControl
 {
@@ -27,6 +28,10 @@ namespace GGemCo2DControl
             [Header("플레이어 효과 설정")]
             [Tooltip("플레이어에게 적용되는 효과 (Affect UID)")]
             public int affectUid;
+
+            [Header("HitStop 설정")]
+            [Tooltip("이 공격이 실제로 명중했을 때 적용할 HitStop 설정입니다.")]
+            public AttackHitStopSettings hitStop = AttackHitStopSettings.Disabled;
 
             [Tooltip("공격 후 다음 공격 입력이 가능해지기까지의 대기 시간 (단위: 초)")]
             public float waitTime;
@@ -82,6 +87,23 @@ namespace GGemCo2DControl
         {
             if (index < 0 || index >= attacks.Count) return 0;
             return attacks[index].affectUid;
+        }
+
+
+        /// <summary>
+        /// 지정한 콤보 인덱스에 설정된 HitStop 정책을 조회합니다.
+        /// </summary>
+        /// <param name="index">조회할 콤보 인덱스입니다.</param>
+        /// <param name="settings">조회된 HitStop 설정입니다.</param>
+        /// <returns>사용 가능한 HitStop 설정이 있으면 <see langword="true"/>를 반환합니다.</returns>
+        public bool TryGetHitStopSettings(int index, out AttackHitStopSettings settings)
+        {
+            settings = default;
+            if (attacks == null || index < 0 || index >= attacks.Count)
+                return false;
+
+            settings = attacks[index].hitStop;
+            return settings.HasAnyHitStop;
         }
     }
 }

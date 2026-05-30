@@ -50,6 +50,21 @@ namespace GGemCo2DControl
         {
             return _currentCombo;
         }
+
+        /// <summary>
+        /// 현재 공격 콤보 단계에 설정된 HitStop 정책을 조회합니다.
+        /// </summary>
+        /// <param name="settings">현재 콤보 단계의 HitStop 설정입니다.</param>
+        /// <returns>사용 가능한 HitStop 설정이 있으면 <see langword="true"/>를 반환합니다.</returns>
+        public bool TryGetCurrentHitStopSettings(out AttackHitStopSettings settings)
+        {
+            settings = default;
+            if (_attackComboSettings == null)
+                return false;
+
+            return _attackComboSettings.TryGetHitStopSettings(_currentCombo, out settings);
+        }
+
         private bool IsLastAttackCombo()
         {
             return _currentCombo == _countCombo - 1;
