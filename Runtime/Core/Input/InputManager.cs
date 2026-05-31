@@ -734,12 +734,15 @@ namespace GGemCo2DControl
             _autoMove.TickSuspendByControlLocked(locked);
         }
 
+        /// <summary>
+        /// 플레이어 공격 범위 안에 자동 이동을 막아야 하는 몬스터가 있는지 확인하고 AutoMove Suspend 상태를 갱신합니다.
+        /// </summary>
         private void UpdateAutoMoveSuspendByPatrolArea()
         {
             if (_autoMove == null) return;
 
-            // 몬스터 패트롤 영역(ObjectPatrol)에 진입하면 AutoMove를 일시 정지한다.
-            bool active = _attackAreaState != null && _attackAreaState.IsInAttackArea;
+            // 공중 몬스터는 설정에 따라 통과 가능한 대상으로 보아 AutoMove 정지 대상에서 제외합니다.
+            bool active = _attackAreaState != null && _attackAreaState.IsInAutoMoveBlockingAttackArea;
             _autoMove.TickSuspendByPlayerAttackRange(active);
         }
 
