@@ -9,8 +9,20 @@ namespace GGemCo2DControl
     /// Player Input Asset에 등록한 키보드, 마우스, 게임 패드등의 입력 처리
     /// Player 에 AddComponent 된다.
     /// </summary>
-    public class InputManager : MonoBehaviour, IAutoMoveMovementDriver, IIncomingHitGuardResolver, IIncomingHitActionCanceler, ISkillStartActionCanceler, IMapClearActionCanceler, IInteractionActionCanceler, IPlayerExhaustionStateSource, ICameraVerticalFollowStateSource, IAttackHitStopProvider, IAttackComboStateProvider
+    public class InputManager : MonoBehaviour, IGameInitializable, IGameActivatable, IGameDeinitializable, IAutoMoveMovementDriver, IIncomingHitGuardResolver, IIncomingHitActionCanceler, ISkillStartActionCanceler, IMapClearActionCanceler, IInteractionActionCanceler, IPlayerExhaustionStateSource, ICameraVerticalFollowStateSource, IAttackHitStopProvider, IAttackComboStateProvider
     {
+
+        /// <summary>
+        /// Control 입력 시스템 초기화 순서입니다.
+        /// Core 씬 초기화 이후, Skill/AI 입력 소비 시스템보다 먼저 준비되도록 낮은 값을 사용합니다.
+        /// </summary>
+        public int InitializeOrder => 300;
+
+        /// <summary>
+        /// 입력 콜백이 바인딩되어 실제 플레이어 입력을 처리할 수 있는 상태인지 반환합니다.
+        /// </summary>
+        public bool IsInputActivated => _isInputActivated;
+
         /// <summary>
         /// Control 패키지의 InputManager가 실제 이동 실행(Run/Move)을 담당합니다.
         /// (AutoMove가 활성화되어도 PlayerAutoMoveController가 Run()을 중복 호출하지 않도록 합니다.)
@@ -115,10 +127,32 @@ namespace GGemCo2DControl
         private IAutoMoveVectorProvider _autoMoveProvider;
         private MapManager _mapManagerForLoadEvents;
 
+        // 명시적 초기화/활성화 상태
+        private bool _isInitialized;
+        private bool _isInputActivated;
+        private bool _isInputBound;
+
         // 플레이어 공격 영역에 몬스터 진입 상태
         private PlayerAttackAreaState _attackAreaState;
 
+        /// <summary>
+        /// Unity 생명주기에서 호출되는 로컬 캐시 단계입니다.
+        /// 다른 매니저, Addressables Settings, InputAction 바인딩은 이 단계에서 수행하지 않습니다.
+        /// </summary>
         private void Awake()
+        {
+            CacheLocalComponents();
+
+            // 기본값(80ms)으로 초기화합니다.
+            // 실제 Settings 값은 Initialize 단계에서 로드된 후 ApplySettings로 갱신됩니다.
+            _releaseResolver = new BufferedReleaseResolver(0.08f);
+        }
+
+        /// <summary>
+        /// 입력 처리에 필요한 같은 GameObject 기준 컴포넌트를 캐시합니다.
+        /// Awake 단계에서 허용되는 로컬 참조만 구성하여 실행 순서 의존성을 줄입니다.
+        /// </summary>
+        private void CacheLocalComponents()
         {
             _characterBase = GetComponent<CharacterBase>();
             if (!_characterBase)
@@ -127,70 +161,203 @@ namespace GGemCo2DControl
                 return;
             }
 
-            // 기본값(80ms)으로 초기화. Settings가 로드되면 ApplySettings에서 갱신됩니다.
-            _releaseResolver = new BufferedReleaseResolver(0.08f);
+            _characterBaseController = GetComponent<CharacterBaseController>();
+            _motionController = GetComponent<ICharacterMotionController>();
+            _autoMoveProvider = GetComponent<IAutoMoveVectorProvider>();
 
-            _playerActionSettings = AddressableLoaderSettingsControl.Instance.playerActionSettings;
-            _playerGuardSettings = AddressableLoaderSettingsControl.Instance.playerGuardSettings;
+            // 패트롤 영역 진입 상태 캐시(없어도 동작해야 함)
+            Player player = _characterBase as Player;
+            _attackAreaState = player != null ? player.GetComponent<PlayerAttackAreaState>() : null;
+        }
+
+        /// <summary>
+        /// Control 입력 시스템을 명시적으로 초기화합니다.
+        /// Settings 조회, 액션 객체 생성, 상호작용 스캐너 구성처럼 외부 준비가 필요한 작업은 이 단계에서 처리합니다.
+        /// </summary>
+        /// <param name="context">게임 초기화 컨텍스트입니다. 현재 Control 입력은 Core 컨텍스트를 직접 사용하지 않습니다.</param>
+        public void Initialize(GameInitContext context)
+        {
+            if (_isInitialized)
+            {
+                return;
+            }
+
+            if (_characterBase == null)
+            {
+                CacheLocalComponents();
+            }
+
+            if (_characterBase == null)
+            {
+                enabled = false;
+                return;
+            }
+
+            LoadControlSettings();
+            InitializeAutoMove();
+            InitializeInteractionScanner();
+            InitializeControls();
+            SubscribeLocalCharacterEvents();
+
+            _isInitialized = true;
+        }
+
+        /// <summary>
+        /// 모든 초기화가 완료된 뒤 입력 콜백과 외부 이벤트를 활성화합니다.
+        /// 이 단계 전에는 PlayerInput 콜백을 바인딩하지 않아, 씬 초기화 중 입력이 먼저 소비되는 문제를 방지합니다.
+        /// </summary>
+        /// <param name="context">게임 초기화 컨텍스트입니다. 현재 Control 입력은 Core 컨텍스트를 직접 사용하지 않습니다.</param>
+        public void Activate(GameInitContext context)
+        {
+            if (_isInputActivated)
+            {
+                return;
+            }
+
+            if (!_isInitialized)
+            {
+                Initialize(context);
+            }
+
+            if (!_isInitialized)
+            {
+                return;
+            }
+
+            InitializeInputPlayer();
+            SubscribeMapLoadStartEventIfNeeded();
+            _isInputActivated = true;
+        }
+
+        /// <summary>
+        /// 초기화/활성화 단계에서 연결한 입력 콜백과 이벤트를 정리합니다.
+        /// OnDestroy에서도 호출되어 중복 해제를 안전하게 처리합니다.
+        /// </summary>
+        public void Deinitialize()
+        {
+            DeactivateInput();
+        }
+
+        /// <summary>
+        /// Control Settings 로더에서 플레이어 액션/가드 설정을 가져와 런타임 정책에 반영합니다.
+        /// </summary>
+        private void LoadControlSettings()
+        {
+            AddressableLoaderSettingsControl settingsLoader = AddressableLoaderSettingsControl.Instance;
+            _playerActionSettings = settingsLoader != null ? settingsLoader.playerActionSettings : null;
+            _playerGuardSettings = settingsLoader != null ? settingsLoader.playerGuardSettings : null;
+
             if (_playerActionSettings)
             {
                 ApplySettings();
 #if UNITY_EDITOR
                 // 플레이 중 인스펙터 수정 → 즉시 반영
+                _playerActionSettings.Changed -= ApplySettings;
                 _playerActionSettings.Changed += ApplySettings;
 #endif
             }
+
             if (_playerGuardSettings)
             {
                 ApplyGuardSettings();
 #if UNITY_EDITOR
                 // 플레이 중 인스펙터 수정 → 즉시 반영
+                _playerGuardSettings.Changed -= ApplyGuardSettings;
                 _playerGuardSettings.Changed += ApplyGuardSettings;
 #endif
             }
-
-            _characterBaseController = GetComponent<CharacterBaseController>();
-            _motionController = GetComponent<ICharacterMotionController>();
-
-            // AutoMove: 이동 벡터 오버라이드/입력 잠금 + Suspend 관리
-            _autoMoveProvider = GetComponent<IAutoMoveVectorProvider>();
-            _autoMove = new AutoMoveAdapter(
-                _autoMoveProvider,
-                GetComponent<IAutoMoveSuspendService>());
-
-            if (_characterBase.colliderHitArea)
-            {
-                _scanner = _characterBase.colliderHitArea.gameObject.GetComponent<InteractionScanner2D>();
-                if (_scanner == null)
-                {
-                    // 스캐너가 없으면 자동 추가(프로파일 편의를 위해)
-                    _scanner = _characterBase.colliderHitArea.gameObject.AddComponent<InteractionScanner2D>();
-                }
-
-                _interactionHandler = new InteractionInputHandler(_scanner);
-            }
-
-            Player player = _characterBase as Player;
-            player?.onEventDeadByEndGround.AddListener(OnDeadGround);
-
-            // 패트롤 영역 진입 상태 캐시(없어도 동작해야 함)
-            _attackAreaState = player != null ? player.GetComponent<PlayerAttackAreaState>() : null;
-
-            InitializeControls();
-            InitializeInputPlayer();
         }
 
         /// <summary>
-        /// 컴포넌트가 활성화될 때 맵 로드 시작 이벤트를 구독합니다.
-        /// 맵 전환 직전에 AutoMove 잠금 토큰을 소유자 경로로 정리하기 위한 진입점입니다.
+        /// Core AutoMove 시스템과 Control 입력 이동 처리를 연결할 어댑터를 생성합니다.
+        /// </summary>
+        private void InitializeAutoMove()
+        {
+            _autoMove = new AutoMoveAdapter(
+                _autoMoveProvider,
+                GetComponent<IAutoMoveSuspendService>());
+        }
+
+        /// <summary>
+        /// 플레이어 HitArea에 상호작용 스캐너를 연결합니다.
+        /// 스캐너가 없는 기존 프리팹은 런타임에서 자동 보강하여 호환성을 유지합니다.
+        /// </summary>
+        private void InitializeInteractionScanner()
+        {
+            if (_characterBase == null || !_characterBase.colliderHitArea)
+            {
+                return;
+            }
+
+            _scanner = _characterBase.colliderHitArea.gameObject.GetComponent<InteractionScanner2D>();
+            if (_scanner == null)
+            {
+                _scanner = _characterBase.colliderHitArea.gameObject.AddComponent<InteractionScanner2D>();
+            }
+
+            _interactionHandler = new InteractionInputHandler(_scanner);
+        }
+
+        /// <summary>
+        /// 캐릭터 내부 이벤트를 구독합니다.
+        /// 외부 시스템 준비가 필요한 단계 이후에 호출하여 Awake 순서 의존성을 줄입니다.
+        /// </summary>
+        private void SubscribeLocalCharacterEvents()
+        {
+            Player player = _characterBase as Player;
+            if (player == null)
+            {
+                return;
+            }
+
+            player.onEventDeadByEndGround.RemoveListener(OnDeadGround);
+            player.onEventDeadByEndGround.AddListener(OnDeadGround);
+        }
+
+        /// <summary>
+        /// 컴포넌트가 다시 활성화될 때, 명시적 Activate가 완료된 경우에만 외부 이벤트를 다시 연결합니다.
+        /// 초기화 전 OnEnable에서 이벤트를 구독하지 않도록 제한합니다.
         /// </summary>
         private void OnEnable()
         {
-            SubscribeMapLoadStartEventIfNeeded();
+            if (_isInitialized && !_isInputActivated)
+            {
+                Activate(null);
+                return;
+            }
+
+            if (_isInputActivated)
+            {
+                SubscribeMapLoadStartEventIfNeeded();
+            }
         }
 
+        /// <summary>
+        /// 기존 테스트 씬 호환을 위한 fallback 초기화입니다.
+        /// GameInitializationRunner 또는 BootstrapperAction에서 이미 Activate한 경우에는 아무 작업도 하지 않습니다.
+        /// </summary>
+        private void Start()
+        {
+            if (_isInputActivated)
+            {
+                return;
+            }
+
+            Initialize(null);
+            Activate(null);
+        }
+
+        /// <summary>
+        /// 플레이어 액션 설정을 입력 정책과 릴리즈 버퍼에 반영합니다.
+        /// Settings가 아직 준비되지 않은 경우에는 초기화 순서상 안전하게 건너뜁니다.
+        /// </summary>
         private void ApplySettings()
         {
+            if (_playerActionSettings == null)
+            {
+                return;
+            }
+
             // _canMovePlayDashing = playerActionSettings.canMovePlayDashing;
             // true 일 경우 방향키를 누른 상태로 대시를 사용하면 대시를 하지 못 한다.
             _canMovePlayDashing = false;
@@ -246,6 +413,10 @@ namespace GGemCo2DControl
             }
         }
 
+        /// <summary>
+        /// 플레이어 액션 객체와 입력 정책/핸들러를 생성합니다.
+        /// 실제 PlayerInput 콜백 바인딩은 Activate 단계에서 별도로 수행합니다.
+        /// </summary>
         private void InitializeControls()
         {
             _actionAttack = new ActionAttack();
@@ -288,7 +459,7 @@ namespace GGemCo2DControl
 
 #if UNITY_EDITOR
             // 점프 접지/천장 판정 Gizmo 렌더링 프록시 바인딩
-            if (_playerActionSettings.EnableJumpProbeDebugGizmos)
+            if (_playerActionSettings != null && _playerActionSettings.EnableJumpProbeDebugGizmos)
             {
                 var jumpDebug = _characterBase.gameObject.GetComponent<ActionJumpDebugDrawer>();
                 if (jumpDebug == null)
@@ -300,7 +471,7 @@ namespace GGemCo2DControl
             }
 
             // Wall Action 디버그 Gizmo(레이 캐스트) 렌더링 프록시 바인딩
-            if (_playerActionSettings.enableWallDebugGizmos)
+            if (_playerActionSettings != null && _playerActionSettings.enableWallDebugGizmos && ControlPackageManager.Instance != null)
             {
                 var wallDebug = ControlPackageManager.Instance.gameObject.GetComponent<ActionWallDebugDrawer>();
                 if (wallDebug == null)
@@ -324,6 +495,7 @@ namespace GGemCo2DControl
                 _actionClimb,
                 _actionPushPull,
                 () => _actionWall is { IsWallLocked: true });
+            _simulationToolHandler.SetToolAction(_toolAction);
 
             // === Input Policy / Handlers ===
             _policy = new PlayerInputPolicy(
@@ -354,8 +526,17 @@ namespace GGemCo2DControl
             }
         }
 
+        /// <summary>
+        /// PlayerInput을 찾고 입력 콜백을 바인딩합니다.
+        /// 명시적 Activate 이후에만 호출하여 씬 초기화 중 입력 이벤트가 먼저 실행되지 않게 합니다.
+        /// </summary>
         private void InitializeInputPlayer()
         {
+            if (_isInputBound)
+            {
+                return;
+            }
+
             // PlayerInput이 루트가 아닌 자식에 배치된 프로젝트 구성도 흔하므로,
             // 우선 루트에서 찾고 없으면 자식에서 검색합니다(비활성 포함).
             _playerInput = GetComponent<PlayerInput>();
@@ -381,12 +562,41 @@ namespace GGemCo2DControl
                 OnSimulationToolRelease);
 
             if (_playerInput != null)
+            {
+                _playerInput.onControlsChanged -= OnChangeControlScheme;
                 _playerInput.onControlsChanged += OnChangeControlScheme;
+            }
+
+            _isInputBound = true;
         }
 
+        /// <summary>
+        /// PlayerInput 콜백과 입력 버퍼를 해제하여 더 이상 새 입력이 처리되지 않도록 합니다.
+        /// </summary>
+        private void DeactivateInput()
+        {
+            _isInputActivated = false;
+            _isInputBound = false;
+
+            if (_playerInput != null)
+            {
+                _playerInput.onControlsChanged -= OnChangeControlScheme;
+            }
+
+            _bindings?.Unbind();
+            _bindings = null;
+            _releaseResolver?.Clear();
+            _simulationToolPressCtx = default;
+            _simulationToolReleaseCtx = default;
+            UnsubscribeMapLoadStartEvent();
+        }
+
+        /// <summary>
+        /// 입력 시스템이 생성한 런타임 객체, 이벤트 구독, 임시 상태를 정리합니다.
+        /// </summary>
         private void OnDestroy()
         {
-            UnsubscribeMapLoadStartEvent();
+            Deinitialize();
 
             _actionAttack?.OnDestroy();
             _actionGuard?.OnDestroy();
@@ -407,12 +617,6 @@ namespace GGemCo2DControl
                 _actionPushPull.OnDestroy();
                 _actionPushPull.InteractionEnded -= OnInteractionEnded;
             }
-
-            if (_playerInput != null)
-                _playerInput.onControlsChanged -= OnChangeControlScheme;
-
-            _bindings?.Unbind();
-            _bindings = null;
 
             if (_exhaustion != null)
             {
@@ -514,6 +718,11 @@ namespace GGemCo2DControl
 
         private void Update()
         {
+            if (!_isInputActivated)
+            {
+                return;
+            }
+
             if (_mapManagerForLoadEvents == null)
             {
                 SubscribeMapLoadStartEventIfNeeded();
@@ -706,11 +915,14 @@ namespace GGemCo2DControl
             _autoMove?.ReleaseAll();
         }
 
+        /// <summary>
+        /// 컴포넌트 비활성화 시 입력 콜백과 AutoMove 잠금 상태를 정리합니다.
+        /// </summary>
         private void OnDisable()
         {
-            // Wall Action 등에서 Suspend를 쥔 상태로 비활성화될 수 있으므로, 누락 없이 해제한다.
+            // Wall Action 등에서 Suspend를 쥔 상태로 비활성화될 수 있으므로, 누락 없이 해제합니다.
             _autoMove?.ReleaseAll();
-            UnsubscribeMapLoadStartEvent();
+            DeactivateInput();
         }
 
         private void UpdateAutoMoveSuspendByWall()
@@ -751,6 +963,8 @@ namespace GGemCo2DControl
         /// </summary>
         private void FixedUpdate()
         {
+            if (!_isInputActivated) return;
+            if (_characterBase == null) return;
             if (_characterBase.IsStatusDead()) return;
             if (_characterBase.IsHitStopped) return;
 
@@ -895,10 +1109,21 @@ namespace GGemCo2DControl
             _actionMove.Move(direction);
         }
 
+        /// <summary>
+        /// 입력 콜백이 실제 행동으로 처리될 수 있는 활성 상태인지 확인합니다.
+        /// Activate 이전에 들어온 Input System 이벤트는 무시하여 초기화 순서 문제를 방지합니다.
+        /// </summary>
+        /// <returns>입력을 처리할 수 있으면 true입니다.</returns>
+        private bool CanProcessInputCallback()
+        {
+            return _isInputActivated && _isInitialized && _characterBase != null;
+        }
+
         // === Press/Release 수집(실행은 ReleaseResolver에서 수행) ===
         // Attack
         private void OnAttackPress(InputAction.CallbackContext ctx)
         {
+            if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Attack, Vector2.zero)) return;
             _releaseResolver?.PushPress(PlayerButtonId.Attack, Time.unscaledTime);
@@ -906,6 +1131,7 @@ namespace GGemCo2DControl
 
         private void OnAttackRelease(InputAction.CallbackContext ctx)
         {
+            if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Attack, Vector2.zero)) return;
             _releaseResolver?.PushRelease(PlayerButtonId.Attack, Time.unscaledTime);
@@ -914,6 +1140,7 @@ namespace GGemCo2DControl
         // Guard
         private void OnGuardPress(InputAction.CallbackContext ctx)
         {
+            if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Guard, Vector2.zero)) return;
 
@@ -931,12 +1158,14 @@ namespace GGemCo2DControl
         /// <param name="ctx">Input System에서 전달된 입력 콜백 컨텍스트입니다.</param>
         private void OnGuardRelease(InputAction.CallbackContext ctx)
         {
+            if (!CanProcessInputCallback()) return;
             _guardHandler?.HandleRelease();
         }
 
         // Jump
         private void OnJumpPress(InputAction.CallbackContext ctx)
         {
+            if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Jump, Vector2.zero)) return;
             _releaseResolver?.PushPress(PlayerButtonId.Jump, Time.unscaledTime);
@@ -944,6 +1173,7 @@ namespace GGemCo2DControl
 
         private void OnJumpRelease(InputAction.CallbackContext ctx)
         {
+            if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Jump, Vector2.zero)) return;
             _releaseResolver?.PushRelease(PlayerButtonId.Jump, Time.unscaledTime);
@@ -952,6 +1182,7 @@ namespace GGemCo2DControl
         // Dash
         private void OnDashPress(InputAction.CallbackContext ctx)
         {
+            if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Dash, Vector2.zero)) return;
             _releaseResolver?.PushPress(PlayerButtonId.Dash, Time.unscaledTime);
@@ -959,6 +1190,7 @@ namespace GGemCo2DControl
 
         private void OnDashRelease(InputAction.CallbackContext ctx)
         {
+            if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Dash, Vector2.zero)) return;
             _releaseResolver?.PushRelease(PlayerButtonId.Dash, Time.unscaledTime);
@@ -969,6 +1201,7 @@ namespace GGemCo2DControl
         /// </summary>
         private void OnInteractionPress(InputAction.CallbackContext ctx)
         {
+            if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Interaction, Vector2.zero)) return;
             _releaseResolver?.PushPress(PlayerButtonId.Interaction, Time.unscaledTime);
@@ -976,6 +1209,7 @@ namespace GGemCo2DControl
 
         private void OnInteractionRelease(InputAction.CallbackContext ctx)
         {
+            if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Interaction, Vector2.zero)) return;
             _releaseResolver?.PushRelease(PlayerButtonId.Interaction, Time.unscaledTime);
@@ -986,6 +1220,7 @@ namespace GGemCo2DControl
         /// </summary>
         private void OnSimulationToolPress(InputAction.CallbackContext ctx)
         {
+            if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.SimulationTool, Vector2.zero)) return;
             _simulationToolPressCtx = ctx;
@@ -994,6 +1229,7 @@ namespace GGemCo2DControl
 
         private void OnSimulationToolRelease(InputAction.CallbackContext ctx)
         {
+            if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.SimulationTool, Vector2.zero)) return;
             _simulationToolReleaseCtx = ctx;
@@ -1003,6 +1239,9 @@ namespace GGemCo2DControl
         // === Chord 확정(릴리즈) 처리 ===
         private void OnResolvedChord(ResolvedButtonChord chord)
         {
+            if (!CanProcessInputCallback())
+                return;
+
             if (_characterBase != null && _characterBase.IsDontControl())
                 return;
 
