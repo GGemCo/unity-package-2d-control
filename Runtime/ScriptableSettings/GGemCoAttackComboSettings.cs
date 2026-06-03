@@ -33,6 +33,10 @@ namespace GGemCo2DControl
             [Tooltip("이 공격이 실제로 명중했을 때 적용할 HitStop 설정입니다.")]
             public AttackHitStopSettings hitStop = AttackHitStopSettings.Disabled;
 
+            [Header("Camera Shake 설정")]
+            [Tooltip("이 공격이 실제로 명중했을 때 재생할 카메라 Shake 설정입니다.")]
+            public AttackCameraShakeSettings cameraShake = AttackCameraShakeSettings.Disabled;
+
             [Tooltip("공격 후 다음 공격 입력이 가능해지기까지의 대기 시간 (단위: 초)")]
             public float waitTime;
 
@@ -104,6 +108,22 @@ namespace GGemCo2DControl
 
             settings = attacks[index].hitStop;
             return settings.HasAnyHitStop;
+        }
+
+        /// <summary>
+        /// 지정한 콤보 인덱스에 설정된 카메라 Shake 정책을 조회합니다.
+        /// </summary>
+        /// <param name="index">조회할 콤보 인덱스입니다.</param>
+        /// <param name="settings">조회된 카메라 Shake 설정입니다.</param>
+        /// <returns>사용 가능한 카메라 Shake 설정이 있으면 <see langword="true"/>를 반환합니다.</returns>
+        public bool TryGetCameraShakeSettings(int index, out AttackCameraShakeSettings settings)
+        {
+            settings = AttackCameraShakeSettings.Disabled;
+            if (attacks == null || index < 0 || index >= attacks.Count)
+                return false;
+
+            settings = attacks[index].cameraShake;
+            return settings.HasCameraShake;
         }
     }
 }
