@@ -213,6 +213,9 @@ namespace GGemCo2DControl
         [Tooltip("가드 브레이크 시 추가로 차감할 스테미나입니다. 공격별 설정이 0이면 이 값을 사용합니다.")]
         public long guardBreakStaminaCost;
 
+        [Tooltip("가드 브레이크 이후 다시 가드 키를 눌러 가드에 진입할 때 필요한 스테미나입니다. -1이면 일반 가드 시작 비용을 사용하고, 0 이상이면 이 값을 사용합니다.")]
+        public long guardBreakReGuardStaminaCost = -1L;
+
         [Tooltip("가드 브레이크 시 기본으로 적용할 데미지 배율입니다. 공격 메타데이터가 없을 때 사용합니다. 0=HP 피해 없음, 1=원래 데미지 모두 적용")]
         [Range(0f, 1f)]
         public float guardBreakDamageMultiplier = 0f;
@@ -361,6 +364,7 @@ namespace GGemCo2DControl
             guardBreakAnimationMaxTimeScale = 3f;
             guardBreakAnimationMinTargetDuration = 0.05f;
             applyCrowdControlEasingToGuardBreakAnimation = true;
+            guardBreakReGuardStaminaCost = -1L;
             guardStartStaminaCostPolicy = GuardStartStaminaCostPolicy.FreeWhenJustGuardSuccessPolicyNone;
             justGuardSuccessStaminaCostPolicy = JustGuardStaminaCostPolicy.None;
             justGuardSuccessStaminaCostValue = 0f;

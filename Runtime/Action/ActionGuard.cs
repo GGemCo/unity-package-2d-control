@@ -71,6 +71,7 @@ namespace GGemCo2DControl
         private int _justGuardSuccessVfxSortingOrder;
         private Vector3 _justGuardSuccessVfxOffset;
         private long _guardBreakStaminaCost;
+        private long _guardBreakReGuardStaminaCost;
         private float _guardBreakDamageMultiplier;
         private string _guardBreakFeedbackText;
         private int _guardBreakVfxUid;
@@ -99,6 +100,7 @@ namespace GGemCo2DControl
         private float _guardStartedTime = -999f;
         private bool _isCharacterStop;
         private bool _requiresReleaseBeforeReGuard;
+        private bool _isAwaitingGuardBreakReGuard;
 
         /// <summary>
         /// 현재 가드 입력 버튼이 물리적으로 눌린 상태인지 추적합니다.
@@ -196,6 +198,7 @@ namespace GGemCo2DControl
             _justGuardSuccessVfxSortingOrder = playerGuardSettings.justGuardSuccessVfxSortingOrder;
             _justGuardSuccessVfxOffset = playerGuardSettings.justGuardSuccessVfxOffset;
             _guardBreakStaminaCost = playerGuardSettings.guardBreakStaminaCost;
+            _guardBreakReGuardStaminaCost = Math.Max(-1L, playerGuardSettings.guardBreakReGuardStaminaCost);
             _guardBreakDamageMultiplier = Mathf.Clamp01(playerGuardSettings.guardBreakDamageMultiplier);
             _guardBreakFeedbackText = string.IsNullOrWhiteSpace(playerGuardSettings.guardBreakFeedbackText)
                 ? "GUARD BREAK"
@@ -234,40 +237,16 @@ namespace GGemCo2DControl
             // 가드 브레이크 이후에는 사용자가 가드 키를 한 번 뗀 뒤 다시 눌러야 합니다.
             if (_requiresReleaseBeforeReGuard) return;
 
-            // 이미 가드 중이면 유지 (중복 호출 방지)
-            if (IsGuarding) return;
-
-            // 새 가드 입력이 정상 진입하면 이전 CC 예약 상태는 더 이상 유효하지 않습니다.
-            ClearControlUnlockGuardReservations();
-
-            // Guard 시작 비용 지불(부족하면 진입 불가)
-            long guardStartStaminaCost = ResolveGuardStartStaminaCost();
-            if (!TrySpendStamina(guardStartStaminaCost))
+            if (_phase == GuardPhase.Break)
             {
-                // 스테미나가 부족하면 Guard 진입 자체를 막는다.
+                TryBeginGuardAfterGuardBreakReInput();
                 return;
             }
 
-            // Tick 초기화
-            _staminaTickElapsed = 0f;
-            _guardStartedTime = Time.time;
-            ClearGuardSuccessAnimationState();
+            // 이미 가드 중이면 유지 (중복 호출 방지)
+            if (IsGuarding) return;
 
-            // 이동 멈춤
-            actionCharacterBase.directionNormalize = Vector3.zero;
-            actionCharacterBase.Stop(true);
-
-            // Start → Wait로 이어지는 구간
-            if (_hasStart)
-            {
-                _phase = GuardPhase.Start;
-                actionCharacterBase.CharacterAnimationController?.PlayCharacterAnimation(_animGuardStart);
-            }
-            else
-            {
-                // Start가 없으면 즉시 Wait로
-                BeginWait();
-            }
+            TryBeginGuardWithCost(ResolveCurrentGuardStartStaminaCost(), cancelGuardBreakAnimation: false);
         }
 
         /// <summary>
@@ -462,6 +441,93 @@ namespace GGemCo2DControl
                 default:
                     return configuredCost;
             }
+        }
+
+        /// <summary>
+        /// 현재 가드 시작 맥락에 맞는 스테미나 비용을 계산합니다.
+        /// </summary>
+        /// <remarks>
+        /// 가드 브레이크 이후 첫 재가드 입력에는 전용 비용을 우선 사용하고, 전용 비용이 음수이면 일반 가드 시작 비용을 사용합니다.
+        /// </remarks>
+        /// <returns>현재 가드 시작 시 필요한 스테미나 비용입니다.</returns>
+        private long ResolveCurrentGuardStartStaminaCost()
+        {
+            return _isAwaitingGuardBreakReGuard
+                ? ResolveGuardBreakReGuardStaminaCost()
+                : ResolveGuardStartStaminaCost();
+        }
+
+        /// <summary>
+        /// 가드 브레이크 이후 재가드 입력에 필요한 스테미나 비용을 계산합니다.
+        /// </summary>
+        /// <returns>가드 브레이크 이후 재가드에 필요한 스테미나 비용입니다.</returns>
+        private long ResolveGuardBreakReGuardStaminaCost()
+        {
+            return _guardBreakReGuardStaminaCost >= 0L
+                ? _guardBreakReGuardStaminaCost
+                : ResolveGuardStartStaminaCost();
+        }
+
+        /// <summary>
+        /// 가드 브레이크 이후 사용자가 가드 키를 다시 눌렀을 때 재가드 진입을 시도합니다.
+        /// </summary>
+        /// <remarks>
+        /// 필요한 스테미나가 충분하면 브레이크 애니메이션을 즉시 끊고 가드 시작 흐름으로 들어갑니다.
+        /// 부족하면 브레이크 애니메이션과 재가드 대기 상태를 그대로 유지합니다.
+        /// </remarks>
+        /// <returns>재가드 진입에 성공하면 true입니다.</returns>
+        private bool TryBeginGuardAfterGuardBreakReInput()
+        {
+            return TryBeginGuardWithCost(ResolveGuardBreakReGuardStaminaCost(), cancelGuardBreakAnimation: true);
+        }
+
+        /// <summary>
+        /// 지정한 스테미나 비용을 지불한 뒤 가드 시작 상태로 진입합니다.
+        /// </summary>
+        /// <param name="guardStartStaminaCost">이번 가드 시작에 필요한 스테미나 비용입니다.</param>
+        /// <param name="cancelGuardBreakAnimation">진행 중인 가드 브레이크 연출을 취소할지 여부입니다.</param>
+        /// <returns>가드 시작에 성공하면 true입니다.</returns>
+        private bool TryBeginGuardWithCost(long guardStartStaminaCost, bool cancelGuardBreakAnimation)
+        {
+            if (!TrySpendStamina(Math.Max(0L, guardStartStaminaCost)))
+            {
+                // 스테미나가 부족하면 Guard 진입 자체를 막고, 브레이크 중이면 해당 연출을 유지합니다.
+                return false;
+            }
+
+            // 새 가드 입력이 정상 진입하면 이전 CC 예약 상태는 더 이상 유효하지 않습니다.
+            ClearControlUnlockGuardReservations();
+
+            _requiresReleaseBeforeReGuard = false;
+            _isAwaitingGuardBreakReGuard = false;
+
+            // Tick 초기화
+            _staminaTickElapsed = 0f;
+            _guardStartedTime = Time.time;
+            ClearGuardSuccessAnimationState();
+
+            if (cancelGuardBreakAnimation)
+            {
+                ClearGuardBreakAnimationState();
+            }
+
+            // 이동 멈춤
+            actionCharacterBase.directionNormalize = Vector3.zero;
+            actionCharacterBase.Stop(true);
+
+            // Start → Wait로 이어지는 구간
+            if (_hasStart)
+            {
+                _phase = GuardPhase.Start;
+                actionCharacterBase.CharacterAnimationController?.PlayCharacterAnimation(_animGuardStart);
+            }
+            else
+            {
+                // Start가 없으면 즉시 Wait로
+                BeginWait();
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -1049,6 +1115,7 @@ namespace GGemCo2DControl
         {
             _phase = GuardPhase.Break;
             _requiresReleaseBeforeReGuard = true;
+            _isAwaitingGuardBreakReGuard = true;
             ClearControlUnlockGuardReservations();
             _staminaTickElapsed = 0f;
             _guardStartedTime = -999f;
