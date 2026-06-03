@@ -699,6 +699,7 @@ namespace GGemCo2DControl
             ClearControlUnlockGuardReservations();
             ClearGuardSuccessAnimationState();
             ClearGuardBreakAnimationState();
+            ClearGuardBreakReGuardState();
             // 상태 복귀는 Stop이 담당(기존 설계 유지)
             if (isStop)
                 actionCharacterBase?.Stop(true);
@@ -767,6 +768,18 @@ namespace GGemCo2DControl
         {
             _guardBreakAnimationElapsed = 0f;
             _guardBreakAnimationActiveDurationSeconds = 0f;
+        }
+
+        /// <summary>
+        /// 가드 브레이크 중 재가드 전용 비용을 적용하기 위한 대기 상태를 초기화합니다.
+        /// </summary>
+        /// <remarks>
+        /// 재가드 전용 비용은 guard_break 애니메이션을 중간에 끊고 다시 가드할 때만 사용해야 하므로,
+        /// 브레이크 연출이 끝나 가드가 종료되면 일반 가드 시작 비용으로 돌아가야 합니다.
+        /// </remarks>
+        private void ClearGuardBreakReGuardState()
+        {
+            _isAwaitingGuardBreakReGuard = false;
         }
 
         /// <summary>
