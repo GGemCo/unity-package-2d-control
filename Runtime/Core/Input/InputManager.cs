@@ -108,6 +108,10 @@ namespace GGemCo2DControl
         private readonly List<MonoBehaviour> _attackInputOverrideComponentBuffer = new();
         private readonly List<IPlayerAttackInputOverrideHandler> _attackInputOverrideHandlers = new();
 
+        // 프로젝트 전용 입력 차단 Provider 캐시
+        private readonly List<MonoBehaviour> _inputBlockProviderComponentBuffer = new();
+        private readonly List<IPlayerInputBlockProvider> _inputBlockProviders = new();
+
         // === 추가 필드 ===
         private InteractionScanner2D _scanner;
         private InteractionInputHandler _interactionHandler;
@@ -1126,6 +1130,7 @@ namespace GGemCo2DControl
             if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Attack, Vector2.zero)) return;
+            if (ShouldBlockInputByProvider(AutoMoveInputType.Attack)) return;
             _releaseResolver?.PushPress(PlayerButtonId.Attack, Time.unscaledTime);
         }
 
@@ -1134,6 +1139,7 @@ namespace GGemCo2DControl
             if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Attack, Vector2.zero)) return;
+            if (ShouldBlockInputByProvider(AutoMoveInputType.Attack)) return;
             _releaseResolver?.PushRelease(PlayerButtonId.Attack, Time.unscaledTime);
         }
         
@@ -1143,6 +1149,7 @@ namespace GGemCo2DControl
             if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Guard, Vector2.zero)) return;
+            if (ShouldBlockInputByProvider(AutoMoveInputType.Guard)) return;
 
             // Guard는 "홀드" 입력이므로 릴리즈 버퍼(Chord) 시스템을 통하지 않고 즉시 시작합니다.
             // - started: 버튼 Down
@@ -1168,6 +1175,7 @@ namespace GGemCo2DControl
             if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Jump, Vector2.zero)) return;
+            if (ShouldBlockInputByProvider(AutoMoveInputType.Jump)) return;
             _releaseResolver?.PushPress(PlayerButtonId.Jump, Time.unscaledTime);
         }
 
@@ -1176,6 +1184,7 @@ namespace GGemCo2DControl
             if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Jump, Vector2.zero)) return;
+            if (ShouldBlockInputByProvider(AutoMoveInputType.Jump)) return;
             _releaseResolver?.PushRelease(PlayerButtonId.Jump, Time.unscaledTime);
         }
         
@@ -1413,6 +1422,59 @@ namespace GGemCo2DControl
                 if (component is IPlayerAttackInputOverrideHandler handler)
                 {
                     _attackInputOverrideHandlers.Add(handler);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 현재 플레이어 오브젝트에 부착된 입력 차단 Provider를 통해 지정한 입력을 차단할지 확인합니다.
+        /// </summary>
+        /// <param name="inputType">검사할 입력 타입입니다.</param>
+        /// <returns>입력을 차단해야 하면 true입니다.</returns>
+        private bool ShouldBlockInputByProvider(AutoMoveInputType inputType)
+        {
+            RefreshInputBlockProviders();
+
+            for (int i = 0; i < _inputBlockProviders.Count; i++)
+            {
+                IPlayerInputBlockProvider provider = _inputBlockProviders[i];
+                if (provider == null)
+                {
+                    continue;
+                }
+
+                if (provider.ShouldBlockInput(inputType))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 같은 GameObject에 부착된 MonoBehaviour 중 입력 차단 포트를 구현한 컴포넌트를 수집합니다.
+        /// </summary>
+        /// <remarks>
+        /// 프로젝트 전용 입력 규칙 컴포넌트가 런타임 부트스트랩 과정에서 추가될 수 있으므로, 입력 콜백 시점에 최신 목록을 다시 구성합니다.
+        /// </remarks>
+        private void RefreshInputBlockProviders()
+        {
+            _inputBlockProviders.Clear();
+            _inputBlockProviderComponentBuffer.Clear();
+
+            GetComponents(_inputBlockProviderComponentBuffer);
+            for (int i = 0; i < _inputBlockProviderComponentBuffer.Count; i++)
+            {
+                MonoBehaviour component = _inputBlockProviderComponentBuffer[i];
+                if (component == null || !component.isActiveAndEnabled)
+                {
+                    continue;
+                }
+
+                if (component is IPlayerInputBlockProvider provider)
+                {
+                    _inputBlockProviders.Add(provider);
                 }
             }
         }
