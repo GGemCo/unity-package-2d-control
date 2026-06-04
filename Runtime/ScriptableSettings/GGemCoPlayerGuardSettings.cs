@@ -76,6 +76,23 @@ namespace GGemCo2DControl
     }
 
     /// <summary>
+    /// 가드 판정 디버그 피드백을 화면에 표시하는 방식을 정의합니다.
+    /// </summary>
+    public enum GuardDebugFeedbackDisplayMode
+    {
+        /// <summary>
+        /// 기존처럼 TextMeshPro 텍스트 오브젝트로 표시합니다.
+        /// </summary>
+        Text = 0,
+
+        /// <summary>
+        /// 설정된 스프라이트가 있으면 UI Image 오브젝트로 표시합니다.
+        /// 스프라이트가 비어 있으면 텍스트 표시로 폴백합니다.
+        /// </summary>
+        Sprite = 1,
+    }
+
+    /// <summary>
     /// 플레이어 가드, 저스트 가드, 가드 브레이크, 스태미나 회복/탈진 정책을 관리하는 설정입니다.
     /// </summary>
     [CreateAssetMenu(fileName = ConfigScriptableObjectControl.PlayerGuard.FileName, menuName = ConfigScriptableObjectControl.PlayerGuard.MenuName, order = ConfigScriptableObjectControl.PlayerGuard.Ordering)]
@@ -177,8 +194,23 @@ namespace GGemCo2DControl
         }
 
         [Header("방어(가드)")]
-        [Tooltip("가드/저스트 가드 디버그 텍스트 보여주기 여부")]
+        [Tooltip("가드/저스트 가드 디버그 피드백 표시 여부")]
         public bool showGuardDebugText = true;
+
+        [Tooltip("가드/저스트 가드 디버그 피드백을 텍스트 또는 스프라이트로 표시할지 결정합니다.")]
+        public GuardDebugFeedbackDisplayMode guardDebugFeedbackDisplayMode = GuardDebugFeedbackDisplayMode.Text;
+
+        [Tooltip("일반 가드 성공 시 표시할 디버그 피드백 스프라이트입니다.")]
+        public Sprite guardDebugFeedbackSprite;
+
+        [Tooltip("저스트 가드 성공 시 표시할 디버그 피드백 스프라이트입니다.")]
+        public Sprite justGuardDebugFeedbackSprite;
+
+        [Tooltip("가드 브레이크 시 표시할 디버그 피드백 스프라이트입니다.")]
+        public Sprite guardBreakDebugFeedbackSprite;
+
+        [Tooltip("디버그 피드백 스프라이트 표시 크기입니다. 0 이하면 스프라이트 원본 크기를 사용합니다.")]
+        public Vector2 guardDebugFeedbackSpriteSize = Vector2.zero;
 
         [Tooltip("방어 애니메이션 prefix (예: guard)")]
         public string prefixGuardAnimation = "guard";

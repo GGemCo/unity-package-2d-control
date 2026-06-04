@@ -98,6 +98,11 @@ namespace GGemCo2DControl
         private bool _guardFrontOnly;
         private bool _guardSuppressHitReaction;
         private bool _justGuardSuppressHitReaction;
+        private GuardDebugFeedbackDisplayMode _guardDebugFeedbackDisplayMode;
+        private Sprite _guardDebugFeedbackSprite;
+        private Sprite _justGuardDebugFeedbackSprite;
+        private Sprite _guardBreakDebugFeedbackSprite;
+        private Vector2 _guardDebugFeedbackSpriteSize;
 
         private float _guardStartedTime = -999f;
         private bool _isCharacterStop;
@@ -224,6 +229,11 @@ namespace GGemCo2DControl
             _guardFrontOnly = playerGuardSettings.guardFrontOnly;
             _guardSuppressHitReaction = playerGuardSettings.guardSuppressHitReaction;
             _justGuardSuppressHitReaction = playerGuardSettings.justGuardSuppressHitReaction;
+            _guardDebugFeedbackDisplayMode = playerGuardSettings.guardDebugFeedbackDisplayMode;
+            _guardDebugFeedbackSprite = playerGuardSettings.guardDebugFeedbackSprite;
+            _justGuardDebugFeedbackSprite = playerGuardSettings.justGuardDebugFeedbackSprite;
+            _guardBreakDebugFeedbackSprite = playerGuardSettings.guardBreakDebugFeedbackSprite;
+            _guardDebugFeedbackSpriteSize = playerGuardSettings.guardDebugFeedbackSpriteSize;
             _isCharacterStop = !(playerGuardSettings && playerGuardSettings.enableExhaustion);
         }
 
@@ -1115,12 +1125,13 @@ namespace GGemCo2DControl
                 RemainingDamage = remainingDamage,
                 SuppressHitReaction = suppressHitReaction,
                 CrowdControlUid = crowdControlUid,
-                FeedbackText = resolvedAsJustGuard ? "JUST GUARD" : "GUARD",
-                FeedbackColor = resolvedAsJustGuard ? Color.yellow : Color.cyan,
             };
 
-            if (playerGuardSettings == null || !playerGuardSettings.showGuardDebugText)
-                result.FeedbackText = string.Empty;
+            ApplyGuardDebugFeedback(
+                ref result,
+                resolvedAsJustGuard ? "JUST GUARD" : "GUARD",
+                resolvedAsJustGuard ? Color.yellow : Color.cyan,
+                resolvedAsJustGuard ? _justGuardDebugFeedbackSprite : _guardDebugFeedbackSprite);
 
             return result;
         }
@@ -1142,14 +1153,47 @@ namespace GGemCo2DControl
                 SuppressHitReaction = true,
                 CrowdControlUid = crowdControlUid,
                 CrowdControlAnimationOverride = BuildGuardBreakCrowdControlAnimationOverride(crowdControlUid),
-                FeedbackText = ResolveGuardBreakFeedbackText(metadataDamage),
-                FeedbackColor = Color.red,
             };
 
-            if (playerGuardSettings == null || !playerGuardSettings.showGuardDebugText)
-                result.FeedbackText = string.Empty;
+            ApplyGuardDebugFeedback(
+                ref result,
+                ResolveGuardBreakFeedbackText(metadataDamage),
+                Color.red,
+                _guardBreakDebugFeedbackSprite);
 
             return result;
+        }
+
+        /// <summary>
+        /// 가드 디버그 피드백 설정에 따라 판정 결과에 텍스트 또는 스프라이트 표시 데이터를 채웁니다.
+        /// </summary>
+        /// <param name="result">표시 데이터를 반영할 가드 판정 결과입니다.</param>
+        /// <param name="fallbackText">텍스트 표시 또는 스프라이트 누락 시 사용할 기본 문구입니다.</param>
+        /// <param name="feedbackColor">텍스트와 스프라이트에 적용할 표시 색상입니다.</param>
+        /// <param name="feedbackSprite">스프라이트 표시 모드에서 사용할 이미지입니다.</param>
+        private void ApplyGuardDebugFeedback(
+            ref GuardResolutionResult result,
+            string fallbackText,
+            Color feedbackColor,
+            Sprite feedbackSprite)
+        {
+            result.FeedbackText = string.Empty;
+            result.FeedbackColor = feedbackColor;
+            result.FeedbackSprite = null;
+            result.FeedbackSpriteSize = Vector2.zero;
+
+            if (playerGuardSettings == null || !playerGuardSettings.showGuardDebugText)
+                return;
+
+            if (_guardDebugFeedbackDisplayMode == GuardDebugFeedbackDisplayMode.Sprite && feedbackSprite != null)
+            {
+                result.FeedbackSprite = feedbackSprite;
+                result.FeedbackSpriteSize = _guardDebugFeedbackSpriteSize;
+                return;
+            }
+
+            // 스프라이트 모드에서 이미지가 비어 있으면 기존 텍스트 피드백으로 안전하게 폴백합니다.
+            result.FeedbackText = fallbackText;
         }
 
         /// <summary>
