@@ -103,6 +103,8 @@ namespace GGemCo2DControl
         private Sprite _justGuardDebugFeedbackSprite;
         private Sprite _guardBreakDebugFeedbackSprite;
         private Vector2 _guardDebugFeedbackSpriteSize;
+        private GuardDebugFeedbackXAxisPolicy _guardDebugFeedbackXAxisPolicy;
+        private float _guardDebugFeedbackPlayerXOffset;
 
         private float _guardStartedTime = -999f;
         private bool _isCharacterStop;
@@ -234,6 +236,8 @@ namespace GGemCo2DControl
             _justGuardDebugFeedbackSprite = playerGuardSettings.justGuardDebugFeedbackSprite;
             _guardBreakDebugFeedbackSprite = playerGuardSettings.guardBreakDebugFeedbackSprite;
             _guardDebugFeedbackSpriteSize = playerGuardSettings.guardDebugFeedbackSpriteSize;
+            _guardDebugFeedbackXAxisPolicy = playerGuardSettings.guardDebugFeedbackXAxisPolicy;
+            _guardDebugFeedbackPlayerXOffset = playerGuardSettings.guardDebugFeedbackPlayerXOffset;
             _isCharacterStop = !(playerGuardSettings && playerGuardSettings.enableExhaustion);
         }
 
@@ -1181,9 +1185,15 @@ namespace GGemCo2DControl
             result.FeedbackColor = feedbackColor;
             result.FeedbackSprite = null;
             result.FeedbackSpriteSize = Vector2.zero;
+            result.UseDefenderXForFeedback = false;
+            result.FeedbackDefenderXOffset = 0f;
+            result.OverrideFeedbackRandomXRange = false;
+            result.FeedbackRandomXRange = 0f;
 
             if (playerGuardSettings == null || !playerGuardSettings.showGuardDebugText)
                 return;
+
+            ApplyGuardDebugFeedbackPositionPolicy(ref result);
 
             if (_guardDebugFeedbackDisplayMode == GuardDebugFeedbackDisplayMode.Sprite && feedbackSprite != null)
             {
@@ -1194,6 +1204,22 @@ namespace GGemCo2DControl
 
             // 스프라이트 모드에서 이미지가 비어 있으면 기존 텍스트 피드백으로 안전하게 폴백합니다.
             result.FeedbackText = fallbackText;
+        }
+
+        /// <summary>
+        /// 가드 디버그 피드백의 X 좌표 기준 정책을 판정 결과에 반영합니다.
+        /// </summary>
+        /// <param name="result">위치 정책을 반영할 가드 판정 결과입니다.</param>
+        private void ApplyGuardDebugFeedbackPositionPolicy(ref GuardResolutionResult result)
+        {
+            if (_guardDebugFeedbackXAxisPolicy != GuardDebugFeedbackXAxisPolicy.PlayerXWithOffset)
+                return;
+
+            result.UseDefenderXForFeedback = true;
+            result.FeedbackDefenderXOffset = _guardDebugFeedbackPlayerXOffset;
+            // 플레이어 X 기준 고정 정책에서는 플로팅 텍스트 기본 랜덤 X 흔들림을 꺼야 기준점이 흔들리지 않습니다.
+            result.OverrideFeedbackRandomXRange = true;
+            result.FeedbackRandomXRange = 0f;
         }
 
         /// <summary>

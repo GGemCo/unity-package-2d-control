@@ -93,6 +93,22 @@ namespace GGemCo2DControl
     }
 
     /// <summary>
+    /// 가드 디버그 피드백 오브젝트의 X 좌표 기준을 정의합니다.
+    /// </summary>
+    public enum GuardDebugFeedbackXAxisPolicy
+    {
+        /// <summary>
+        /// 기존 데미지 텍스트 위치와 랜덤 X 범위 규칙을 그대로 사용합니다.
+        /// </summary>
+        Current = 0,
+
+        /// <summary>
+        /// X 좌표를 플레이어 X 좌표에 고정하고 설정한 오프셋만 더해 표시합니다.
+        /// </summary>
+        PlayerXWithOffset = 1,
+    }
+
+    /// <summary>
     /// 플레이어 가드, 저스트 가드, 가드 브레이크, 스태미나 회복/탈진 정책을 관리하는 설정입니다.
     /// </summary>
     [CreateAssetMenu(fileName = ConfigScriptableObjectControl.PlayerGuard.FileName, menuName = ConfigScriptableObjectControl.PlayerGuard.MenuName, order = ConfigScriptableObjectControl.PlayerGuard.Ordering)]
@@ -211,6 +227,12 @@ namespace GGemCo2DControl
 
         [Tooltip("디버그 피드백 스프라이트 표시 크기입니다. 0 이하면 스프라이트 원본 크기를 사용합니다.")]
         public Vector2 guardDebugFeedbackSpriteSize = Vector2.zero;
+
+        [Tooltip("가드 디버그 피드백 오브젝트의 X 좌표 기준 정책입니다.")]
+        public GuardDebugFeedbackXAxisPolicy guardDebugFeedbackXAxisPolicy = GuardDebugFeedbackXAxisPolicy.Current;
+
+        [Tooltip("X 좌표 기준 정책이 PlayerXWithOffset일 때 플레이어 X 좌표에 더할 오프셋입니다.")]
+        public float guardDebugFeedbackPlayerXOffset;
 
         [Tooltip("방어 애니메이션 prefix (예: guard)")]
         public string prefixGuardAnimation = "guard";
