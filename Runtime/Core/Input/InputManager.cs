@@ -965,6 +965,15 @@ namespace GGemCo2DControl
         }
 
         /// <summary>
+        /// 이동 전용 잠금으로 플레이어의 이동 계열 입력과 이동 실행을 막아야 하는지 확인합니다.
+        /// </summary>
+        /// <returns>이동 계열 입력을 차단해야 하면 <see langword="true"/>입니다.</returns>
+        private bool IsMovementInputLocked()
+        {
+            return _characterBase != null && _characterBase.IsMovementLocked();
+        }
+
+        /// <summary>
         /// 플레이어 공격 범위 안에 자동 이동을 막아야 하는 몬스터가 있는지 확인하고 AutoMove Suspend 상태를 갱신합니다.
         /// </summary>
         private void UpdateAutoMoveSuspendByPatrolArea()
@@ -1018,6 +1027,14 @@ namespace GGemCo2DControl
                 // 벽 고정/키네마틱 점프 등 특수 Wall 상태도 해제
                 _actionWall?.CancelWall(restorePrevious: false);
 
+                return;
+            }
+
+            if (IsMovementInputLocked())
+            {
+                _characterBase.directionNormalize = Vector2.zero;
+                _characterBase.Stop();
+                _actionWall?.CancelWall(restorePrevious: false);
                 return;
             }
 
@@ -1188,6 +1205,7 @@ namespace GGemCo2DControl
         {
             if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
+            if (IsMovementInputLocked()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Jump, Vector2.zero)) return;
             if (ShouldBlockInputByProvider(AutoMoveInputType.Jump)) return;
             _releaseResolver?.PushPress(PlayerButtonId.Jump, Time.unscaledTime);
@@ -1197,6 +1215,7 @@ namespace GGemCo2DControl
         {
             if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
+            if (IsMovementInputLocked()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Jump, Vector2.zero)) return;
             if (ShouldBlockInputByProvider(AutoMoveInputType.Jump)) return;
             _releaseResolver?.PushRelease(PlayerButtonId.Jump, Time.unscaledTime);
@@ -1207,6 +1226,7 @@ namespace GGemCo2DControl
         {
             if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
+            if (IsMovementInputLocked()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Dash, Vector2.zero)) return;
             _releaseResolver?.PushPress(PlayerButtonId.Dash, Time.unscaledTime);
         }
@@ -1215,6 +1235,7 @@ namespace GGemCo2DControl
         {
             if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
+            if (IsMovementInputLocked()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Dash, Vector2.zero)) return;
             _releaseResolver?.PushRelease(PlayerButtonId.Dash, Time.unscaledTime);
         }
@@ -1268,6 +1289,13 @@ namespace GGemCo2DControl
             if (_characterBase != null && _characterBase.IsDontControl())
                 return;
 
+            if (IsMovementInputLocked())
+            {
+                chord = RemoveMovementButtons(chord);
+                if (chord.Buttons.IsEmpty)
+                    return;
+            }
+
             // 0) Interaction은 토글 동작이라 동시입력에서도 우선 처리(예시 정책)
             //    - 후보가 없을 때 다른 액션까지 수행하고 싶다면, 아래 3)에서 설명하는 "bool 반환" 방식으로 개선 권장
             if (chord.Buttons.Contains(PlayerButtonId.Interaction))
@@ -1291,6 +1319,20 @@ namespace GGemCo2DControl
 
             // 2) 조합이 없으면 기존 기본 동작(fallback): 포함된 버튼을 정해진 순서로 모두 실행
             DispatchSingles(in chord);
+        }
+
+        /// <summary>
+        /// 이동 전용 잠금 중 실행되면 안 되는 이동 계열 버튼을 확정 입력에서 제거합니다.
+        /// </summary>
+        /// <param name="chord">입력 버퍼에서 확정된 버튼 조합입니다.</param>
+        /// <returns>이동 계열 버튼이 제거된 버튼 조합입니다.</returns>
+        private static ResolvedButtonChord RemoveMovementButtons(ResolvedButtonChord chord)
+        {
+            PlayerButtonSet buttons = chord.Buttons
+                .Remove(PlayerButtonId.Jump)
+                .Remove(PlayerButtonId.Dash);
+            int virtualReleaseMask = chord.VirtualReleaseMask & buttons.Mask;
+            return new ResolvedButtonChord(buttons, virtualReleaseMask, chord.ResolvedTime);
         }
 
         /// <summary>
@@ -1530,6 +1572,7 @@ namespace GGemCo2DControl
         public bool TryBeginLadder(ObjectClimb climb)
         {
             if (_characterBase.IsStatusDead()) return false;
+            if (IsMovementInputLocked()) return false;
             // 상충 상태 정리
             if (_actionDash.IsDashing) _actionDash.CancelDash(true);
             if (_characterBase.IsStatusJump() && _actionJump.IsJumping)
@@ -1557,6 +1600,7 @@ namespace GGemCo2DControl
         public bool TryBeginPushPull(ObjectPushPull target)
         {
             if (_characterBase.IsStatusDead()) return false;
+            if (IsMovementInputLocked()) return false;
             if (_actionDash.IsDashing) _actionDash.CancelDash(true);
             // 점프 중에는 밀기/당기기 금지(필요 시 조건 수정)
             if (_characterBase.IsStatusJump()) return false;
