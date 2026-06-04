@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using GGemCo2DCore;
 using UnityEngine;
 
@@ -70,6 +71,7 @@ namespace GGemCo2DControl
         private ConfigSortingLayer.Keys _justGuardSuccessVfxSortingLayer;
         private int _justGuardSuccessVfxSortingOrder;
         private Vector3 _justGuardSuccessVfxOffset;
+        private List<GGemCoPlayerGuardSettings.GuardSuccessVfxEntry> _additionalJustGuardSuccessVfxEntries;
         private long _guardBreakStaminaCost;
         private long _guardBreakReGuardStaminaCost;
         private float _guardBreakDamageMultiplier;
@@ -197,6 +199,7 @@ namespace GGemCo2DControl
             _justGuardSuccessVfxSortingLayer = playerGuardSettings.justGuardSuccessVfxSortingLayer;
             _justGuardSuccessVfxSortingOrder = playerGuardSettings.justGuardSuccessVfxSortingOrder;
             _justGuardSuccessVfxOffset = playerGuardSettings.justGuardSuccessVfxOffset;
+            _additionalJustGuardSuccessVfxEntries = playerGuardSettings.additionalJustGuardSuccessVfxEntries;
             _guardBreakStaminaCost = playerGuardSettings.guardBreakStaminaCost;
             _guardBreakReGuardStaminaCost = Math.Max(-1L, playerGuardSettings.guardBreakReGuardStaminaCost);
             _guardBreakDamageMultiplier = Mathf.Clamp01(playerGuardSettings.guardBreakDamageMultiplier);
@@ -827,12 +830,37 @@ namespace GGemCo2DControl
                 positionOffset = _justGuardSuccessVfxOffset;
             }
 
-            if (vfxUid <= 0) return;
-
             SceneGame scene = SceneGame.Instance;
             if (scene == null || scene.VfxManager == null) return;
 
             Vector2 visualDirection = ResolveGuardSuccessVfxDirection(actionCharacterBase);
+            PlayGuardSuccessVfx(scene, vfxUid, sortingLayer, sortingOrder, positionOffset, visualDirection);
+
+            if (isJustGuard)
+                PlayAdditionalJustGuardSuccessVfx(scene, visualDirection);
+        }
+
+        /// <summary>
+        /// 가드 성공 VFX 1개를 현재 캐릭터 위치와 방향 기준으로 재생합니다.
+        /// </summary>
+        /// <param name="scene">VFX 매니저를 보유한 현재 게임 씬입니다.</param>
+        /// <param name="vfxUid">재생할 vfx_effect 테이블 UID입니다. 0 이하면 재생하지 않습니다.</param>
+        /// <param name="sortingLayer">VFX에 적용할 Sorting Layer입니다.</param>
+        /// <param name="sortingOrder">VFX에 적용할 Sorting Order입니다.</param>
+        /// <param name="positionOffset">캐릭터 위치 기준 VFX 오프셋입니다.</param>
+        /// <param name="visualDirection">캐릭터 좌우 반전에 맞춘 VFX 방향입니다.</param>
+        private void PlayGuardSuccessVfx(
+            SceneGame scene,
+            int vfxUid,
+            ConfigSortingLayer.Keys sortingLayer,
+            int sortingOrder,
+            Vector3 positionOffset,
+            Vector2 visualDirection)
+        {
+            if (vfxUid <= 0) return;
+            if (scene == null || scene.VfxManager == null) return;
+            if (actionCharacterBase == null) return;
+
             Vector3 mirroredOffset = ResolveGuardSuccessVfxOffsetByDirection(positionOffset, visualDirection);
             var spawnRequest = new VfxSpawnRequest
             {
@@ -852,6 +880,26 @@ namespace GGemCo2DControl
             };
 
             scene.VfxManager.CreateVfx(spawnRequest);
+        }
+
+        /// <summary>
+        /// 저스트 가드 성공 시 설정에 등록된 추가 VFX 목록을 순서대로 재생합니다.
+        /// </summary>
+        /// <param name="scene">VFX 매니저를 보유한 현재 게임 씬입니다.</param>
+        /// <param name="visualDirection">캐릭터 좌우 반전에 맞춘 VFX 방향입니다.</param>
+        private void PlayAdditionalJustGuardSuccessVfx(SceneGame scene, Vector2 visualDirection)
+        {
+            if (_additionalJustGuardSuccessVfxEntries == null || _additionalJustGuardSuccessVfxEntries.Count == 0)
+                return;
+
+            for (int i = 0; i < _additionalJustGuardSuccessVfxEntries.Count; i++)
+            {
+                GGemCoPlayerGuardSettings.GuardSuccessVfxEntry entry = _additionalJustGuardSuccessVfxEntries[i];
+                if (entry == null)
+                    continue;
+
+                PlayGuardSuccessVfx(scene, entry.vfxUid, entry.sortingLayer, entry.sortingOrder, entry.offset, visualDirection);
+            }
         }
 
         /// <summary>

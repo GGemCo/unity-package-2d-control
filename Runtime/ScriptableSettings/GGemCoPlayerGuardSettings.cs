@@ -136,6 +136,25 @@ namespace GGemCo2DControl
             }
         }
 
+        /// <summary>
+        /// 저스트 가드 성공 시 함께 재생할 추가 VFX 설정입니다.
+        /// </summary>
+        [Serializable]
+        public sealed class GuardSuccessVfxEntry
+        {
+            [Tooltip("저스트 가드 성공 시 추가로 재생할 vfx_effect 테이블 Uid입니다. 0이면 재생하지 않습니다.")]
+            public int vfxUid;
+
+            [Tooltip("저스트 가드 성공 추가 VFX Sorting Layer입니다.")]
+            public ConfigSortingLayer.Keys sortingLayer = ConfigSortingLayer.Keys.CharacterTop;
+
+            [Tooltip("저스트 가드 성공 추가 VFX Sorting Order입니다.")]
+            public int sortingOrder;
+
+            [Tooltip("저스트 가드 성공 추가 VFX 위치 오프셋입니다. World 기준이며 캐릭터 좌우 방향에 따라 X 오프셋이 보정됩니다.")]
+            public Vector3 offset = Vector3.zero;
+        }
+
         // 에디터/플레이모드에서만 쓰일 런타임 이벤트 (직렬화 방지)
         public event Action Changed;
 
@@ -208,6 +227,9 @@ namespace GGemCo2DControl
 
         [Tooltip("저스트 가드 성공 VFX 위치 오프셋(World 기준)")]
         public Vector3 justGuardSuccessVfxOffset = Vector3.zero;
+
+        [Tooltip("저스트 가드 성공 시 단일 VFX와 함께 추가로 재생할 VFX 목록입니다.")]
+        public List<GuardSuccessVfxEntry> additionalJustGuardSuccessVfxEntries = new();
 
         [Header("가드 브레이크")]
         [Tooltip("가드 브레이크 시 추가로 차감할 스테미나입니다. 공격별 설정이 0이면 이 값을 사용합니다.")]
