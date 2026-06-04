@@ -105,6 +105,9 @@ namespace GGemCo2DControl
         private Vector2 _guardDebugFeedbackSpriteSize;
         private GuardDebugFeedbackXAxisPolicy _guardDebugFeedbackXAxisPolicy;
         private float _guardDebugFeedbackPlayerXOffset;
+        private float _guardDebugFeedbackMoveUpDistance;
+        private float _guardDebugFeedbackFadeOutTime;
+        private Easing.EaseType _guardDebugFeedbackEaseType;
 
         private float _guardStartedTime = -999f;
         private bool _isCharacterStop;
@@ -238,6 +241,9 @@ namespace GGemCo2DControl
             _guardDebugFeedbackSpriteSize = playerGuardSettings.guardDebugFeedbackSpriteSize;
             _guardDebugFeedbackXAxisPolicy = playerGuardSettings.guardDebugFeedbackXAxisPolicy;
             _guardDebugFeedbackPlayerXOffset = playerGuardSettings.guardDebugFeedbackPlayerXOffset;
+            _guardDebugFeedbackMoveUpDistance = Mathf.Max(0f, playerGuardSettings.guardDebugFeedbackMoveUpDistance);
+            _guardDebugFeedbackFadeOutTime = Mathf.Max(0.0001f, playerGuardSettings.guardDebugFeedbackFadeOutTime);
+            _guardDebugFeedbackEaseType = playerGuardSettings.guardDebugFeedbackEaseType;
             _isCharacterStop = !(playerGuardSettings && playerGuardSettings.enableExhaustion);
         }
 
@@ -1189,11 +1195,17 @@ namespace GGemCo2DControl
             result.FeedbackDefenderXOffset = 0f;
             result.OverrideFeedbackRandomXRange = false;
             result.FeedbackRandomXRange = 0f;
+            result.OverrideFeedbackMotion = false;
+            result.FeedbackMoveUpDistance = 0f;
+            result.FeedbackFadeOutTime = 0f;
+            result.FeedbackEaseType = default;
+            result.MoveFeedbackDuringFadeOut = false;
 
             if (playerGuardSettings == null || !playerGuardSettings.showGuardDebugText)
                 return;
 
             ApplyGuardDebugFeedbackPositionPolicy(ref result);
+            ApplyGuardDebugFeedbackMotion(ref result);
 
             if (_guardDebugFeedbackDisplayMode == GuardDebugFeedbackDisplayMode.Sprite && feedbackSprite != null)
             {
@@ -1220,6 +1232,20 @@ namespace GGemCo2DControl
             // 플레이어 X 기준 고정 정책에서는 플로팅 텍스트 기본 랜덤 X 흔들림을 꺼야 기준점이 흔들리지 않습니다.
             result.OverrideFeedbackRandomXRange = true;
             result.FeedbackRandomXRange = 0f;
+        }
+
+        /// <summary>
+        /// 가드 디버그 피드백의 이동/페이드 연출 설정을 판정 결과에 반영합니다.
+        /// </summary>
+        /// <param name="result">연출 설정을 반영할 가드 판정 결과입니다.</param>
+        private void ApplyGuardDebugFeedbackMotion(ref GuardResolutionResult result)
+        {
+            result.OverrideFeedbackMotion = true;
+            result.FeedbackMoveUpDistance = _guardDebugFeedbackMoveUpDistance;
+            result.FeedbackFadeOutTime = _guardDebugFeedbackFadeOutTime;
+            result.FeedbackEaseType = _guardDebugFeedbackEaseType;
+            // 가드 디버그 피드백은 Fade Out 시간 안에 목표 높이까지 이동하도록 전용 플래그를 켭니다.
+            result.MoveFeedbackDuringFadeOut = true;
         }
 
         /// <summary>
