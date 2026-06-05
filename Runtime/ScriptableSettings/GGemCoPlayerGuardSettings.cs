@@ -210,41 +210,6 @@ namespace GGemCo2DControl
         }
 
         [Header("방어(가드)")]
-        [Tooltip("가드/저스트 가드 디버그 피드백 표시 여부")]
-        public bool showGuardDebugText = true;
-
-        [Tooltip("가드/저스트 가드 디버그 피드백을 텍스트 또는 스프라이트로 표시할지 결정합니다.")]
-        public GuardDebugFeedbackDisplayMode guardDebugFeedbackDisplayMode = GuardDebugFeedbackDisplayMode.Text;
-
-        [Tooltip("일반 가드 성공 시 표시할 디버그 피드백 스프라이트입니다.")]
-        public Sprite guardDebugFeedbackSprite;
-
-        [Tooltip("저스트 가드 성공 시 표시할 디버그 피드백 스프라이트입니다.")]
-        public Sprite justGuardDebugFeedbackSprite;
-
-        [Tooltip("가드 브레이크 시 표시할 디버그 피드백 스프라이트입니다.")]
-        public Sprite guardBreakDebugFeedbackSprite;
-
-        [Tooltip("디버그 피드백 스프라이트 표시 크기입니다. 0 이하면 스프라이트 원본 크기를 사용합니다.")]
-        public Vector2 guardDebugFeedbackSpriteSize = Vector2.zero;
-
-        [Tooltip("가드 디버그 피드백 오브젝트의 X 좌표 기준 정책입니다.")]
-        public GuardDebugFeedbackXAxisPolicy guardDebugFeedbackXAxisPolicy = GuardDebugFeedbackXAxisPolicy.Current;
-
-        [Tooltip("X 좌표 기준 정책이 PlayerXWithOffset일 때 플레이어 X 좌표에 더할 오프셋입니다.")]
-        public float guardDebugFeedbackPlayerXOffset;
-
-        [Tooltip("가드 디버그 피드백 오브젝트가 위로 이동할 높이입니다.")]
-        [Min(0f)]
-        public float guardDebugFeedbackMoveUpDistance = 50f;
-
-        [Tooltip("가드 디버그 피드백 오브젝트가 Fade Out 되는 시간입니다. 이 시간 안에 목표 위치까지 이동합니다.")]
-        [Min(0.0001f)]
-        public float guardDebugFeedbackFadeOutTime = 0.1f;
-
-        [Tooltip("가드 디버그 피드백 오브젝트의 이동에 사용할 Easing입니다.")]
-        public Easing.EaseType guardDebugFeedbackEaseType = Easing.EaseType.EaseOutCubic;
-
         [Tooltip("방어 애니메이션 prefix (예: guard)")]
         public string prefixGuardAnimation = "guard";
 
@@ -266,6 +231,40 @@ namespace GGemCo2DControl
         [Header("가드 입력 캔슬")]
         [Tooltip("공격 중 가드 입력을 허용할 구간입니다. 기본값은 기존 동작 유지를 위해 공격 본 애니메이션과 콤보 대기 구간 모두에서 허용합니다.")]
         public AttackGuardCancelPolicy attackGuardCancelPolicy = AttackGuardCancelPolicy.AttackAndComboWait;
+
+        [Header("방어(가드) - 피드백 연출")]
+        [Tooltip("가드/저스트 가드 피드백 표시 여부")]
+        public bool showGuardFeedback = true;
+
+        [Tooltip("가드/저스트 가드 피드백을 텍스트 또는 스프라이트로 표시할지 결정합니다.")]
+        public GuardDebugFeedbackDisplayMode guardFeedbackDisplayMode = GuardDebugFeedbackDisplayMode.Text;
+
+        [Tooltip("일반 가드 성공 시 표시할 피드백 스프라이트입니다.")]
+        public Sprite guardFeedbackSprite;
+
+        [Tooltip("저스트 가드 성공 시 표시할 피드백 스프라이트입니다.")]
+        public Sprite justGuardFeedbackSprite;
+
+        [Tooltip("가드 브레이크 시 표시할 피드백 스프라이트입니다.")]
+        public Sprite guardBreakFeedbackSprite;
+
+        [Tooltip("피드백 스프라이트 표시 크기입니다. 0 이하면 스프라이트 원본 크기를 사용합니다.")]
+        public Vector2 guardFeedbackSpriteSize = Vector2.zero;
+
+        [Tooltip("일반 가드 성공 피드백에 재생할 ui_effect 데이터 테이블 UID입니다. 0이면 기본 플로팅 표시만 사용합니다.")]
+        public int guardFeedbackUiEffectUid;
+
+        [Tooltip("저스트 가드 성공 피드백에 재생할 ui_effect 데이터 테이블 UID입니다. 0이면 일반 가드 UID를 사용합니다.")]
+        public int justGuardFeedbackUiEffectUid;
+
+        [Tooltip("가드 브레이크 피드백에 재생할 ui_effect 데이터 테이블 UID입니다. 0이면 기본 플로팅 표시만 사용합니다.")]
+        public int guardBreakFeedbackUiEffectUid;
+
+        [Tooltip("가드 피드백 오브젝트의 X 좌표 기준 정책입니다.")]
+        public GuardDebugFeedbackXAxisPolicy guardFeedbackXAxisPolicy = GuardDebugFeedbackXAxisPolicy.Current;
+
+        [Tooltip("X 좌표 기준 정책이 PlayerXWithOffset일 때 플레이어 X 좌표에 더할 오프셋입니다.")]
+        public float guardFeedbackPlayerXOffset;
 
         [Header("방어 성공 VFX")]
         [Tooltip("방어 성공 시 재생할 vfx_effect 테이블 Uid")]

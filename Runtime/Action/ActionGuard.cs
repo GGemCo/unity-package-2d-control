@@ -103,11 +103,11 @@ namespace GGemCo2DControl
         private Sprite _justGuardDebugFeedbackSprite;
         private Sprite _guardBreakDebugFeedbackSprite;
         private Vector2 _guardDebugFeedbackSpriteSize;
+        private int _guardDebugFeedbackUiEffectUid;
+        private int _justGuardDebugFeedbackUiEffectUid;
+        private int _guardBreakDebugFeedbackUiEffectUid;
         private GuardDebugFeedbackXAxisPolicy _guardDebugFeedbackXAxisPolicy;
         private float _guardDebugFeedbackPlayerXOffset;
-        private float _guardDebugFeedbackMoveUpDistance;
-        private float _guardDebugFeedbackFadeOutTime;
-        private Easing.EaseType _guardDebugFeedbackEaseType;
 
         private float _guardStartedTime = -999f;
         private bool _isCharacterStop;
@@ -234,16 +234,16 @@ namespace GGemCo2DControl
             _guardFrontOnly = playerGuardSettings.guardFrontOnly;
             _guardSuppressHitReaction = playerGuardSettings.guardSuppressHitReaction;
             _justGuardSuppressHitReaction = playerGuardSettings.justGuardSuppressHitReaction;
-            _guardDebugFeedbackDisplayMode = playerGuardSettings.guardDebugFeedbackDisplayMode;
-            _guardDebugFeedbackSprite = playerGuardSettings.guardDebugFeedbackSprite;
-            _justGuardDebugFeedbackSprite = playerGuardSettings.justGuardDebugFeedbackSprite;
-            _guardBreakDebugFeedbackSprite = playerGuardSettings.guardBreakDebugFeedbackSprite;
-            _guardDebugFeedbackSpriteSize = playerGuardSettings.guardDebugFeedbackSpriteSize;
-            _guardDebugFeedbackXAxisPolicy = playerGuardSettings.guardDebugFeedbackXAxisPolicy;
-            _guardDebugFeedbackPlayerXOffset = playerGuardSettings.guardDebugFeedbackPlayerXOffset;
-            _guardDebugFeedbackMoveUpDistance = Mathf.Max(0f, playerGuardSettings.guardDebugFeedbackMoveUpDistance);
-            _guardDebugFeedbackFadeOutTime = Mathf.Max(0.0001f, playerGuardSettings.guardDebugFeedbackFadeOutTime);
-            _guardDebugFeedbackEaseType = playerGuardSettings.guardDebugFeedbackEaseType;
+            _guardDebugFeedbackDisplayMode = playerGuardSettings.guardFeedbackDisplayMode;
+            _guardDebugFeedbackSprite = playerGuardSettings.guardFeedbackSprite;
+            _justGuardDebugFeedbackSprite = playerGuardSettings.justGuardFeedbackSprite;
+            _guardBreakDebugFeedbackSprite = playerGuardSettings.guardBreakFeedbackSprite;
+            _guardDebugFeedbackSpriteSize = playerGuardSettings.guardFeedbackSpriteSize;
+            _guardDebugFeedbackUiEffectUid = Mathf.Max(0, playerGuardSettings.guardFeedbackUiEffectUid);
+            _justGuardDebugFeedbackUiEffectUid = Mathf.Max(0, playerGuardSettings.justGuardFeedbackUiEffectUid);
+            _guardBreakDebugFeedbackUiEffectUid = Mathf.Max(0, playerGuardSettings.guardBreakFeedbackUiEffectUid);
+            _guardDebugFeedbackXAxisPolicy = playerGuardSettings.guardFeedbackXAxisPolicy;
+            _guardDebugFeedbackPlayerXOffset = playerGuardSettings.guardFeedbackPlayerXOffset;
             _isCharacterStop = !(playerGuardSettings && playerGuardSettings.enableExhaustion);
         }
 
@@ -1141,7 +1141,8 @@ namespace GGemCo2DControl
                 ref result,
                 resolvedAsJustGuard ? "JUST GUARD" : "GUARD",
                 resolvedAsJustGuard ? Color.yellow : Color.cyan,
-                resolvedAsJustGuard ? _justGuardDebugFeedbackSprite : _guardDebugFeedbackSprite);
+                resolvedAsJustGuard ? _justGuardDebugFeedbackSprite : _guardDebugFeedbackSprite,
+                ResolveGuardDebugFeedbackUiEffectUid(resolvedAsJustGuard));
 
             return result;
         }
@@ -1169,7 +1170,8 @@ namespace GGemCo2DControl
                 ref result,
                 ResolveGuardBreakFeedbackText(metadataDamage),
                 Color.red,
-                _guardBreakDebugFeedbackSprite);
+                _guardBreakDebugFeedbackSprite,
+                _guardBreakDebugFeedbackUiEffectUid);
 
             return result;
         }
@@ -1181,11 +1183,13 @@ namespace GGemCo2DControl
         /// <param name="fallbackText">텍스트 표시 또는 스프라이트 누락 시 사용할 기본 문구입니다.</param>
         /// <param name="feedbackColor">텍스트와 스프라이트에 적용할 표시 색상입니다.</param>
         /// <param name="feedbackSprite">스프라이트 표시 모드에서 사용할 이미지입니다.</param>
+        /// <param name="uiEffectUid">생성된 피드백 UI에 재생할 ui_effect 데이터 테이블 UID입니다.</param>
         private void ApplyGuardDebugFeedback(
             ref GuardResolutionResult result,
             string fallbackText,
             Color feedbackColor,
-            Sprite feedbackSprite)
+            Sprite feedbackSprite,
+            int uiEffectUid)
         {
             result.FeedbackText = string.Empty;
             result.FeedbackColor = feedbackColor;
@@ -1195,17 +1199,12 @@ namespace GGemCo2DControl
             result.FeedbackDefenderXOffset = 0f;
             result.OverrideFeedbackRandomXRange = false;
             result.FeedbackRandomXRange = 0f;
-            result.OverrideFeedbackMotion = false;
-            result.FeedbackMoveUpDistance = 0f;
-            result.FeedbackFadeOutTime = 0f;
-            result.FeedbackEaseType = default;
-            result.MoveFeedbackDuringFadeOut = false;
+            result.FeedbackUiEffectUid = Mathf.Max(0, uiEffectUid);
 
-            if (playerGuardSettings == null || !playerGuardSettings.showGuardDebugText)
+            if (playerGuardSettings == null || !playerGuardSettings.showGuardFeedback)
                 return;
 
             ApplyGuardDebugFeedbackPositionPolicy(ref result);
-            ApplyGuardDebugFeedbackMotion(ref result);
 
             if (_guardDebugFeedbackDisplayMode == GuardDebugFeedbackDisplayMode.Sprite && feedbackSprite != null)
             {
@@ -1235,17 +1234,18 @@ namespace GGemCo2DControl
         }
 
         /// <summary>
-        /// 가드 디버그 피드백의 이동/페이드 연출 설정을 판정 결과에 반영합니다.
+        /// 가드 결과 종류에 맞는 UI 효과 UID를 반환합니다.
         /// </summary>
-        /// <param name="result">연출 설정을 반영할 가드 판정 결과입니다.</param>
-        private void ApplyGuardDebugFeedbackMotion(ref GuardResolutionResult result)
+        /// <param name="resolvedAsJustGuard">저스트 가드 성공으로 처리되었는지 여부입니다.</param>
+        /// <returns>적용할 ui_effect 데이터 테이블 UID입니다. 없으면 0입니다.</returns>
+        private int ResolveGuardDebugFeedbackUiEffectUid(bool resolvedAsJustGuard)
         {
-            result.OverrideFeedbackMotion = true;
-            result.FeedbackMoveUpDistance = _guardDebugFeedbackMoveUpDistance;
-            result.FeedbackFadeOutTime = _guardDebugFeedbackFadeOutTime;
-            result.FeedbackEaseType = _guardDebugFeedbackEaseType;
-            // 가드 디버그 피드백은 Fade Out 시간 안에 목표 높이까지 이동하도록 전용 플래그를 켭니다.
-            result.MoveFeedbackDuringFadeOut = true;
+            if (resolvedAsJustGuard && _justGuardDebugFeedbackUiEffectUid > 0)
+            {
+                return _justGuardDebugFeedbackUiEffectUid;
+            }
+
+            return _guardDebugFeedbackUiEffectUid;
         }
 
         /// <summary>
