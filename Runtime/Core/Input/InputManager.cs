@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using GGemCo2DCore;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -899,6 +899,7 @@ namespace GGemCo2DControl
             _actionClimb?.CancelClimb(skipEndAnimation: true, restoreGravity: true);
             _actionPushPull?.Cancel();
             _toolAction?.Cancel();
+            _actionAttack?.CancelAttackByIncomingHit(reason);
             _actionWall?.CancelWall(restorePrevious: reason == IncomingHitCancelReason.Death);
             _actionGuard?.CancelGuard(true);
 

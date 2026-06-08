@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using GGemCo2DCore;
 using UnityEngine;
 
@@ -126,6 +126,63 @@ namespace GGemCo2DControl
         {
             StopPendingAttackRoutines();
             ClearAttackCombo();
+        }
+
+        /// <summary>
+        /// 피격으로 인해 기본 공격 콤보를 중단하고, 설정에 따라 진행 중인 Crowd Control을 정리합니다.
+        /// </summary>
+        /// <param name="reason">피격으로 인한 액션 취소 사유입니다.</param>
+        /// <remarks>
+        /// Crowd Control 중단 여부는 콤보 상태와 <see cref="GGemCoAttackComboSettings"/> 정책을 먼저 확인한 뒤 결정합니다.
+        /// 콤보 인덱스를 초기화하기 전에 판정하여 현재 공격 단계의 설정을 안정적으로 읽습니다.
+        /// </remarks>
+        public void CancelAttackByIncomingHit(IncomingHitCancelReason reason)
+        {
+            bool shouldStopCrowdControl = ShouldStopCrowdControlOnIncomingHit(reason);
+
+            StopPendingAttackRoutines();
+            ClearAttackCombo();
+
+            if (!shouldStopCrowdControl)
+                return;
+
+            GameObject source = actionCharacterBase != null ? actionCharacterBase.gameObject : null;
+            if (!CharacterCrowdControlController.TryStopCrowdControlsBySource(source, CrowdControlStopReason.IncomingHit))
+            {
+                actionCharacterBase?.TryStopCrowdControl(CrowdControlStopReason.IncomingHit);
+            }
+        }
+
+        /// <summary>
+        /// 현재 피격 사유와 공격 콤보 정책을 기준으로 Crowd Control 중단 여부를 계산합니다.
+        /// </summary>
+        /// <param name="reason">피격으로 인한 액션 취소 사유입니다.</param>
+        /// <returns>Crowd Control을 중단해야 하면 <see langword="true"/>를 반환합니다.</returns>
+        private bool ShouldStopCrowdControlOnIncomingHit(IncomingHitCancelReason reason)
+        {
+            if (reason != IncomingHitCancelReason.Damage)
+                return false;
+
+            if (!IsPlayingBasicAttackCombo())
+                return false;
+
+            return _attackComboSettings != null &&
+                   _attackComboSettings.ShouldStopCrowdControlOnIncomingHit(_currentCombo);
+        }
+
+        /// <summary>
+        /// 현재 캐릭터가 기본 공격 콤보 모션 또는 콤보 대기 상태를 유지하고 있는지 확인합니다.
+        /// </summary>
+        /// <returns>기본 공격 콤보 진행 중이면 <see langword="true"/>를 반환합니다.</returns>
+        private bool IsPlayingBasicAttackCombo()
+        {
+            if (actionCharacterBase == null)
+                return false;
+
+            if (_countCombo <= 0 || _currentCombo < 0 || _currentCombo >= _countCombo)
+                return false;
+
+            return actionCharacterBase.IsStatusAttack() || actionCharacterBase.IsStatusAttackComboWait();
         }
 
         /// <summary>

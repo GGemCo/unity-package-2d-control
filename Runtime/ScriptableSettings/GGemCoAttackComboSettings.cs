@@ -29,6 +29,13 @@ namespace GGemCo2DControl
             [Tooltip("플레이어에게 적용되는 효과 (Affect UID)")]
             public int affectUid;
 
+            [Header("피격 인터럽트 설정")]
+            [Tooltip("이 콤보 단계에서 피격 시 CC 중단 정책을 개별 설정할지 여부입니다.")]
+            public bool overrideStopCrowdControlOnIncomingHit;
+
+            [Tooltip("이 콤보 단계 중 피격되면 현재 적용 중이거나 예약된 Crowd Control을 중단합니다.")]
+            public bool stopCrowdControlOnIncomingHit = true;
+
             [Header("HitStop 설정")]
             [Tooltip("이 공격이 실제로 명중했을 때 적용할 HitStop 설정입니다.")]
             public AttackHitStopSettings hitStop = AttackHitStopSettings.Disabled;
@@ -58,39 +65,64 @@ namespace GGemCo2DControl
         }
         [Header("공격 셋팅")]
         public List<StruckAttackSetting> attacks;
+
+        [Header("피격 인터럽트 기본 설정")]
+        [Tooltip("기본 콤보 공격 중 피격되면 현재 적용 중이거나 예약된 Crowd Control을 중단합니다.")]
+        public bool stopCrowdControlOnIncomingHitDuringAttackCombo = true;
         
         public float GetWaitTime(int index)
         {
-            if (index < 0 || index >= attacks.Count) return 0;
+            if (attacks == null || index < 0 || index >= attacks.Count) return 0;
             return attacks[index].waitTime;
         }
         public float GetMoveForwardDistance(int index)
         {
-            if (index < 0 || index >= attacks.Count) return 0;
+            if (attacks == null || index < 0 || index >= attacks.Count) return 0;
             return attacks[index].moveForwardDistance;
         }
 
         public float GetMoveForwardSpeed(int index)
         {
-            if (index < 0 || index >= attacks.Count) return 0;
+            if (attacks == null || index < 0 || index >= attacks.Count) return 0;
             return attacks[index].moveForwardSpeed;
         }
 
         public string GetAnimationName(int index)
         {
-            if (index < 0 || index >= attacks.Count) return "";
+            if (attacks == null || index < 0 || index >= attacks.Count) return "";
             return attacks[index].animationName;
         }
 
         public int GetCountCombo()
         {
-            return attacks.Count;
+            return attacks != null ? attacks.Count : 0;
         }
 
         public int GetAffectUid(int index)
         {
-            if (index < 0 || index >= attacks.Count) return 0;
+            if (attacks == null || index < 0 || index >= attacks.Count) return 0;
             return attacks[index].affectUid;
+        }
+
+        /// <summary>
+        /// 지정한 콤보 인덱스에서 피격 시 Crowd Control을 중단해야 하는지 확인합니다.
+        /// </summary>
+        /// <param name="index">조회할 콤보 인덱스입니다.</param>
+        /// <returns>피격 시 Crowd Control을 중단해야 하면 <see langword="true"/>를 반환합니다.</returns>
+        /// <remarks>
+        /// 콤보 단계에 개별 오버라이드가 설정되어 있으면 해당 값을 우선하고,
+        /// 그렇지 않으면 전역 기본 정책인 <see cref="stopCrowdControlOnIncomingHitDuringAttackCombo"/> 값을 사용합니다.
+        /// </remarks>
+        public bool ShouldStopCrowdControlOnIncomingHit(int index)
+        {
+            if (attacks == null || index < 0 || index >= attacks.Count)
+                return stopCrowdControlOnIncomingHitDuringAttackCombo;
+
+            StruckAttackSetting attack = attacks[index];
+            if (attack == null || !attack.overrideStopCrowdControlOnIncomingHit)
+                return stopCrowdControlOnIncomingHitDuringAttackCombo;
+
+            return attack.stopCrowdControlOnIncomingHit;
         }
 
 
