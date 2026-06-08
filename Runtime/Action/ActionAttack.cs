@@ -139,8 +139,15 @@ namespace GGemCo2DControl
         public void CancelAttackByIncomingHit(IncomingHitCancelReason reason)
         {
             bool shouldStopCrowdControl = ShouldStopCrowdControlOnIncomingHit(reason);
+            bool shouldStopMoveForward = ShouldStopMoveForwardOnIncomingHit(reason);
 
             StopPendingAttackRoutines();
+
+            if (shouldStopMoveForward)
+            {
+                actionCharacterBase?.CancelMoveForce();
+            }
+
             ClearAttackCombo();
 
             if (!shouldStopCrowdControl)
@@ -168,6 +175,23 @@ namespace GGemCo2DControl
 
             return _attackComboSettings != null &&
                    _attackComboSettings.ShouldStopCrowdControlOnIncomingHit(_currentCombo);
+        }
+
+        /// <summary>
+        /// 현재 피격 사유와 공격 콤보 정책을 기준으로 공격 전방 이동 중단 여부를 계산합니다.
+        /// </summary>
+        /// <param name="reason">피격으로 인한 액션 취소 사유입니다.</param>
+        /// <returns>공격 전방 이동을 중단해야 하면 <see langword="true"/>를 반환합니다.</returns>
+        private bool ShouldStopMoveForwardOnIncomingHit(IncomingHitCancelReason reason)
+        {
+            if (reason != IncomingHitCancelReason.Damage)
+                return false;
+
+            if (!IsPlayingBasicAttackCombo())
+                return false;
+
+            return _attackComboSettings != null &&
+                   _attackComboSettings.ShouldStopMoveForwardOnIncomingHit(_currentCombo);
         }
 
         /// <summary>

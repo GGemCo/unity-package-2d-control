@@ -36,6 +36,12 @@ namespace GGemCo2DControl
             [Tooltip("이 콤보 단계 중 피격되면 현재 적용 중이거나 예약된 Crowd Control을 중단합니다.")]
             public bool stopCrowdControlOnIncomingHit = true;
 
+            [Tooltip("이 콤보 단계에서 피격 시 공격 전방 이동 중단 정책을 개별 설정할지 여부입니다.")]
+            public bool overrideStopMoveForwardOnIncomingHit;
+
+            [Tooltip("이 콤보 단계 중 피격되면 공격으로 시작한 전방 이동 보간을 중단합니다.")]
+            public bool stopMoveForwardOnIncomingHit = true;
+
             [Header("HitStop 설정")]
             [Tooltip("이 공격이 실제로 명중했을 때 적용할 HitStop 설정입니다.")]
             public AttackHitStopSettings hitStop = AttackHitStopSettings.Disabled;
@@ -69,6 +75,9 @@ namespace GGemCo2DControl
         [Header("피격 인터럽트 기본 설정")]
         [Tooltip("기본 콤보 공격 중 피격되면 현재 적용 중이거나 예약된 Crowd Control을 중단합니다.")]
         public bool stopCrowdControlOnIncomingHitDuringAttackCombo = true;
+
+        [Tooltip("기본 콤보 공격 중 피격되면 공격으로 시작한 전방 이동 보간을 중단합니다.")]
+        public bool stopMoveForwardOnIncomingHitDuringAttackCombo = true;
         
         public float GetWaitTime(int index)
         {
@@ -123,6 +132,27 @@ namespace GGemCo2DControl
                 return stopCrowdControlOnIncomingHitDuringAttackCombo;
 
             return attack.stopCrowdControlOnIncomingHit;
+        }
+
+        /// <summary>
+        /// 지정한 콤보 인덱스에서 피격 시 공격 전방 이동을 중단해야 하는지 확인합니다.
+        /// </summary>
+        /// <param name="index">조회할 콤보 인덱스입니다.</param>
+        /// <returns>피격 시 공격 전방 이동을 중단해야 하면 <see langword="true"/>를 반환합니다.</returns>
+        /// <remarks>
+        /// 콤보 단계에 개별 오버라이드가 설정되어 있으면 해당 값을 우선하고,
+        /// 그렇지 않으면 전역 기본 정책인 <see cref="stopMoveForwardOnIncomingHitDuringAttackCombo"/> 값을 사용합니다.
+        /// </remarks>
+        public bool ShouldStopMoveForwardOnIncomingHit(int index)
+        {
+            if (attacks == null || index < 0 || index >= attacks.Count)
+                return stopMoveForwardOnIncomingHitDuringAttackCombo;
+
+            StruckAttackSetting attack = attacks[index];
+            if (attack == null || !attack.overrideStopMoveForwardOnIncomingHit)
+                return stopMoveForwardOnIncomingHitDuringAttackCombo;
+
+            return attack.stopMoveForwardOnIncomingHit;
         }
 
 
