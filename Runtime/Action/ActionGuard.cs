@@ -562,7 +562,7 @@ namespace GGemCo2DControl
         {
             if (actionCharacterBase == null) return 0;
 
-            long maxStamina = actionCharacterBase.TotalStamina.Value;
+            long maxStamina = actionCharacterBase.MaxStamina.Value;
             if (maxStamina <= 0) return 0;
 
             float ratio = Mathf.Clamp01(_justGuardSuccessStaminaCostValue);

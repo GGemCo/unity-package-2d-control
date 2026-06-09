@@ -1,4 +1,4 @@
-﻿using GGemCo2DCore;
+using GGemCo2DCore;
 using UnityEngine;
 
 namespace GGemCo2DControl
@@ -73,7 +73,7 @@ namespace GGemCo2DControl
             }
 
             // 이미 가득 차 있으면 누적하지 않는다(해제 직후 즉시 회복 방지)
-            if (_character.CurrentStamina.Value >= _character.TotalStamina.Value)
+            if (_character.CurrentStamina.Value >= _character.MaxStamina.Value)
             {
                 _acc = 0f;
                 return;
@@ -92,7 +92,7 @@ namespace GGemCo2DControl
                     _character.RestoreStamina(amount);
                 }
 
-                if (_character.CurrentStamina.Value >= _character.TotalStamina.Value)
+                if (_character.CurrentStamina.Value >= _character.MaxStamina.Value)
                 {
                     _acc = 0f;
                     break;
@@ -111,7 +111,7 @@ namespace GGemCo2DControl
 
                 case ConfigCommon.CalculateType.PercentOfMax:
                 {
-                    long max = _character.TotalStamina.Value;
+                    long max = _character.MaxStamina.Value;
 
                     // _value: 0~1 (예: 0.02f = 2%)
                     float ratio = Mathf.Clamp01(_value);

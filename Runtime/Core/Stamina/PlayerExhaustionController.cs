@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using GGemCo2DCore;
 using R3;
 using UnityEngine;
@@ -208,7 +208,7 @@ namespace GGemCo2DControl
             if (_character == null)
                 return false;
 
-            return _character.TotalStamina.Value > 0 && currentStamina <= 0;
+            return _character.MaxStamina.Value > 0 && currentStamina <= 0;
         }
 
         private void CacheAnimationAvailability()
@@ -255,7 +255,7 @@ namespace GGemCo2DControl
             _loopReplayPending = false;
             _pendingEndAfterDamage = false;
 
-            long maxStamina = Math.Max(0L, _character.TotalStamina.Value);
+            long maxStamina = Math.Max(0L, _character.MaxStamina.Value);
             _recoverTargetStamina = Math.Max(0L, Mathf.CeilToInt(maxStamina * _recoverRatio));
             if (_recoverTargetStamina > maxStamina)
             {
