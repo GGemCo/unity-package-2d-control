@@ -96,6 +96,20 @@ namespace GGemCo2DControl
             return _attackComboSettings.TryGetCameraShakeSettings(_currentCombo, out settings);
         }
 
+        /// <summary>
+        /// 현재 공격 콤보 단계에 설정된 데미지 공식 정책을 조회합니다.
+        /// </summary>
+        /// <param name="settings">현재 콤보 단계의 데미지 공식 설정입니다.</param>
+        /// <returns>사용 가능한 공식 설정이 있으면 <see langword="true"/>를 반환합니다.</returns>
+        public bool TryGetCurrentDamageFormulaSettings(out AttackComboDamageFormulaSettings settings)
+        {
+            settings = AttackComboDamageFormulaSettings.Default;
+            if (_attackComboSettings == null)
+                return false;
+
+            return _attackComboSettings.TryGetDamageFormulaSettings(_currentCombo, out settings);
+        }
+
         private bool IsLastAttackCombo()
         {
             return _currentCombo == _countCombo - 1;

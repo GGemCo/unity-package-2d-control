@@ -29,6 +29,10 @@ namespace GGemCo2DControl
             [Tooltip("플레이어에게 적용되는 효과 (Affect UID)")]
             public int affectUid;
 
+            [Header("데미지 공식 설정")]
+            [Tooltip("이 콤보 단계에서 사용할 데미지 공식 설정입니다. 커스텀 사용이 꺼져 있으면 기존 기본 물리 공격 공식을 사용합니다.")]
+            public AttackComboDamageFormulaSettings damageFormula = AttackComboDamageFormulaSettings.Default;
+
             [Header("피격 인터럽트 설정")]
             [Tooltip("이 콤보 단계에서 피격 시 CC 중단 정책을 개별 설정할지 여부입니다.")]
             public bool overrideStopCrowdControlOnIncomingHit;
@@ -111,6 +115,26 @@ namespace GGemCo2DControl
         {
             if (attacks == null || index < 0 || index >= attacks.Count) return 0;
             return attacks[index].affectUid;
+        }
+
+        /// <summary>
+        /// 지정한 콤보 인덱스에 설정된 데미지 공식 정책을 조회합니다.
+        /// </summary>
+        /// <param name="index">조회할 콤보 인덱스입니다.</param>
+        /// <param name="settings">조회된 데미지 공식 설정입니다.</param>
+        /// <returns>조회 가능한 콤보 단계가 있으면 <see langword="true"/>를 반환합니다.</returns>
+        public bool TryGetDamageFormulaSettings(int index, out AttackComboDamageFormulaSettings settings)
+        {
+            settings = AttackComboDamageFormulaSettings.Default;
+            if (attacks == null || index < 0 || index >= attacks.Count)
+                return false;
+
+            StruckAttackSetting attack = attacks[index];
+            if (attack == null)
+                return false;
+
+            settings = attack.damageFormula;
+            return true;
         }
 
         /// <summary>
