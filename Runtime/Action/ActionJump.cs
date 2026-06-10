@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using GGemCo2DCore;
 using UnityEngine;
 
@@ -30,6 +30,7 @@ namespace GGemCo2DControl
         private float _baseGravityScale;
         private float _jumpVelocityY;
         private CharacterPhysicsOverrideHandle _jumpGravityOverrideHandle;
+        private CharacterAirborneHandle _jumpAirborneHandle;
         private float _prevGravityScale;
 
         // --- Phase ---
@@ -115,6 +116,7 @@ namespace GGemCo2DControl
         public override void OnDestroy() 
         {
             base.OnDestroy();
+            ReleaseJumpAirborneState();
             ReleaseJumpGravityOverride();
             actionCharacterBase.OnAnimationEventJump -= OnAnimationEventJump;
         }
@@ -200,6 +202,7 @@ namespace GGemCo2DControl
             if (!actionCharacterBase.IsStatusJump())
                 actionCharacterBase.SetStatusJump();
 
+            AcquireJumpAirborneState("ActionJump.External");
             ApplyJumpGravityOverride();
 
             // Height/Speed에 맞춘 최소 vy를 보장
@@ -249,6 +252,7 @@ namespace GGemCo2DControl
 
             actionCharacterBase.SetStatusJump();
 
+            AcquireJumpAirborneState("ActionJump.Jump");
             ApplyJumpGravityOverride();
 
             float vy = Mathf.Max(_rb.GetLinearVelocity().y, _jumpVelocityY);
@@ -347,6 +351,8 @@ namespace GGemCo2DControl
                         // 공중 상태로 전환(프로젝트 표준에 맞춰 Jump 상태 사용)
                         if (!actionCharacterBase.IsStatusJump())
                             actionCharacterBase.SetStatusJump();
+
+                        AcquireJumpAirborneState("ActionJump.PassiveFall");
 
                         // Cliff-fall은 중력 스케일을 변경하지 않음 (복구 불필요)
                         _changedGravity = false;
@@ -565,11 +571,38 @@ namespace GGemCo2DControl
             _changedGravity = false;
         }
 
+
+        /// <summary>
+        /// 점프 액션이 소유하는 강제 공중 상태를 등록합니다.
+        /// 이미 등록된 핸들이 있으면 중복 등록하지 않고 기존 상태를 유지합니다.
+        /// </summary>
+        /// <param name="reason">공중 상태를 등록한 점프 흐름 설명입니다.</param>
+        private void AcquireJumpAirborneState(string reason)
+        {
+            if (_jumpAirborneHandle.IsValid)
+                return;
+
+            _jumpAirborneHandle = actionCharacterBase.AcquireAirborne(CharacterAirborneSource.Jump, reason);
+        }
+
+        /// <summary>
+        /// 점프 액션이 등록한 강제 공중 상태를 해제합니다.
+        /// </summary>
+        private void ReleaseJumpAirborneState()
+        {
+            if (!_jumpAirborneHandle.IsValid)
+                return;
+
+            actionCharacterBase.ReleaseAirborne(_jumpAirborneHandle);
+            _jumpAirborneHandle = default;
+        }
+
         private void FinishAndStop()
         {
             _phase = JumpPhase.None;
 
             // 점프 입력으로만 중력을 바꿨을 때 복구
+            ReleaseJumpAirborneState();
             ReleaseJumpGravityOverride();
 
             if (!_suppressStatusRelease)
@@ -697,6 +730,7 @@ namespace GGemCo2DControl
                 }
 
                 _phase = JumpPhase.None;
+                ReleaseJumpAirborneState();
 
                 if (!_suppressStatusRelease)
                     actionCharacterBase.Stop();   // 프로젝트 표준 상태 복귀(Idle/Run 등)
