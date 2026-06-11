@@ -94,6 +94,8 @@ namespace GGemCo2DControl
         public bool canDashPlayJumping;
         [Tooltip("스킬 사용 중 대시 가능 여부")]
         public bool canDashUseSkill;
+        [Tooltip("공중 대시 후 하강 애니메이션 prefix입니다. 비어 있으면 점프 하강 애니메이션 prefix를 사용합니다.")]
+        public string prefixAirDashFallAnimation;
 
         [Header("등반")]
         [Tooltip("기본 등반 속도 비율 (플레이어 이동 속도 기준)\n예: 1=100%, 0.5=50%\n※ 오브젝트 값이 0보다 크면 그 값을 우선 사용")]

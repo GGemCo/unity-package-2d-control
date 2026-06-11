@@ -56,6 +56,8 @@ namespace GGemCo2DControl
         private string _animJumpChangeFall;
         private string _animJumpFallLoop;
         private string _animJumpEnd;
+        private string _animAirDashFallLoop;
+        private string _animAirDashEnd;
 
         // --- Ground / Ceiling Layer ---
         private LayerMask _groundMask;
@@ -72,6 +74,7 @@ namespace GGemCo2DControl
 
         // --- 보유 여부 캐시 ---
         private bool _hasStart, _hasUp, _hasChangeFall, _hasFall, _hasEnd;
+        private bool _hasAirDashFall, _hasAirDashEnd;
         
         // Cliff-fall 감지용
         private bool _wasGrounded;
@@ -86,6 +89,8 @@ namespace GGemCo2DControl
         private System.Func<bool> _isDashActive; // 외부(대시)에서 현재 대시 중인지 질의
         private System.Func<bool> _isWallActionActive; // 외부(벽 액션)에서 현재 벽 상태인지 질의
         private bool _suppressStatusRelease;
+        private bool _useAirDashFallForNextPassiveFall;
+        private bool _usingAirDashFallProfile;
 
         public override void Initialize(InputManager inputManager, CharacterBase characterBase, CharacterBaseController characterBaseController)
         {
@@ -163,6 +168,19 @@ namespace GGemCo2DControl
             _animJumpChangeFall = prefix + "_change_fall";
             _animJumpFallLoop   = prefix + "_fall";
             _animJumpEnd        = prefix + "_end";
+
+            _animAirDashFallLoop = null;
+            _animAirDashEnd = null;
+
+            if (playerActionSettings == null ||
+                string.IsNullOrWhiteSpace(playerActionSettings.prefixAirDashFallAnimation))
+            {
+                return;
+            }
+
+            string airDashFallPrefix = playerActionSettings.prefixAirDashFallAnimation;
+            _animAirDashFallLoop = airDashFallPrefix + "_fall";
+            _animAirDashEnd = airDashFallPrefix + "_end";
         }
         private void RefreshJumpAnimationAvailability()
         {
@@ -172,6 +190,10 @@ namespace GGemCo2DControl
             _hasChangeFall = HasAnimation(_animJumpChangeFall);
             _hasFall       = HasAnimation(_animJumpFallLoop);
             _hasEnd        = HasAnimation(_animJumpEnd);
+            _hasAirDashFall = !string.IsNullOrWhiteSpace(_animAirDashFallLoop) &&
+                              HasAnimation(_animAirDashFallLoop);
+            _hasAirDashEnd  = !string.IsNullOrWhiteSpace(_animAirDashEnd) &&
+                              HasAnimation(_animAirDashEnd);
         }
         public void Configure(float desiredJumpHeight, float timeToApex)
         {
@@ -197,6 +219,7 @@ namespace GGemCo2DControl
 
             // Jump 물리 상수 재계산
             RecalculatePhysicsConstants(desiredJumpHeight, timeToApex);
+            ClearAirDashFallAnimationState();
 
             // Jump 상태로 전환(착지 처리 포함)
             if (!actionCharacterBase.IsStatusJump())
@@ -250,6 +273,7 @@ namespace GGemCo2DControl
             if (actionCharacterBase.IsStatusAttackComboWait()) return;
             if (actionCharacterBase.IsStatusJump()) return;
 
+            ClearAirDashFallAnimationState();
             actionCharacterBase.SetStatusJump();
 
             AcquireJumpAirborneState("ActionJump.Jump");
@@ -348,6 +372,8 @@ namespace GGemCo2DControl
                     // 전투 등 방해 상태는 존중
                     if (!actionCharacterBase.IsStatusAttack() && !actionCharacterBase.IsStatusAttackComboWait())
                     {
+                        _usingAirDashFallProfile = ConsumeAirDashFallAnimationRequest();
+
                         // 공중 상태로 전환(프로젝트 표준에 맞춰 Jump 상태 사용)
                         if (!actionCharacterBase.IsStatusJump())
                             actionCharacterBase.SetStatusJump();
@@ -365,6 +391,7 @@ namespace GGemCo2DControl
             else
             {
                 _airborneTime = 0f;
+                ClearAirDashFallAnimationState();
             }
         }
 
@@ -477,16 +504,17 @@ namespace GGemCo2DControl
                     break;
 
                 case JumpPhase.FallLoop:
-                    if (_hasFall) PlayAnimSafe(_animJumpFallLoop);
+                    if (TryGetFallLoopAnimation(out string fallLoopAnimation))
+                        PlayAnimSafe(fallLoopAnimation);
                     break;
 
                 case JumpPhase.LandOneShot:
                     RequestLandingSeparation();
 
-                    if (_hasEnd)
+                    if (TryGetLandEndAnimation(out string landEndAnimation))
                     {
-                        PlayAnimSafe(_animJumpEnd);
-                        StartAwaiting(next, _animJumpEnd);
+                        PlayAnimSafe(landEndAnimation);
+                        StartAwaiting(next, landEndAnimation);
                     }
                     else
                     {
@@ -525,6 +553,84 @@ namespace GGemCo2DControl
             if (_clipLength.TryGetValue(clipName, out var len) && len > 0f)
                 return len + 0.02f;
             return DefaultOneshotTimeout;
+        }
+
+        /// <summary>
+        /// 다음 passive fall 진입 시 공중 대시 후 하강 애니메이션 프로필을 한 번 사용하도록 예약합니다.
+        /// </summary>
+        /// <remarks>
+        /// 대시가 끝난 직후에는 아직 Jump FSM이 passive fall로 진입하지 않았을 수 있으므로,
+        /// 실제 하강 상태가 열리는 시점에 요청을 소비해 일반 점프 하강과 분리합니다.
+        /// </remarks>
+        public void RequestAirDashFallAnimationForNextPassiveFall()
+        {
+            _useAirDashFallForNextPassiveFall = true;
+        }
+
+        /// <summary>
+        /// 예약된 공중 대시 후 하강 애니메이션 프로필을 소비할 수 있는지 확인합니다.
+        /// </summary>
+        /// <returns>전용 하강 또는 착지 애니메이션 중 하나라도 있으면 <see langword="true"/>입니다.</returns>
+        private bool ConsumeAirDashFallAnimationRequest()
+        {
+            if (!_useAirDashFallForNextPassiveFall)
+                return false;
+
+            _useAirDashFallForNextPassiveFall = false;
+            return HasAirDashFallAnimationProfile();
+        }
+
+        /// <summary>
+        /// 공중 대시 후 하강 애니메이션 프로필이 실제로 사용할 수 있는 상태인지 확인합니다.
+        /// </summary>
+        /// <returns>설정 prefix와 대응 애니메이션 중 하나 이상이 있으면 <see langword="true"/>입니다.</returns>
+        private bool HasAirDashFallAnimationProfile()
+        {
+            return !string.IsNullOrWhiteSpace(_animAirDashFallLoop) &&
+                   (_hasAirDashFall || _hasAirDashEnd);
+        }
+
+        /// <summary>
+        /// 현재 하강 상태에서 재생할 하강 루프 애니메이션 이름을 결정합니다.
+        /// </summary>
+        /// <param name="animationName">재생 가능한 하강 루프 애니메이션 이름입니다.</param>
+        /// <returns>재생할 애니메이션이 있으면 <see langword="true"/>입니다.</returns>
+        private bool TryGetFallLoopAnimation(out string animationName)
+        {
+            if (_usingAirDashFallProfile && _hasAirDashFall)
+            {
+                animationName = _animAirDashFallLoop;
+                return true;
+            }
+
+            animationName = _hasFall ? _animJumpFallLoop : null;
+            return !string.IsNullOrWhiteSpace(animationName);
+        }
+
+        /// <summary>
+        /// 현재 착지 상태에서 재생할 착지 종료 애니메이션 이름을 결정합니다.
+        /// </summary>
+        /// <param name="animationName">재생 가능한 착지 종료 애니메이션 이름입니다.</param>
+        /// <returns>재생할 애니메이션이 있으면 <see langword="true"/>입니다.</returns>
+        private bool TryGetLandEndAnimation(out string animationName)
+        {
+            if (_usingAirDashFallProfile && _hasAirDashEnd)
+            {
+                animationName = _animAirDashEnd;
+                return true;
+            }
+
+            animationName = _hasEnd ? _animJumpEnd : null;
+            return !string.IsNullOrWhiteSpace(animationName);
+        }
+
+        /// <summary>
+        /// 공중 대시 후 하강 애니메이션 예약과 사용 상태를 초기화합니다.
+        /// </summary>
+        private void ClearAirDashFallAnimationState()
+        {
+            _useAirDashFallForNextPassiveFall = false;
+            _usingAirDashFallProfile = false;
         }
 
         private void ApplyJumpGravityOverride()
@@ -600,6 +706,7 @@ namespace GGemCo2DControl
         private void FinishAndStop()
         {
             _phase = JumpPhase.None;
+            ClearAirDashFallAnimationState();
 
             // 점프 입력으로만 중력을 바꿨을 때 복구
             ReleaseJumpAirborneState();
@@ -717,7 +824,7 @@ namespace GGemCo2DControl
             ClearAwaiting();
 
             // 즉시 종료 경로 (엔딩 애니메이션 스킵 또는 jump_end 미보유)
-            if (skipLandAnimation || !_hasEnd)
+            if (skipLandAnimation || !TryGetLandEndAnimation(out _))
             {
                 // 점프 입력으로 중력을 바꿨었다면 선택적으로 복구
                 if (restoreGravity)
@@ -730,6 +837,7 @@ namespace GGemCo2DControl
                 }
 
                 _phase = JumpPhase.None;
+                ClearAirDashFallAnimationState();
                 ReleaseJumpAirborneState();
 
                 if (!_suppressStatusRelease)

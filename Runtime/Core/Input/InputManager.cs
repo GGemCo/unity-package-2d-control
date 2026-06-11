@@ -1038,7 +1038,25 @@ namespace GGemCo2DControl
         /// </summary>
         private void OnDashFinished()
         {
+            RequestAirDashFallAnimationIfNeeded();
             DashFinished?.Invoke();
+        }
+
+        /// <summary>
+        /// 공중 대시가 끝난 뒤 이어지는 passive fall에서 전용 하강 애니메이션을 한 번 사용하도록 예약합니다.
+        /// </summary>
+        /// <remarks>
+        /// 실제 하강 상태 진입과 착지 처리는 <see cref="ActionJump"/>가 담당하므로,
+        /// 여기서는 대시 종료 시점이 아직 공중인지 확인한 뒤 다음 하강 프로필만 예약합니다.
+        /// </remarks>
+        private void RequestAirDashFallAnimationIfNeeded()
+        {
+            if (_actionJump == null || _actionJump.IsGroundedByCollision())
+            {
+                return;
+            }
+
+            _actionJump.RequestAirDashFallAnimationForNextPassiveFall();
         }
 
         /// <summary>
