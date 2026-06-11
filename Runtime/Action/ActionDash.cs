@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
+using System;
 using GGemCo2DCore;
 using UnityEngine;
 
@@ -14,6 +15,21 @@ namespace GGemCo2DControl
     {
         // (선택) 외부에서 상태 조회용 프로퍼티
         public bool IsDashing => _phase != DashPhase.None;
+
+        /// <summary>
+        /// 대시가 정상 시작된 직후 호출됩니다.
+        /// </summary>
+        public event Action DashStarted;
+
+        /// <summary>
+        /// 대시 종료 애니메이션과 물리 복구까지 모두 끝난 뒤 호출됩니다.
+        /// </summary>
+        public event Action DashFinished;
+
+        /// <summary>
+        /// 대시 후 wait 시간이 만료되어 기존 대시 종료 단계로 넘어가기 직전에 호출됩니다.
+        /// </summary>
+        public event Action PostDashWaitFinished;
 
         // --- 캐시 ---
         private Rigidbody2D _rb;
@@ -34,9 +50,11 @@ namespace GGemCo2DControl
         private float _elapsed;
         private float _prevS;
         private float _moved;
+        private float _waitElapsed;
+        private float _postDashWaitSeconds;
 
         // --- Phase ---
-        private enum DashPhase { None, StartOneShot, PlayLoop, EndOneShot }
+        private enum DashPhase { None, StartOneShot, PlayLoop, WaitLoop, EndOneShot }
         private DashPhase _phase = DashPhase.None;
 
         // --- 워치독 ---
@@ -47,6 +65,7 @@ namespace GGemCo2DControl
         // --- 애니메이션 이름 ---
         private const string AnimDashStart = "dash";
         private const string AnimDashPlay  = "dash_play";
+        private const string AnimDashWait  = "dash_wait";
         private const string AnimDashEnd   = "dash_end";
 
         // --- 충돌 ---
@@ -54,12 +73,13 @@ namespace GGemCo2DControl
         private const float CastSkin = 0.04f;
 
         // --- 보유 여부 ---
-        private bool _hasStart, _hasPlay, _hasEnd;
+        private bool _hasStart, _hasPlay, _hasWait, _hasEnd;
 
         // --- 입력/중복 ---
         private bool _isBusy;
         // ActionDash 필드 섹션
         private CharacterPhysicsOverrideHandle _dashGravityOverrideHandle;
+        private CharacterAirborneHandle _dashWaitAirborneHandle;
         private float _prevGravityScaleDash;
         private bool  _changedGravityDash; // 대시 중 중력 변경 여부
 
@@ -89,6 +109,7 @@ namespace GGemCo2DControl
 
             _hasStart = HasAnimation(AnimDashStart);
             _hasPlay  = HasAnimation(AnimDashPlay);
+            _hasWait  = HasAnimation(AnimDashWait);
             _hasEnd   = HasAnimation(AnimDashEnd);
 
             actionCharacterBase.OnAnimationEventDash += OnAnimationEventDash;
@@ -97,6 +118,7 @@ namespace GGemCo2DControl
         public override void OnDestroy()
         {
             base.OnDestroy();
+            ReleaseDashWaitAirborne();
             RestoreGravityAfterDash();
             actionCharacterBase.OnAnimationEventDash -= OnAnimationEventDash;
         }
@@ -127,14 +149,38 @@ namespace GGemCo2DControl
 
         #region 입력/업데이트
 
-        public void Dash()
+        /// <summary>
+        /// 현재 상태에서 대시를 시작할 수 있는지 확인합니다.
+        /// </summary>
+        /// <param name="allowAttackComboWait">
+        /// 기존 일반 대시에서는 막는 AttackComboWait 상태를 외부 콤보 규칙에서만 예외적으로 허용할지 여부입니다.
+        /// </param>
+        /// <returns>대시 시작 조건을 만족하면 <see langword="true"/>입니다.</returns>
+        public bool CanBeginDash(bool allowAttackComboWait = false)
         {
-            if (_rb == null) return;
-            if (IsHitStopped()) return;
-            if (_isBusy) return;
+            if (_rb == null) return false;
+            if (IsHitStopped()) return false;
+            if (_isBusy) return false;
+            if (actionCharacterBase == null) return false;
+            if (actionCharacterBase.IsStatusAttack()) return false;
+            if (!allowAttackComboWait && actionCharacterBase.IsStatusAttackComboWait()) return false;
+            return true;
+        }
 
-            if (actionCharacterBase.IsStatusAttack()) return;
-            if (actionCharacterBase.IsStatusAttackComboWait()) return;
+        /// <summary>
+        /// 대시를 시작합니다.
+        /// </summary>
+        /// <param name="postDashWaitSeconds">
+        /// 이동 대시가 끝난 뒤 <c>dash_wait</c> 애니메이션으로 공중에 머무를 시간입니다.
+        /// 0 이하이면 기존처럼 바로 대시 종료 단계로 진입합니다.
+        /// </param>
+        /// <param name="allowAttackComboWait">
+        /// 기존 대시에서는 막는 AttackComboWait 상태를 외부 콤보 규칙에서만 예외적으로 허용할지 여부입니다.
+        /// </param>
+        /// <returns>대시가 시작되었으면 <see langword="true"/>입니다.</returns>
+        public bool Dash(float postDashWaitSeconds = 0f, bool allowAttackComboWait = false)
+        {
+            if (!CanBeginDash(allowAttackComboWait)) return false;
 
             // 필요 시 상태 전환: _characterBase.SetStatusDash() 등
             actionCharacterBase.SetStatusDash();
@@ -144,8 +190,12 @@ namespace GGemCo2DControl
             _elapsed  = 0f;
             _prevS    = 0f;
             _moved    = 0f;
+            _waitElapsed = 0f;
+            _postDashWaitSeconds = Mathf.Max(0f, postDashWaitSeconds);
 
             EnterPhase(DashPhase.StartOneShot);
+            DashStarted?.Invoke();
+            return true;
         }
 
         public void Update()
@@ -173,7 +223,7 @@ namespace GGemCo2DControl
 
                 if (deltaDist > 0f && IsBlockedAhead(deltaDist + CastSkin))
                 {
-                    EnterPhase(DashPhase.EndOneShot);
+                    EnterPostDashWaitOrEnd();
                     return;
                 }
 
@@ -189,7 +239,19 @@ namespace GGemCo2DControl
 
                 if (_elapsed >= _dashDuration - 1e-5f || _moved >= _dashDistance - 1e-4f)
                 {
-                    EnterPhase(DashPhase.EndOneShot);
+                    EnterPostDashWaitOrEnd();
+                }
+            }
+
+            if (_phase == DashPhase.WaitLoop)
+            {
+                float dt = Time.unscaledDeltaTime;
+                _waitElapsed += dt;
+                _rb.SetLinearVelocity(Vector2.zero);
+
+                if (_waitElapsed >= _postDashWaitSeconds)
+                {
+                    FinishPostDashWait();
                 }
             }
         }
@@ -223,8 +285,20 @@ namespace GGemCo2DControl
                     if (_hasPlay) PlayAnimSafe(AnimDashPlay);
                     break;
 
+                case DashPhase.WaitLoop:
+                    ApplyNoGravityDuringDash();
+                    AcquireDashWaitAirborne();
+                    _rb.SetLinearVelocity(Vector2.zero);
+                    _waitElapsed = 0f;
+                    if (_hasWait)
+                    {
+                        PlayAnimSafe(AnimDashWait, loop: true);
+                    }
+                    break;
+
                 case DashPhase.EndOneShot:
                     // 여기서는 중력 원복을 하지 않습니다. (엔딩 재생 후 FinishAndStop에서 복구)
+                    ReleaseDashWaitAirborne();
                     _rb.SetLinearVelocity(new Vector2(0f, _rb.GetLinearVelocity().y));
                     if (_hasEnd)
                     {
@@ -257,6 +331,40 @@ namespace GGemCo2DControl
             _isBusy = false;
             RestoreGravityAfterDash(); // ← 중력 복구
             actionCharacterBase.Stop(); // 필요 시 상태 복귀 커스터마이즈
+            _postDashWaitSeconds = 0f;
+            _waitElapsed = 0f;
+            DashFinished?.Invoke();
+        }
+
+        /// <summary>
+        /// 이동 대시 이후 설정된 대기 시간이 있으면 wait 단계로, 없으면 기존 종료 단계로 진입합니다.
+        /// </summary>
+        private void EnterPostDashWaitOrEnd()
+        {
+            if (_postDashWaitSeconds > 0f)
+            {
+                EnterPhase(DashPhase.WaitLoop);
+                return;
+            }
+
+            EnterPhase(DashPhase.EndOneShot);
+        }
+
+        /// <summary>
+        /// dash_wait 대기 시간이 끝났음을 알리고 기존 대시 종료 단계로 진입합니다.
+        /// </summary>
+        private void FinishPostDashWait()
+        {
+            if (_phase != DashPhase.WaitLoop)
+            {
+                return;
+            }
+
+            PostDashWaitFinished?.Invoke();
+            if (_phase == DashPhase.WaitLoop)
+            {
+                EnterPhase(DashPhase.EndOneShot);
+            }
         }
 
         private void StartAwaiting(DashPhase phase, string clipName)
@@ -277,9 +385,14 @@ namespace GGemCo2DControl
             return DefaultOneShotTimeout;
         }
 
-        private void PlayAnimSafe(string stateName)
+        /// <summary>
+        /// 대시 애니메이션을 안전하게 재생합니다.
+        /// </summary>
+        /// <param name="stateName">재생할 애니메이션 상태 이름입니다.</param>
+        /// <param name="loop">반복 재생 여부입니다.</param>
+        private void PlayAnimSafe(string stateName, bool loop = false)
         {
-            actionCharacterBase.CharacterAnimationController?.PlayCharacterAnimation(stateName);
+            actionCharacterBase.CharacterAnimationController?.PlayCharacterAnimation(stateName, loop);
         }
 
         private void OnAnimationEventDash(CharacterBase sender, EventArgsOnAnimationEventDash e)
@@ -347,15 +460,19 @@ namespace GGemCo2DControl
             if (_phase == DashPhase.None) return;
 
             ClearAwaiting();
+            ReleaseDashWaitAirborne();
 
             if (skipEndAnimation || !_hasEnd)
             {
                 _rb.SetLinearVelocity(new Vector2(0f, _rb.GetLinearVelocity().y));
                 _phase  = DashPhase.None;
                 _isBusy = false;
+                _postDashWaitSeconds = 0f;
+                _waitElapsed = 0f;
 
                 RestoreGravityAfterDash();        // ← 즉시 취소 시 바로 복구
                 actionCharacterBase.Stop();
+                DashFinished?.Invoke();
                 return;
             }
 
@@ -403,6 +520,36 @@ namespace GGemCo2DControl
 
             _dashGravityOverrideHandle = default;
             _changedGravityDash = false;
+        }
+
+        /// <summary>
+        /// 대시 후 wait 단계 동안 다른 시스템이 캐릭터를 지상 상태로 오인하지 않도록 강제 공중 토큰을 등록합니다.
+        /// </summary>
+        private void AcquireDashWaitAirborne()
+        {
+            if (_dashWaitAirborneHandle.IsValid || actionCharacterBase == null)
+            {
+                return;
+            }
+
+            _dashWaitAirborneHandle = actionCharacterBase.AcquireAirborne(
+                CharacterAirborneSource.External,
+                "ActionDash.Wait");
+        }
+
+        /// <summary>
+        /// 대시 wait 단계에서 등록한 강제 공중 토큰을 해제합니다.
+        /// </summary>
+        private void ReleaseDashWaitAirborne()
+        {
+            if (!_dashWaitAirborneHandle.IsValid || actionCharacterBase == null)
+            {
+                _dashWaitAirborneHandle = default;
+                return;
+            }
+
+            actionCharacterBase.ReleaseAirborne(_dashWaitAirborneHandle);
+            _dashWaitAirborneHandle = default;
         }
 
     }

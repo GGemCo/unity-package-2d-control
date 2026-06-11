@@ -1,4 +1,4 @@
-﻿using GGemCo2DCore;
+using GGemCo2DCore;
 using UnityEngine;
 
 namespace GGemCo2DControl

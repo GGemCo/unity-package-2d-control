@@ -44,6 +44,16 @@ namespace GGemCo2DControl
         /// </summary>
         public event System.Action<bool> ExhaustionStateChanged;
 
+        /// <summary>
+        /// 대시 종료 애니메이션과 물리 복구가 모두 끝났을 때 호출됩니다.
+        /// </summary>
+        public event System.Action DashFinished;
+
+        /// <summary>
+        /// 대시 후 wait 시간이 만료되어 기존 대시 종료 단계로 넘어가기 직전에 호출됩니다.
+        /// </summary>
+        public event System.Action DashWaitFinished;
+
         private CharacterBase _characterBase;
         private CharacterBaseController _characterBaseController;
         private ICharacterMotionController _motionController;
@@ -107,6 +117,10 @@ namespace GGemCo2DControl
         // 프로젝트 전용 공격 입력 override 핸들러 캐시
         private readonly List<MonoBehaviour> _attackInputOverrideComponentBuffer = new();
         private readonly List<IPlayerAttackInputOverrideHandler> _attackInputOverrideHandlers = new();
+
+        // 프로젝트 전용 가드 입력 override 핸들러 캐시
+        private readonly List<MonoBehaviour> _guardInputOverrideComponentBuffer = new();
+        private readonly List<IPlayerGuardInputOverrideHandler> _guardInputOverrideHandlers = new();
 
         // 프로젝트 전용 입력 차단 Provider 캐시
         private readonly List<MonoBehaviour> _inputBlockProviderComponentBuffer = new();
@@ -445,6 +459,8 @@ namespace GGemCo2DControl
 
             _actionDash = new ActionDash();
             _actionDash.Initialize(this, _characterBase, _characterBaseController);
+            _actionDash.DashFinished += OnDashFinished;
+            _actionDash.PostDashWaitFinished += OnDashWaitFinished;
 
             _actionClimb = new ActionClimb();
             _actionClimb.Initialize(this, _characterBase, _characterBaseController);
@@ -606,7 +622,12 @@ namespace GGemCo2DControl
             _actionGuard?.OnDestroy();
             _actionMove?.OnDestroy();
             _actionJump?.OnDestroy();
-            _actionDash?.OnDestroy();
+            if (_actionDash != null)
+            {
+                _actionDash.DashFinished -= OnDashFinished;
+                _actionDash.PostDashWaitFinished -= OnDashWaitFinished;
+                _actionDash.OnDestroy();
+            }
 
             _actionWall?.OnDestroy();
 
@@ -819,6 +840,61 @@ namespace GGemCo2DControl
         }
 
         /// <summary>
+        /// 상위 계층의 프로젝트 전용 규칙에서 대시를 직접 시작합니다.
+        /// </summary>
+        /// <param name="postDashWaitSeconds">대시 이동 후 <c>dash_wait</c> 애니메이션으로 머무를 시간입니다.</param>
+        /// <param name="staminaCost">대시 시작에 필요한 스테미나입니다. 0 이하이면 스테미나를 소모하지 않습니다.</param>
+        /// <param name="denyLog">대시 시작이 거절된 경우의 설명입니다.</param>
+        /// <param name="allowAttackComboWait">
+        /// 기존 일반 대시에서는 막는 AttackComboWait 상태를 프로젝트 전용 콤보 규칙에서만 예외적으로 허용할지 여부입니다.
+        /// </param>
+        /// <returns>대시가 시작되었으면 <see langword="true"/>입니다.</returns>
+        public bool TryBeginDashFromExternal(
+            float postDashWaitSeconds,
+            long staminaCost,
+            out string denyLog,
+            bool allowAttackComboWait = false)
+        {
+            denyLog = null;
+            if (!_isInitialized || _characterBase == null || _policy == null || _actionDash == null)
+            {
+                denyLog = "대시 입력 시스템이 아직 초기화되지 않았습니다.";
+                return false;
+            }
+
+            if (!_policy.TryPrepareDash(out denyLog))
+            {
+                return false;
+            }
+
+            if (!_actionDash.CanBeginDash(allowAttackComboWait))
+            {
+                denyLog = "현재 캐릭터 상태에서는 대시를 시작할 수 없습니다.";
+                return false;
+            }
+
+            long safeStaminaCost = System.Math.Max(0L, staminaCost);
+            if (safeStaminaCost > 0L && !_characterBase.TrySpendStamina(safeStaminaCost))
+            {
+                denyLog = "대시에 필요한 스테미나가 부족합니다.";
+                return false;
+            }
+
+            if (_actionDash.Dash(postDashWaitSeconds, allowAttackComboWait))
+            {
+                return true;
+            }
+
+            if (safeStaminaCost > 0L)
+            {
+                _characterBase.RestoreStamina(safeStaminaCost);
+            }
+
+            denyLog = "대시 액션 시작에 실패했습니다.";
+            return false;
+        }
+
+        /// <summary>
         /// 플레이어 스킬 시작 직전에 점프/대시 등 잔존 중인 입력 액션을 정리합니다.
         /// Ground Slam 같은 공중 스킬이 시작된 뒤에도 이전 Jump FSM이 살아남아 Fall 애니메이션을 다시 점유하는 문제를 방지합니다.
         /// </summary>
@@ -929,6 +1005,22 @@ namespace GGemCo2DControl
         private void OnExhaustionStateChanged(bool isExhausting)
         {
             ExhaustionStateChanged?.Invoke(isExhausting);
+        }
+
+        /// <summary>
+        /// 대시 액션의 종료 이벤트를 상위 계층으로 전달합니다.
+        /// </summary>
+        private void OnDashFinished()
+        {
+            DashFinished?.Invoke();
+        }
+
+        /// <summary>
+        /// 대시 wait 만료 이벤트를 상위 계층 프로젝트 규칙으로 전달합니다.
+        /// </summary>
+        private void OnDashWaitFinished()
+        {
+            DashWaitFinished?.Invoke();
         }
 
         private void CancelActionsForExhaustion()
@@ -1196,6 +1288,7 @@ namespace GGemCo2DControl
             if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Guard, Vector2.zero)) return;
             if (ShouldBlockInputByProvider(AutoMoveInputType.Guard)) return;
+            if (TryHandleGuardInputOverride()) return;
 
             // Guard는 "홀드" 입력이므로 릴리즈 버퍼(Chord) 시스템을 통하지 않고 즉시 시작합니다.
             // - started: 버튼 Down
@@ -1498,6 +1591,58 @@ namespace GGemCo2DControl
         }
 
         /// <summary>
+        /// 현재 플레이어 오브젝트에 부착된 가드 입력 override 핸들러를 순서대로 호출합니다.
+        /// </summary>
+        /// <returns>어느 하나의 핸들러가 가드 입력을 소비하면 true입니다.</returns>
+        private bool TryHandleGuardInputOverride()
+        {
+            RefreshGuardInputOverrideHandlers();
+
+            for (int i = 0; i < _guardInputOverrideHandlers.Count; i++)
+            {
+                IPlayerGuardInputOverrideHandler handler = _guardInputOverrideHandlers[i];
+                if (handler == null)
+                {
+                    continue;
+                }
+
+                if (handler.TryHandleGuardInput())
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 같은 GameObject에 부착된 MonoBehaviour 중 가드 입력 override 포트를 구현한 컴포넌트를 수집합니다.
+        /// </summary>
+        /// <remarks>
+        /// 프로젝트 전용 입력 규칙 컴포넌트가 런타임 부트스트랩 과정에서 추가될 수 있으므로, 가드 입력 시점에 최신 목록을 다시 구성합니다.
+        /// </remarks>
+        private void RefreshGuardInputOverrideHandlers()
+        {
+            _guardInputOverrideHandlers.Clear();
+            _guardInputOverrideComponentBuffer.Clear();
+
+            GetComponents(_guardInputOverrideComponentBuffer);
+            for (int i = 0; i < _guardInputOverrideComponentBuffer.Count; i++)
+            {
+                MonoBehaviour component = _guardInputOverrideComponentBuffer[i];
+                if (component == null || !component.isActiveAndEnabled)
+                {
+                    continue;
+                }
+
+                if (component is IPlayerGuardInputOverrideHandler handler)
+                {
+                    _guardInputOverrideHandlers.Add(handler);
+                }
+            }
+        }
+
+        /// <summary>
         /// 현재 플레이어 오브젝트에 부착된 입력 차단 Provider를 통해 지정한 입력을 차단할지 확인합니다.
         /// </summary>
         /// <param name="inputType">검사할 입력 타입입니다.</param>
@@ -1560,7 +1705,10 @@ namespace GGemCo2DControl
             
             if (chord.Buttons.Contains(PlayerButtonId.Guard))
             {
-                _guardHandler?.Handle();
+                if (!TryHandleGuardInputOverride())
+                {
+                    _guardHandler?.Handle();
+                }
             }
 
             if (chord.Buttons.Contains(PlayerButtonId.Jump))
