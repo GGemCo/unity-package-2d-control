@@ -190,6 +190,17 @@ namespace GGemCo2DControl
             _waitElapsed = 0f;
             _postDashWaitSeconds = Mathf.Max(0f, postDashWaitSeconds);
 
+            Debug.Log($"[ActionDash][DashStart]" +
+                      $"postWait={_postDashWaitSeconds}" +
+                      $"dashDistance={_dashDistance}" +
+                      $"dashDuration={_dashDuration}" +
+                      $"dir={_dashDir}" +
+                      $"hasStart={_hasStart}" +
+                      $"hasPlay={_hasPlay}" +
+                      $"hasEnd={_hasEnd}" +
+                      $"currentFacing={actionCharacterBase.CurrentFacing}" +
+                      $"statusDash={actionCharacterBase.IsStatusDash()}");
+            
             EnterPhase(DashPhase.StartOneShot);
             DashStarted?.Invoke();
             return true;

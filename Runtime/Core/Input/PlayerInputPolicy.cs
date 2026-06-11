@@ -252,7 +252,15 @@ namespace GGemCo2DControl
             return true;
         }
 
-        public bool TryPrepareDash(out string denyLog)
+        /// <summary>
+        /// 현재 캐릭터 상태에서 대시 입력을 시작할 수 있도록 상충 상태를 정리합니다.
+        /// </summary>
+        /// <param name="denyLog">대시 입력을 거부할 때 출력할 로그입니다.</param>
+        /// <param name="allowSkillStateByExternalRule">
+        /// 상위 계층의 전용 규칙이 승인한 대시일 때 스킬 사용 상태의 <c>CanDashUseSkill</c> 검사를 우회할지 여부입니다.
+        /// </param>
+        /// <returns>대시 준비가 완료되었으면 <see langword="true"/>입니다.</returns>
+        public bool TryPrepareDash(out string denyLog, bool allowSkillStateByExternalRule = false)
         {
             denyLog = null;
             if (_character.IsStatusDead()) return false;
@@ -297,6 +305,13 @@ namespace GGemCo2DControl
             }
             else if (_character.IsStatusCastingSkill() || _character.IsStatusUseSkill())
             {
+                if (allowSkillStateByExternalRule)
+                {
+                    // 프로젝트 전용 콤보 대시처럼 상위 규칙이 이미 허용한 경우에는
+                    // 일반 대시 설정인 canDashUseSkill보다 외부 규칙을 우선합니다.
+                    return true;
+                }
+
                 if (CanDashUseSkill)
                 {
                     var cancel = _getSkillCancelable?.Invoke();

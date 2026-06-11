@@ -848,12 +848,16 @@ namespace GGemCo2DControl
         /// <param name="allowAttackComboWait">
         /// 기존 일반 대시에서는 막는 AttackComboWait 상태를 프로젝트 전용 콤보 규칙에서만 예외적으로 허용할지 여부입니다.
         /// </param>
+        /// <param name="allowSkillStateByExternalRule">
+        /// 상위 계층의 전용 규칙이 승인한 대시일 때 스킬 사용 상태의 <c>canDashUseSkill</c> 검사를 우회할지 여부입니다.
+        /// </param>
         /// <returns>대시가 시작되었으면 <see langword="true"/>입니다.</returns>
         public bool TryBeginDashFromExternal(
             float postDashWaitSeconds,
             long staminaCost,
             out string denyLog,
-            bool allowAttackComboWait = false)
+            bool allowAttackComboWait = false,
+            bool allowSkillStateByExternalRule = false)
         {
             denyLog = null;
             if (!_isInitialized || _characterBase == null || _policy == null || _actionDash == null)
@@ -862,7 +866,7 @@ namespace GGemCo2DControl
                 return false;
             }
 
-            if (!_policy.TryPrepareDash(out denyLog))
+            if (!_policy.TryPrepareDash(out denyLog, allowSkillStateByExternalRule))
             {
                 return false;
             }
@@ -874,9 +878,8 @@ namespace GGemCo2DControl
             }
 
             long safeStaminaCost = System.Math.Max(0L, staminaCost);
-            if (safeStaminaCost > 0L && !_characterBase.TrySpendStamina(safeStaminaCost))
+            if (!TrySpendExternalDashStamina(safeStaminaCost, out denyLog))
             {
-                denyLog = "대시에 필요한 스테미나가 부족합니다.";
                 return false;
             }
 
@@ -891,6 +894,29 @@ namespace GGemCo2DControl
             }
 
             denyLog = "대시 액션 시작에 실패했습니다.";
+            return false;
+        }
+
+        /// <summary>
+        /// 외부 규칙에서 시작하는 대시의 스테미나 비용을 검증하고 소모합니다.
+        /// </summary>
+        /// <param name="staminaCost">소모할 스테미나입니다. 0 이하이면 소모하지 않습니다.</param>
+        /// <param name="denyLog">스테미나가 부족할 때 출력할 로그입니다.</param>
+        /// <returns>스테미나 조건을 만족하면 <see langword="true"/>입니다.</returns>
+        private bool TrySpendExternalDashStamina(long staminaCost, out string denyLog)
+        {
+            denyLog = null;
+            if (staminaCost <= 0L)
+            {
+                return true;
+            }
+
+            if (_characterBase.TrySpendStamina(staminaCost))
+            {
+                return true;
+            }
+
+            denyLog = "대시에 필요한 스테미나가 부족합니다.";
             return false;
         }
 
