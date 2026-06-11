@@ -65,7 +65,6 @@ namespace GGemCo2DControl
         // --- 애니메이션 이름 ---
         private const string AnimDashStart = "dash";
         private const string AnimDashPlay  = "dash_play";
-        private const string AnimDashWait  = "dash_wait";
         private const string AnimDashEnd   = "dash_end";
 
         // --- 충돌 ---
@@ -109,7 +108,6 @@ namespace GGemCo2DControl
 
             _hasStart = HasAnimation(AnimDashStart);
             _hasPlay  = HasAnimation(AnimDashPlay);
-            _hasWait  = HasAnimation(AnimDashWait);
             _hasEnd   = HasAnimation(AnimDashEnd);
 
             actionCharacterBase.OnAnimationEventDash += OnAnimationEventDash;
@@ -292,7 +290,7 @@ namespace GGemCo2DControl
                     _waitElapsed = 0f;
                     if (_hasWait)
                     {
-                        PlayAnimSafe(AnimDashWait, loop: true);
+                        PlayAnimSafe(AnimDashPlay, loop: true);
                     }
                     break;
 
