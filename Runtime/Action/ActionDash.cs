@@ -1,5 +1,5 @@
-using System.Collections.Generic;
 using System;
+using System.Collections.Generic;
 using GGemCo2DCore;
 using UnityEngine;
 
@@ -27,7 +27,7 @@ namespace GGemCo2DControl
         public event Action DashFinished;
 
         /// <summary>
-        /// 대시 후 wait 시간이 만료되어 기존 대시 종료 단계로 넘어가기 직전에 호출됩니다.
+        /// 대시 이동 후 PlayLoop 유지 시간이 만료되어 기존 대시 종료 단계로 넘어가기 직전에 호출됩니다.
         /// </summary>
         public event Action PostDashWaitFinished;
 
@@ -54,8 +54,9 @@ namespace GGemCo2DControl
         private float _postDashWaitSeconds;
 
         // --- Phase ---
-        private enum DashPhase { None, StartOneShot, PlayLoop, WaitLoop, EndOneShot }
+        private enum DashPhase { None, StartOneShot, PlayLoop, EndOneShot }
         private DashPhase _phase = DashPhase.None;
+        private bool _isPostDashPlayLoopWaiting;
 
         // --- 워치독 ---
         private DashPhase _awaitingEventFor = DashPhase.None;
@@ -72,13 +73,12 @@ namespace GGemCo2DControl
         private const float CastSkin = 0.04f;
 
         // --- 보유 여부 ---
-        private bool _hasStart, _hasPlay, _hasWait, _hasEnd;
+        private bool _hasStart, _hasPlay, _hasEnd;
 
         // --- 입력/중복 ---
         private bool _isBusy;
         // ActionDash 필드 섹션
         private CharacterPhysicsOverrideHandle _dashGravityOverrideHandle;
-        private CharacterAirborneHandle _dashWaitAirborneHandle;
         private float _prevGravityScaleDash;
         private bool  _changedGravityDash; // 대시 중 중력 변경 여부
 
@@ -116,7 +116,6 @@ namespace GGemCo2DControl
         public override void OnDestroy()
         {
             base.OnDestroy();
-            ReleaseDashWaitAirborne();
             RestoreGravityAfterDash();
             actionCharacterBase.OnAnimationEventDash -= OnAnimationEventDash;
         }
@@ -169,7 +168,7 @@ namespace GGemCo2DControl
         /// 대시를 시작합니다.
         /// </summary>
         /// <param name="postDashWaitSeconds">
-        /// 이동 대시가 끝난 뒤 <c>dash_wait</c> 애니메이션으로 공중에 머무를 시간입니다.
+        /// 이동 대시가 끝난 뒤 기존 <c>PlayLoop</c> 상태를 유지하며 머무를 시간입니다.
         /// 0 이하이면 기존처럼 바로 대시 종료 단계로 진입합니다.
         /// </param>
         /// <param name="allowAttackComboWait">
@@ -212,6 +211,20 @@ namespace GGemCo2DControl
             if (_phase == DashPhase.PlayLoop)
             {
                 float dt = Time.unscaledDeltaTime;
+
+                if (_isPostDashPlayLoopWaiting)
+                {
+                    _waitElapsed += dt;
+                    _rb.SetLinearVelocity(Vector2.zero);
+
+                    if (_waitElapsed >= _postDashWaitSeconds)
+                    {
+                        FinishPostDashPlayLoopWait();
+                    }
+
+                    return;
+                }
+
                 _elapsed += dt;
 
                 float t = Mathf.Clamp01(_elapsed / _dashDuration);
@@ -241,17 +254,6 @@ namespace GGemCo2DControl
                 }
             }
 
-            if (_phase == DashPhase.WaitLoop)
-            {
-                float dt = Time.unscaledDeltaTime;
-                _waitElapsed += dt;
-                _rb.SetLinearVelocity(Vector2.zero);
-
-                if (_waitElapsed >= _postDashWaitSeconds)
-                {
-                    FinishPostDashWait();
-                }
-            }
         }
 
         #endregion
@@ -283,20 +285,8 @@ namespace GGemCo2DControl
                     if (_hasPlay) PlayAnimSafe(AnimDashPlay);
                     break;
 
-                case DashPhase.WaitLoop:
-                    ApplyNoGravityDuringDash();
-                    AcquireDashWaitAirborne();
-                    _rb.SetLinearVelocity(Vector2.zero);
-                    _waitElapsed = 0f;
-                    if (_hasWait)
-                    {
-                        PlayAnimSafe(AnimDashPlay, loop: true);
-                    }
-                    break;
-
                 case DashPhase.EndOneShot:
                     // 여기서는 중력 원복을 하지 않습니다. (엔딩 재생 후 FinishAndStop에서 복구)
-                    ReleaseDashWaitAirborne();
                     _rb.SetLinearVelocity(new Vector2(0f, _rb.GetLinearVelocity().y));
                     if (_hasEnd)
                     {
@@ -331,17 +321,18 @@ namespace GGemCo2DControl
             actionCharacterBase.Stop(); // 필요 시 상태 복귀 커스터마이즈
             _postDashWaitSeconds = 0f;
             _waitElapsed = 0f;
+            _isPostDashPlayLoopWaiting = false;
             DashFinished?.Invoke();
         }
 
         /// <summary>
-        /// 이동 대시 이후 설정된 대기 시간이 있으면 wait 단계로, 없으면 기존 종료 단계로 진입합니다.
+        /// 이동 대시 이후 설정된 대기 시간이 있으면 PlayLoop를 유지하고, 없으면 기존 종료 단계로 진입합니다.
         /// </summary>
         private void EnterPostDashWaitOrEnd()
         {
             if (_postDashWaitSeconds > 0f)
             {
-                EnterPhase(DashPhase.WaitLoop);
+                BeginPostDashPlayLoopWait();
                 return;
             }
 
@@ -349,17 +340,33 @@ namespace GGemCo2DControl
         }
 
         /// <summary>
-        /// dash_wait 대기 시간이 끝났음을 알리고 기존 대시 종료 단계로 진입합니다.
+        /// 대시 이동 후 PlayLoop 상태를 유지하는 대기 구간을 시작합니다.
         /// </summary>
-        private void FinishPostDashWait()
+        private void BeginPostDashPlayLoopWait()
         {
-            if (_phase != DashPhase.WaitLoop)
+            if (_phase != DashPhase.PlayLoop || _isPostDashPlayLoopWaiting)
             {
                 return;
             }
 
+            _isPostDashPlayLoopWaiting = true;
+            _waitElapsed = 0f;
+            _rb.SetLinearVelocity(Vector2.zero);
+        }
+
+        /// <summary>
+        /// PlayLoop 유지 시간이 끝났음을 알리고 기존 대시 종료 단계로 진입합니다.
+        /// </summary>
+        private void FinishPostDashPlayLoopWait()
+        {
+            if (_phase != DashPhase.PlayLoop || !_isPostDashPlayLoopWaiting)
+            {
+                return;
+            }
+
+            _isPostDashPlayLoopWaiting = false;
             PostDashWaitFinished?.Invoke();
-            if (_phase == DashPhase.WaitLoop)
+            if (_phase == DashPhase.PlayLoop)
             {
                 EnterPhase(DashPhase.EndOneShot);
             }
@@ -458,7 +465,7 @@ namespace GGemCo2DControl
             if (_phase == DashPhase.None) return;
 
             ClearAwaiting();
-            ReleaseDashWaitAirborne();
+            _isPostDashPlayLoopWaiting = false;
 
             if (skipEndAnimation || !_hasEnd)
             {
@@ -467,6 +474,7 @@ namespace GGemCo2DControl
                 _isBusy = false;
                 _postDashWaitSeconds = 0f;
                 _waitElapsed = 0f;
+                _isPostDashPlayLoopWaiting = false;
 
                 RestoreGravityAfterDash();        // ← 즉시 취소 시 바로 복구
                 actionCharacterBase.Stop();
@@ -518,36 +526,6 @@ namespace GGemCo2DControl
 
             _dashGravityOverrideHandle = default;
             _changedGravityDash = false;
-        }
-
-        /// <summary>
-        /// 대시 후 wait 단계 동안 다른 시스템이 캐릭터를 지상 상태로 오인하지 않도록 강제 공중 토큰을 등록합니다.
-        /// </summary>
-        private void AcquireDashWaitAirborne()
-        {
-            if (_dashWaitAirborneHandle.IsValid || actionCharacterBase == null)
-            {
-                return;
-            }
-
-            _dashWaitAirborneHandle = actionCharacterBase.AcquireAirborne(
-                CharacterAirborneSource.External,
-                "ActionDash.Wait");
-        }
-
-        /// <summary>
-        /// 대시 wait 단계에서 등록한 강제 공중 토큰을 해제합니다.
-        /// </summary>
-        private void ReleaseDashWaitAirborne()
-        {
-            if (!_dashWaitAirborneHandle.IsValid || actionCharacterBase == null)
-            {
-                _dashWaitAirborneHandle = default;
-                return;
-            }
-
-            actionCharacterBase.ReleaseAirborne(_dashWaitAirborneHandle);
-            _dashWaitAirborneHandle = default;
         }
 
     }

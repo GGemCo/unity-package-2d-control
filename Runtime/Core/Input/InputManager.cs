@@ -50,7 +50,7 @@ namespace GGemCo2DControl
         public event System.Action DashFinished;
 
         /// <summary>
-        /// 대시 후 wait 시간이 만료되어 기존 대시 종료 단계로 넘어가기 직전에 호출됩니다.
+        /// 대시 이동 후 PlayLoop 유지 시간이 만료되어 기존 대시 종료 단계로 넘어가기 직전에 호출됩니다.
         /// </summary>
         public event System.Action DashWaitFinished;
 
@@ -842,7 +842,7 @@ namespace GGemCo2DControl
         /// <summary>
         /// 상위 계층의 프로젝트 전용 규칙에서 대시를 직접 시작합니다.
         /// </summary>
-        /// <param name="postDashWaitSeconds">대시 이동 후 <c>dash_wait</c> 애니메이션으로 머무를 시간입니다.</param>
+        /// <param name="postDashWaitSeconds">대시 이동 후 기존 <c>PlayLoop</c> 상태를 유지하며 머무를 시간입니다.</param>
         /// <param name="staminaCost">대시 시작에 필요한 스테미나입니다. 0 이하이면 스테미나를 소모하지 않습니다.</param>
         /// <param name="denyLog">대시 시작이 거절된 경우의 설명입니다.</param>
         /// <param name="allowAttackComboWait">
