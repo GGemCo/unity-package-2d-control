@@ -1311,6 +1311,7 @@ namespace GGemCo2DControl
         {
             if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
+            if (ShouldBlockInputByCharacterInputLock(AutoMoveInputType.Attack)) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Attack, Vector2.zero)) return;
             if (ShouldBlockInputByProvider(AutoMoveInputType.Attack)) return;
             _releaseResolver?.PushPress(PlayerButtonId.Attack, Time.unscaledTime);
@@ -1320,6 +1321,7 @@ namespace GGemCo2DControl
         {
             if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
+            if (ShouldBlockInputByCharacterInputLock(AutoMoveInputType.Attack)) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Attack, Vector2.zero)) return;
             if (ShouldBlockInputByProvider(AutoMoveInputType.Attack)) return;
             _releaseResolver?.PushRelease(PlayerButtonId.Attack, Time.unscaledTime);
@@ -1330,6 +1332,7 @@ namespace GGemCo2DControl
         {
             if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
+            if (ShouldBlockInputByCharacterInputLock(AutoMoveInputType.Guard)) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Guard, Vector2.zero)) return;
             if (ShouldBlockInputByProvider(AutoMoveInputType.Guard)) return;
             if (TryHandleGuardInputOverride()) return;
@@ -1357,6 +1360,7 @@ namespace GGemCo2DControl
         {
             if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
+            if (ShouldBlockInputByCharacterInputLock(AutoMoveInputType.Jump)) return;
             if (IsMovementInputLocked()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Jump, Vector2.zero)) return;
             if (ShouldBlockInputByProvider(AutoMoveInputType.Jump)) return;
@@ -1367,6 +1371,7 @@ namespace GGemCo2DControl
         {
             if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
+            if (ShouldBlockInputByCharacterInputLock(AutoMoveInputType.Jump)) return;
             if (IsMovementInputLocked()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Jump, Vector2.zero)) return;
             if (ShouldBlockInputByProvider(AutoMoveInputType.Jump)) return;
@@ -1378,6 +1383,7 @@ namespace GGemCo2DControl
         {
             if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
+            if (ShouldBlockInputByCharacterInputLock(AutoMoveInputType.Dash)) return;
             if (IsMovementInputLocked()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Dash, Vector2.zero)) return;
             _releaseResolver?.PushPress(PlayerButtonId.Dash, Time.unscaledTime);
@@ -1387,6 +1393,7 @@ namespace GGemCo2DControl
         {
             if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
+            if (ShouldBlockInputByCharacterInputLock(AutoMoveInputType.Dash)) return;
             if (IsMovementInputLocked()) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Dash, Vector2.zero)) return;
             _releaseResolver?.PushRelease(PlayerButtonId.Dash, Time.unscaledTime);
@@ -1399,6 +1406,7 @@ namespace GGemCo2DControl
         {
             if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
+            if (ShouldBlockInputByCharacterInputLock(AutoMoveInputType.Interaction)) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Interaction, Vector2.zero)) return;
             _releaseResolver?.PushPress(PlayerButtonId.Interaction, Time.unscaledTime);
         }
@@ -1407,6 +1415,7 @@ namespace GGemCo2DControl
         {
             if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
+            if (ShouldBlockInputByCharacterInputLock(AutoMoveInputType.Interaction)) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Interaction, Vector2.zero)) return;
             _releaseResolver?.PushRelease(PlayerButtonId.Interaction, Time.unscaledTime);
         }
@@ -1418,6 +1427,7 @@ namespace GGemCo2DControl
         {
             if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
+            if (ShouldBlockInputByCharacterInputLock(AutoMoveInputType.SimulationTool)) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.SimulationTool, Vector2.zero)) return;
             _simulationToolPressCtx = ctx;
             _releaseResolver?.PushPress(PlayerButtonId.SimulationTool, Time.unscaledTime);
@@ -1427,6 +1437,7 @@ namespace GGemCo2DControl
         {
             if (!CanProcessInputCallback()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
+            if (ShouldBlockInputByCharacterInputLock(AutoMoveInputType.SimulationTool)) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.SimulationTool, Vector2.zero)) return;
             _simulationToolReleaseCtx = ctx;
             _releaseResolver?.PushRelease(PlayerButtonId.SimulationTool, Time.unscaledTime);
@@ -1447,6 +1458,10 @@ namespace GGemCo2DControl
                 if (chord.Buttons.IsEmpty)
                     return;
             }
+
+            chord = RemoveCharacterInputLockedButtons(chord);
+            if (chord.Buttons.IsEmpty)
+                return;
 
             // 0) Interaction은 토글 동작이라 동시입력에서도 우선 처리(예시 정책)
             //    - 후보가 없을 때 다른 액션까지 수행하고 싶다면, 아래 3)에서 설명하는 "bool 반환" 방식으로 개선 권장
@@ -1485,6 +1500,46 @@ namespace GGemCo2DControl
                 .Remove(PlayerButtonId.Dash);
             int virtualReleaseMask = chord.VirtualReleaseMask & buttons.Mask;
             return new ResolvedButtonChord(buttons, virtualReleaseMask, chord.ResolvedTime);
+        }
+
+        /// <summary>
+        /// 캐릭터 입력 허용 잠금에서 차단한 버튼을 확정 입력 조합에서 제거합니다.
+        /// </summary>
+        /// <param name="chord">입력 버퍼에서 확정된 버튼 조합입니다.</param>
+        /// <returns>차단된 버튼이 제거된 버튼 조합입니다.</returns>
+        private ResolvedButtonChord RemoveCharacterInputLockedButtons(ResolvedButtonChord chord)
+        {
+            PlayerButtonSet buttons = chord.Buttons;
+
+            buttons = RemoveButtonIfCharacterInputLocked(buttons, PlayerButtonId.Attack, AutoMoveInputType.Attack);
+            buttons = RemoveButtonIfCharacterInputLocked(buttons, PlayerButtonId.Guard, AutoMoveInputType.Guard);
+            buttons = RemoveButtonIfCharacterInputLocked(buttons, PlayerButtonId.Jump, AutoMoveInputType.Jump);
+            buttons = RemoveButtonIfCharacterInputLocked(buttons, PlayerButtonId.Dash, AutoMoveInputType.Dash);
+            buttons = RemoveButtonIfCharacterInputLocked(buttons, PlayerButtonId.Interaction, AutoMoveInputType.Interaction);
+            buttons = RemoveButtonIfCharacterInputLocked(buttons, PlayerButtonId.SimulationTool, AutoMoveInputType.SimulationTool);
+
+            int virtualReleaseMask = chord.VirtualReleaseMask & buttons.Mask;
+            return new ResolvedButtonChord(buttons, virtualReleaseMask, chord.ResolvedTime);
+        }
+
+        /// <summary>
+        /// 지정한 버튼이 캐릭터 입력 허용 잠금에 의해 차단되면 버튼 조합에서 제거합니다.
+        /// </summary>
+        /// <param name="buttons">검사할 버튼 조합입니다.</param>
+        /// <param name="button">제거 대상 버튼입니다.</param>
+        /// <param name="inputType">버튼에 대응하는 입력 타입입니다.</param>
+        /// <returns>필요 시 대상 버튼이 제거된 버튼 조합입니다.</returns>
+        private PlayerButtonSet RemoveButtonIfCharacterInputLocked(
+            PlayerButtonSet buttons,
+            PlayerButtonId button,
+            AutoMoveInputType inputType)
+        {
+            if (!buttons.Contains(button) || !ShouldBlockInputByCharacterInputLock(inputType))
+            {
+                return buttons;
+            }
+
+            return buttons.Remove(button);
         }
 
         /// <summary>
@@ -1710,6 +1765,16 @@ namespace GGemCo2DControl
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// 캐릭터에 적용된 입력 허용 잠금으로 지정한 입력을 차단해야 하는지 확인합니다.
+        /// </summary>
+        /// <param name="inputType">검사할 입력 타입입니다.</param>
+        /// <returns>캐릭터 입력 허용 잠금이 해당 입력을 차단하면 <see langword="true"/>입니다.</returns>
+        private bool ShouldBlockInputByCharacterInputLock(AutoMoveInputType inputType)
+        {
+            return _characterBase != null && _characterBase.ShouldBlockInputByInputAllowLock(inputType);
         }
 
         /// <summary>
