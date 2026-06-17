@@ -949,13 +949,14 @@ namespace GGemCo2DControl
             _simulationToolPressCtx = default;
             _simulationToolReleaseCtx = default;
 
-            _actionJump?.CancelJump(skipLandAnimation: true, restoreGravity: true);
-            _actionDash?.CancelDash(skipEndAnimation: true);
             _actionClimb?.CancelClimb(skipEndAnimation: true, restoreGravity: true);
             _actionPushPull?.Cancel();
             _toolAction?.Cancel();
             _actionWall?.CancelWall(restorePrevious: false);
-            _actionGuard?.CancelGuard(true);
+            // 액션 도중 자연스럽게 몬스터 사망 연출을 위해서 cancel 처리를 하지 않는다.
+            // _actionJump?.CancelJump(skipLandAnimation: true, restoreGravity: true);
+            // _actionDash?.CancelDash(skipEndAnimation: true);
+            // _actionGuard?.CancelGuard(true);
 
             _autoMove?.ReleaseAll();
 
@@ -964,10 +965,11 @@ namespace GGemCo2DControl
                 autoMoveController.Cancel();
             }
 
-            if (_characterBase != null && !_characterBase.IsStatusDead())
-            {
-                _characterBase.Stop();
-            }
+            // 액션 도중 자연스럽게 몬스터 사망 연출을 위해서 stop 처리를 하지 않는다.
+            // if (_characterBase != null && !_characterBase.IsStatusDead())
+            // {
+            //     _characterBase.Stop();
+            // }
         }
 
         /// <summary>
