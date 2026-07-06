@@ -1,4 +1,4 @@
-﻿using GGemCo2DCore;
+using GGemCo2DCore;
 using GGemCo2DCoreEditor;
 using UnityEditor;
 using UnityEngine;
@@ -48,7 +48,7 @@ namespace GGemCo2DControlEditor
             GGemCo2DCore.SceneGame scene = CreateUIComponent.Find(sceneName, ConfigPackageInfo.PackageType.Core)?.GetComponent<SceneGame>();
             if (scene == null) 
             {
-                GcLogger.LogError($"{sceneName} 이 없습니다.\nGGemCoTool > 설정하기 > 게임 씬 셋팅하기에서 필수 항목 셋팅하기를 실행해주세요.");
+                GcLogger.LogError($"{sceneName} 이 없습니다.\nGGemCoTool > Control > 설정하기 > 게임 씬 셋팅하기에서 필수 항목 셋팅하기를 실행해주세요.");
                 return;
             }
             _objGGemCoCore = GetOrCreateRootPackageGameObject();
