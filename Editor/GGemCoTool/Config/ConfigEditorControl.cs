@@ -8,15 +8,21 @@ namespace GGemCo2DControlEditor
     /// </summary>
     public static class ConfigEditorControl
     {
+        /// <summary>
+        /// Control 패키지 Unity 메뉴 항목의 정렬 순서(order) 값을 정의합니다.
+        /// </summary>
+        /// <remarks>
+        /// 공통 메뉴 우선순위 기준값에 Control 내부 로컬 순서를 더해 메뉴 배치 순서를 결정합니다.
+        /// </remarks>
         public enum ToolOrdering
         {
-            DefaultSetting = 1,
+            DefaultSetting = GGemCoToolMenuPriority.ControlSettings + 1,
             SettingAddressable,
             SettingScenePreIntro,
             SettingSceneGame,
-            Development = 100,
-            Test = 200,
-            Etc = 900,
+            Development = GGemCoToolMenuPriority.ControlDevelopment,
+            Test = GGemCoToolMenuPriority.ControlTest,
+            Etc = GGemCoToolMenuPriority.ControlEtc,
         }
         /// <summary>
         /// Control 패키지 툴 메뉴의 루트 경로입니다.
