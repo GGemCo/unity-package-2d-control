@@ -719,13 +719,33 @@ namespace GGemCo2DControl
         }
 
         /// <summary>
-        /// 맵 로드가 시작되면 AutoMove 관련 런타임 상태를 정리합니다.
-        /// - Suspend 토큰은 소유자(<see cref="AutoMoveAdapter"/>) 경로로 해제합니다.
-        /// - 진행 중 오토워크는 취소해 다음 맵 로드 시 이전 요청이 이어지지 않도록 합니다.
+        /// 맵 로드가 시작되면 이전 맵에서 진행 중이던 입력 액션과 AutoMove 상태를 정리합니다.
         /// </summary>
         private void OnMapLoadStart()
         {
+            CancelActionsOnMapLoadStart();
             CleanupAutoMoveStateOnMapLoadStart();
+        }
+
+        /// <summary>
+        /// 맵 전환 시작 시 진행 중인 플레이어 조작 상태를 정리합니다.
+        /// 점프/대시/가드 같은 입력 액션 FSM이 새 맵 스폰 이후까지 이어져 착지 End 애니메이션이나 잔여 입력이 실행되는 문제를 방지합니다.
+        /// </summary>
+        private void CancelActionsOnMapLoadStart()
+        {
+            _releaseResolver?.Clear();
+            _simulationToolPressCtx = default;
+            _simulationToolReleaseCtx = default;
+
+            _actionJump?.CancelJump(skipLandAnimation: true, restoreGravity: true);
+            _actionDash?.CancelDash(skipEndAnimation: true);
+            _actionClimb?.CancelClimb(skipEndAnimation: true, restoreGravity: true);
+            _actionPushPull?.Cancel();
+            _toolAction?.Cancel();
+            _actionWall?.CancelWall(restorePrevious: false);
+            _actionGuard?.CancelGuard(true);
+
+            ResetMovementVelocityOnMapLoadStart();
         }
 
         /// <summary>
@@ -739,6 +759,20 @@ namespace GGemCo2DControl
             {
                 autoMoveController.Cancel();
             }
+        }
+
+        /// <summary>
+        /// 맵 이동 직전 Rigidbody 속도를 초기화해 이전 맵의 낙하/대시 속도가 새 스폰 위치에 전파되지 않도록 합니다.
+        /// </summary>
+        private void ResetMovementVelocityOnMapLoadStart()
+        {
+            Rigidbody2D rb = _characterBase != null ? _characterBase.characterRigidbody2D : null;
+            if (rb == null)
+            {
+                return;
+            }
+
+            rb.SetLinearVelocity(Vector2.zero);
         }
 
         private void Update()
