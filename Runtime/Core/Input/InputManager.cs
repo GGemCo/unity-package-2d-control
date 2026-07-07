@@ -144,6 +144,8 @@ namespace GGemCo2DControl
         private AutoMoveAdapter _autoMove;
         private IAutoMoveVectorProvider _autoMoveProvider;
         private MapManager _mapManagerForLoadEvents;
+        private object _mapTransitionInputSuspendToken;
+        private readonly HashSet<object> _inputUpdateSuspendTokens = new();
 
         // 명시적 초기화/활성화 상태
         private bool _isInitialized;
@@ -152,6 +154,11 @@ namespace GGemCo2DControl
 
         // 플레이어 공격 영역에 몬스터 진입 상태
         private PlayerAttackAreaState _attackAreaState;
+
+        /// <summary>
+        /// 현재 외부 토큰에 의해 InputManager의 입력 처리 루프가 일시 정지되어 있는지 반환합니다.
+        /// </summary>
+        private bool IsInputUpdateSuspended => _inputUpdateSuspendTokens.Count > 0;
 
         /// <summary>
         /// Unity 생명주기에서 호출되는 로컬 캐시 단계입니다.
@@ -591,6 +598,61 @@ namespace GGemCo2DControl
         }
 
         /// <summary>
+        /// InputManager의 Update/FixedUpdate 입력 처리와 Input System 콜백 처리를 일시 정지하는 토큰을 획득합니다.
+        /// </summary>
+        /// <param name="owner">정지 요청 소유자입니다. null이면 새 토큰을 생성합니다.</param>
+        /// <returns>해제 시 사용할 입력 처리 정지 토큰입니다.</returns>
+        public object AcquireInputUpdateSuspend(object owner = null)
+        {
+            object token = owner ?? new object();
+            _inputUpdateSuspendTokens.Add(token);
+            return token;
+        }
+
+        /// <summary>
+        /// 이전에 획득한 입력 처리 정지 토큰을 해제합니다.
+        /// </summary>
+        /// <param name="token">해제할 입력 처리 정지 토큰입니다.</param>
+        public void ReleaseInputUpdateSuspend(object token)
+        {
+            if (token == null)
+            {
+                return;
+            }
+
+            _inputUpdateSuspendTokens.Remove(token);
+        }
+
+        /// <summary>
+        /// 맵 전환 중 입력 처리 루프를 멈추기 위한 전용 토큰을 획득합니다.
+        /// 이미 획득한 토큰이 있으면 중복 등록하지 않습니다.
+        /// </summary>
+        private void AcquireMapTransitionInputSuspend()
+        {
+            if (_mapTransitionInputSuspendToken != null)
+            {
+                return;
+            }
+
+            _mapTransitionInputSuspendToken = AcquireInputUpdateSuspend(this);
+        }
+
+        /// <summary>
+        /// 맵 전환용 입력 처리 정지 토큰을 해제합니다.
+        /// 맵 화면이 다시 드러난 뒤 이전 입력 정지 상태가 남지 않도록 사용합니다.
+        /// </summary>
+        private void ReleaseMapTransitionInputSuspend()
+        {
+            if (_mapTransitionInputSuspendToken == null)
+            {
+                return;
+            }
+
+            ReleaseInputUpdateSuspend(_mapTransitionInputSuspendToken);
+            _mapTransitionInputSuspendToken = null;
+        }
+
+        /// <summary>
         /// PlayerInput 콜백과 입력 버퍼를 해제하여 더 이상 새 입력이 처리되지 않도록 합니다.
         /// </summary>
         private void DeactivateInput()
@@ -608,6 +670,8 @@ namespace GGemCo2DControl
             _releaseResolver?.Clear();
             _simulationToolPressCtx = default;
             _simulationToolReleaseCtx = default;
+            ReleaseMapTransitionInputSuspend();
+            _inputUpdateSuspendTokens.Clear();
             UnsubscribeMapLoadStartEvent();
         }
 
@@ -702,19 +766,23 @@ namespace GGemCo2DControl
 
             _mapManagerForLoadEvents = sceneGame.mapManager;
             _mapManagerForLoadEvents.OnLoadStartMap += OnMapLoadStart;
+            MapManager.OnMapRevealComplete -= OnMapRevealComplete;
+            MapManager.OnMapRevealComplete += OnMapRevealComplete;
         }
 
         /// <summary>
-        /// 맵 로드 시작 이벤트 구독을 해제합니다.
+        /// 맵 로드 시작과 맵 화면 재표시 완료 이벤트 구독을 해제합니다.
         /// </summary>
         private void UnsubscribeMapLoadStartEvent()
         {
             if (_mapManagerForLoadEvents == null)
             {
+                MapManager.OnMapRevealComplete -= OnMapRevealComplete;
                 return;
             }
 
             _mapManagerForLoadEvents.OnLoadStartMap -= OnMapLoadStart;
+            MapManager.OnMapRevealComplete -= OnMapRevealComplete;
             _mapManagerForLoadEvents = null;
         }
 
@@ -725,6 +793,17 @@ namespace GGemCo2DControl
         {
             CancelActionsOnMapLoadStart();
             CleanupAutoMoveStateOnMapLoadStart();
+            AcquireMapTransitionInputSuspend();
+        }
+
+        /// <summary>
+        /// 맵 화면이 다시 드러나면 맵 전환 중 걸어 둔 입력 처리 정지를 해제합니다.
+        /// </summary>
+        /// <param name="mapTileCommon">로드가 완료되어 화면에 표시된 맵 루트입니다.</param>
+        /// <param name="grid">현재 맵 타일 Grid 오브젝트입니다.</param>
+        private void OnMapRevealComplete(MapTileCommon mapTileCommon, GameObject grid)
+        {
+            ReleaseMapTransitionInputSuspend();
         }
 
         /// <summary>
@@ -785,6 +864,11 @@ namespace GGemCo2DControl
             if (_mapManagerForLoadEvents == null)
             {
                 SubscribeMapLoadStartEventIfNeeded();
+            }
+
+            if (IsInputUpdateSuspended)
+            {
+                return;
             }
 
             if (_characterBase != null && _characterBase.IsHitStopped)
@@ -1178,6 +1262,7 @@ namespace GGemCo2DControl
         private void FixedUpdate()
         {
             if (!_isInputActivated) return;
+            if (IsInputUpdateSuspended) return;
             if (_characterBase == null) return;
             if (_characterBase.IsStatusDead()) return;
             if (_characterBase.IsHitStopped) return;
@@ -1338,7 +1423,10 @@ namespace GGemCo2DControl
         /// <returns>입력을 처리할 수 있으면 true입니다.</returns>
         private bool CanProcessInputCallback()
         {
-            return _isInputActivated && _isInitialized && _characterBase != null;
+            return _isInputActivated &&
+                   !IsInputUpdateSuspended &&
+                   _isInitialized &&
+                   _characterBase != null;
         }
 
         // === Press/Release 수집(실행은 ReleaseResolver에서 수행) ===
