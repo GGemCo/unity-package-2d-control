@@ -72,6 +72,8 @@ namespace GGemCo2DControl
         private int _justGuardSuccessVfxSortingOrder;
         private Vector3 _justGuardSuccessVfxOffset;
         private List<GGemCoPlayerGuardSettings.GuardSuccessVfxEntry> _additionalJustGuardSuccessVfxEntries;
+        private int _guardSuccessSoundUid;
+        private int _justGuardSuccessSoundUid;
         private long _guardBreakStaminaCost;
         private long _guardBreakReGuardStaminaCost;
         private float _guardBreakDamageMultiplier;
@@ -210,6 +212,8 @@ namespace GGemCo2DControl
             _justGuardSuccessVfxSortingOrder = playerGuardSettings.justGuardSuccessVfxSortingOrder;
             _justGuardSuccessVfxOffset = playerGuardSettings.justGuardSuccessVfxOffset;
             _additionalJustGuardSuccessVfxEntries = playerGuardSettings.additionalJustGuardSuccessVfxEntries;
+            _guardSuccessSoundUid = Mathf.Max(0, playerGuardSettings.guardSuccessSoundUid);
+            _justGuardSuccessSoundUid = Mathf.Max(0, playerGuardSettings.justGuardSuccessSoundUid);
             _guardBreakStaminaCost = playerGuardSettings.guardBreakStaminaCost;
             _guardBreakReGuardStaminaCost = Math.Max(-1L, playerGuardSettings.guardBreakReGuardStaminaCost);
             _guardBreakDamageMultiplier = Mathf.Clamp01(playerGuardSettings.guardBreakDamageMultiplier);
@@ -369,6 +373,7 @@ namespace GGemCo2DControl
 
             TryPlayGuardSuccessAnimation();
             TryPlayGuardSuccessVfx(isJustGuard);
+            TryPlayGuardSuccessSound(isJustGuard);
             return true;
         }
 
@@ -858,6 +863,26 @@ namespace GGemCo2DControl
 
             if (isJustGuard)
                 PlayAdditionalJustGuardSuccessVfx(scene, visualDirection);
+        }
+
+        /// <summary>
+        /// 가드 성공 종류에 맞는 단발 효과음을 재생합니다.
+        /// 저스트 가드 전용 UID가 없으면 일반 가드 성공 UID로 대체합니다.
+        /// </summary>
+        /// <param name="isJustGuard">저스트 가드 성공 여부입니다.</param>
+        private void TryPlayGuardSuccessSound(bool isJustGuard)
+        {
+            int soundUid = isJustGuard && _justGuardSuccessSoundUid > 0
+                ? _justGuardSuccessSoundUid
+                : _guardSuccessSoundUid;
+            if (soundUid <= 0)
+                return;
+
+            SceneGame scene = SceneGame.Instance;
+            if (scene == null || scene.soundManager == null)
+                return;
+
+            scene.soundManager.PlayByUid(soundUid);
         }
 
         /// <summary>

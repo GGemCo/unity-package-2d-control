@@ -295,6 +295,13 @@ namespace GGemCo2DControl
         [Tooltip("저스트 가드 성공 시 단일 VFX와 함께 추가로 재생할 VFX 목록입니다.")]
         public List<GuardSuccessVfxEntry> additionalJustGuardSuccessVfxEntries = new();
 
+        [Header("가드 성공 사운드")]
+        [Tooltip("일반 가드 성공 시 재생할 sound 테이블 대표 UID입니다. 0이면 재생하지 않습니다.")]
+        public int guardSuccessSoundUid;
+
+        [Tooltip("저스트 가드 성공 시 재생할 sound 테이블 대표 UID입니다. 0이면 일반 가드 성공 사운드를 사용합니다.")]
+        public int justGuardSuccessSoundUid;
+
         [Header("가드 브레이크")]
         [Tooltip("가드 브레이크 시 추가로 차감할 스테미나입니다. 공격별 설정이 0이면 이 값을 사용합니다.")]
         public long guardBreakStaminaCost;
