@@ -241,7 +241,7 @@ namespace GGemCo2DControl
             {
                 addMove *= -1;
             }
-            actionCharacterBase.AddMoveForce(addMove, 0, duration * speed);
+            actionCharacterBase.AddMoveForceWithCharacterBodyCollision(addMove, 0f, duration * speed);
         }
         private IEnumerator CoroutinePlayAttackEndAnimation()
         {
