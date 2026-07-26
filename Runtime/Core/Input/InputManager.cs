@@ -122,6 +122,10 @@ namespace GGemCo2DControl
         private readonly List<MonoBehaviour> _guardInputOverrideComponentBuffer = new();
         private readonly List<IPlayerGuardInputOverrideHandler> _guardInputOverrideHandlers = new();
 
+        // 조작 잠금보다 먼저 실행할 프로젝트 전용 가드 입력 선처리 핸들러 캐시
+        private readonly List<MonoBehaviour> _guardInputPreprocessorComponentBuffer = new();
+        private readonly List<IPlayerGuardInputPreprocessor> _guardInputPreprocessors = new();
+
         // 프로젝트 전용 입력 차단 Provider 캐시
         private readonly List<MonoBehaviour> _inputBlockProviderComponentBuffer = new();
         private readonly List<IPlayerInputBlockProvider> _inputBlockProviders = new();
@@ -1482,6 +1486,7 @@ namespace GGemCo2DControl
         private void OnGuardPress(InputAction.CallbackContext ctx)
         {
             if (!CanProcessInputCallback()) return;
+            if (TryHandleGuardInputBeforeControlLock()) return;
             if (_characterBase != null && _characterBase.IsDontControl()) return;
             if (ShouldBlockInputByCharacterInputLock(AutoMoveInputType.Guard)) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Guard, Vector2.zero)) return;
@@ -1811,6 +1816,63 @@ namespace GGemCo2DControl
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// 조작 잠금 검사보다 먼저 실행해야 하는 가드 입력 선처리 핸들러를 순서대로 호출합니다.
+        /// </summary>
+        /// <remarks>
+        /// 전체 입력 시스템의 활성화 여부는 호출 전에 검사합니다.
+        /// 선처리 구현체가 실제 행동을 시작하지 못하면 false를 반환하여 기존 잠금 및 일반 가드 흐름을 유지합니다.
+        /// </remarks>
+        /// <returns>어느 하나의 선처리 핸들러가 가드 입력을 소비하면 <see langword="true"/>입니다.</returns>
+        private bool TryHandleGuardInputBeforeControlLock()
+        {
+            RefreshGuardInputPreprocessors();
+
+            for (int i = 0; i < _guardInputPreprocessors.Count; i++)
+            {
+                IPlayerGuardInputPreprocessor preprocessor = _guardInputPreprocessors[i];
+                if (preprocessor == null)
+                {
+                    continue;
+                }
+
+                if (preprocessor.TryHandleGuardInputBeforeControlLock())
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 같은 GameObject에 부착된 활성 가드 입력 선처리 컴포넌트를 재사용 버퍼에 수집합니다.
+        /// </summary>
+        /// <remarks>
+        /// 상위 프로젝트 부트스트랩이 런타임에 컴포넌트를 추가할 수 있으므로 가드 입력 시점에 목록을 갱신합니다.
+        /// 재사용 리스트 기반 <c>GetComponents</c>를 사용하여 입력 hot path의 배열 할당을 방지합니다.
+        /// </remarks>
+        private void RefreshGuardInputPreprocessors()
+        {
+            _guardInputPreprocessors.Clear();
+            _guardInputPreprocessorComponentBuffer.Clear();
+
+            GetComponents(_guardInputPreprocessorComponentBuffer);
+            for (int i = 0; i < _guardInputPreprocessorComponentBuffer.Count; i++)
+            {
+                MonoBehaviour component = _guardInputPreprocessorComponentBuffer[i];
+                if (component == null || !component.isActiveAndEnabled)
+                {
+                    continue;
+                }
+
+                if (component is IPlayerGuardInputPreprocessor preprocessor)
+                {
+                    _guardInputPreprocessors.Add(preprocessor);
+                }
+            }
         }
 
         /// <summary>
