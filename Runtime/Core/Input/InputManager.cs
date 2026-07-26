@@ -9,7 +9,7 @@ namespace GGemCo2DControl
     /// Player Input Asset에 등록한 키보드, 마우스, 게임 패드등의 입력 처리
     /// Player 에 AddComponent 된다.
     /// </summary>
-    public class InputManager : MonoBehaviour, IGameInitializable, IGameActivatable, IGameDeinitializable, IAutoMoveMovementDriver, IIncomingHitGuardResolver, IIncomingHitActionCanceler, ISkillStartActionCanceler, IMapClearActionCanceler, IInteractionActionCanceler, IPlayerExhaustionStateSource, ICameraVerticalFollowStateSource, IAttackHitStopProvider, IAttackCameraShakeProvider, IAttackComboStateProvider, IAttackComboDamageFormulaProvider
+    public class InputManager : MonoBehaviour, IGameInitializable, IGameActivatable, IGameDeinitializable, IAutoMoveMovementDriver, IIncomingHitGuardResolver, IIncomingHitActionCanceler, ISkillStartActionCanceler, IForcedSkillStartActionCanceler, IMapClearActionCanceler, IInteractionActionCanceler, IPlayerExhaustionStateSource, ICameraVerticalFollowStateSource, IAttackHitStopProvider, IAttackCameraShakeProvider, IAttackComboStateProvider, IAttackComboDamageFormulaProvider
     {
 
         /// <summary>
@@ -1055,6 +1055,33 @@ namespace GGemCo2DControl
             _actionGuard?.CancelGuard(true);
 
             _autoMove?.ReleaseAll();
+        }
+
+        /// <summary>
+        /// 강제 발동 스킬이 시작되기 직전에 플레이어의 모든 입력 액션과 잔여 이동을 취소합니다.
+        /// </summary>
+        /// <remarks>
+        /// 일반 스킬의 시작 정책과 달리 기본 공격, 시뮬레이션 입력, 자동 이동과 공격 이동 힘까지 정리합니다.
+        /// 캐릭터 상태는 직후 시작되는 Skill 실행기가 점유하므로 여기에서 Idle 상태로 변경하지 않습니다.
+        /// </remarks>
+        public void CancelAllActionsOnForcedSkillStart()
+        {
+            // Hit Stop이 저장한 이전 상태와 속도를 나중에 복원하면 새 스킬 상태를 덮어쓸 수 있으므로 먼저 폐기합니다.
+            _characterBase?.HitStopController.TerminateForExternalActionOverride();
+
+            CancelActionsOnSkillStart();
+
+            _simulationToolPressCtx = default;
+            _simulationToolReleaseCtx = default;
+            _actionAttack?.CancelAttackByActionInterrupt();
+
+            if (_autoMoveProvider is PlayerAutoMoveController autoMoveController)
+            {
+                autoMoveController.Cancel();
+            }
+
+            // 기본 공격이나 액션에서 남긴 이동 힘이 긴급 탈출 스킬의 이동을 방해하지 않도록 제거합니다.
+            _characterBase?.CancelMoveForce();
         }
 
         /// <summary>
