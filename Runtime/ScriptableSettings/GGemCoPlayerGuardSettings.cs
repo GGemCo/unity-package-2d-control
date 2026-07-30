@@ -76,6 +76,22 @@ namespace GGemCo2DControl
     }
 
     /// <summary>
+    /// HitStop 중 가드 입력을 처리하는 정책을 정의합니다.
+    /// </summary>
+    public enum GuardDuringHitStopPolicy
+    {
+        /// <summary>
+        /// 기존 정책과 동일하게 HitStop 중 가드 입력을 차단합니다.
+        /// </summary>
+        Block = 0,
+
+        /// <summary>
+        /// HitStop만 조작을 차단하고 지상 조건을 만족하면 HitStop을 종료한 뒤 즉시 가드를 시작합니다.
+        /// </summary>
+        InterruptHitStopAndStartGuard = 1,
+    }
+
+    /// <summary>
     /// 가드 판정 디버그 피드백을 화면에 표시하는 방식을 정의합니다.
     /// </summary>
     public enum GuardDebugFeedbackDisplayMode
@@ -231,6 +247,9 @@ namespace GGemCo2DControl
         [Header("가드 입력 캔슬")]
         [Tooltip("공격 중 가드 입력을 허용할 구간입니다. 기본값은 기존 동작 유지를 위해 공격 본 애니메이션과 콤보 대기 구간 모두에서 허용합니다.")]
         public AttackGuardCancelPolicy attackGuardCancelPolicy = AttackGuardCancelPolicy.AttackAndComboWait;
+
+        [Tooltip("HitStop 중 가드 입력 처리 정책입니다. 즉시 가드 정책은 HitStop 외의 CC 또는 전체 조작 잠금이 없어야 적용됩니다.")]
+        public GuardDuringHitStopPolicy guardDuringHitStopPolicy = GuardDuringHitStopPolicy.Block;
 
         [Header("방어(가드) - 피드백 연출")]
         [Tooltip("가드/저스트 가드 피드백 표시 여부")]
@@ -461,6 +480,7 @@ namespace GGemCo2DControl
             guardStartStaminaCostPolicy = GuardStartStaminaCostPolicy.FreeWhenJustGuardSuccessPolicyNone;
             justGuardSuccessStaminaCostPolicy = JustGuardStaminaCostPolicy.None;
             justGuardSuccessStaminaCostValue = 0f;
+            guardDuringHitStopPolicy = GuardDuringHitStopPolicy.Block;
             guardAttackTypeRules = new List<GuardAttackTypeRule>
             {
                 new GuardAttackTypeRule

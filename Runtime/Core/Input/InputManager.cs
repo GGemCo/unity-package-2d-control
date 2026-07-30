@@ -439,6 +439,9 @@ namespace GGemCo2DControl
                 _policy.AttackGuardCancelPolicy = _playerGuardSettings != null
                     ? _playerGuardSettings.attackGuardCancelPolicy
                     : AttackGuardCancelPolicy.AttackAndComboWait;
+                _policy.GuardDuringHitStopPolicy = _playerGuardSettings != null
+                    ? _playerGuardSettings.guardDuringHitStopPolicy
+                    : GuardDuringHitStopPolicy.Block;
             }
         }
 
@@ -1487,7 +1490,12 @@ namespace GGemCo2DControl
         {
             if (!CanProcessInputCallback()) return;
             if (TryHandleGuardInputBeforeControlLock()) return;
-            if (_characterBase != null && _characterBase.IsDontControl()) return;
+            if (_characterBase != null &&
+                _characterBase.IsDontControl() &&
+                (_policy == null || !_policy.CanStartGuardByInterruptingHitStop()))
+            {
+                return;
+            }
             if (ShouldBlockInputByCharacterInputLock(AutoMoveInputType.Guard)) return;
             if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Guard, Vector2.zero)) return;
             if (ShouldBlockInputByProvider(AutoMoveInputType.Guard)) return;

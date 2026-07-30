@@ -34,6 +34,7 @@ namespace GGemCo2DControl
         public bool CanDashUseSkill { get; set; }
         public bool CanAttackPlayJump { get; set; }
         public AttackGuardCancelPolicy AttackGuardCancelPolicy { get; set; } = AttackGuardCancelPolicy.AttackAndComboWait;
+        public GuardDuringHitStopPolicy GuardDuringHitStopPolicy { get; set; } = GuardDuringHitStopPolicy.Block;
 
         public PlayerInputPolicy(
             CharacterBase character,
@@ -109,10 +110,30 @@ namespace GGemCo2DControl
 
         
 
-        public bool TryPrepareGuard(out string denyLog)
+        /// <summary>
+        /// 현재 캐릭터 상태에서 가드 입력을 시작할 수 있는지 확인하고 필요한 선행 상태를 정리합니다.
+        /// </summary>
+        /// <param name="denyLog">가드 입력이 거부된 경우 출력할 로그입니다.</param>
+        /// <param name="interruptHitStopOnStart">
+        /// 가드 시작이 확정된 시점에 활성 HitStop을 종료해야 하면 <see langword="true"/>입니다.
+        /// </param>
+        /// <returns>가드 입력을 계속 처리할 수 있으면 <see langword="true"/>를 반환합니다.</returns>
+        public bool TryPrepareGuard(out string denyLog, out bool interruptHitStopOnStart)
         {
             denyLog = null;
+            interruptHitStopOnStart = false;
             if (_character.IsStatusDead()) return false;
+
+            if (_character.IsDontControl())
+            {
+                if (!CanStartGuardByInterruptingHitStop())
+                {
+                    return false;
+                }
+
+                // 이 시점에는 HitStop만 조작을 차단하고 있으므로, 스테미나 지불 성공 후 안전하게 종료하도록 예약합니다.
+                interruptHitStopOnStart = true;
+            }
 
             // 벽 상태 중 가드 정책(현재는 금지)
             if (_wall is { IsWallLocked: true })
@@ -157,6 +178,28 @@ namespace GGemCo2DControl
             // if (skill != null && skill.IsSkillRunning) { ... }
 
             return true;
+        }
+
+        /// <summary>
+        /// 현재 조작 불가 상태가 가드 정책으로 중단할 수 있는 HitStop 단독 상태인지 확인합니다.
+        /// </summary>
+        /// <remarks>
+        /// Crowd Control 또는 외부 전체 조작 잠금이 함께 활성화된 경우에는 HitStop 예외 정책으로 우회하지 않습니다.
+        /// 실제 지면 충돌을 확인하여 HitStop 도중 공중 가드가 시작되는 것도 방지합니다.
+        /// </remarks>
+        /// <returns>HitStop을 종료하고 가드를 시도할 수 있으면 <see langword="true"/>를 반환합니다.</returns>
+        public bool CanStartGuardByInterruptingHitStop()
+        {
+            if (GuardDuringHitStopPolicy != GuardDuringHitStopPolicy.InterruptHitStopAndStartGuard)
+                return false;
+            if (!_character.IsHitStopped)
+                return false;
+            if (_character.HasActiveOrQueuedCrowdControl())
+                return false;
+            if (_character.IsControlLocked())
+                return false;
+
+            return _jump != null && _jump.IsGroundedByCollision();
         }
 
         /// <summary>

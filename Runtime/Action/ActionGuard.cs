@@ -256,6 +256,17 @@ namespace GGemCo2DControl
         /// </summary>
         public void GuardDown()
         {
+            GuardDown(interruptHitStopOnStart: false);
+        }
+
+        /// <summary>
+        /// Guard 버튼 Down 입력을 처리하고, 가드 시작 성공 시 필요에 따라 활성 HitStop을 종료합니다.
+        /// </summary>
+        /// <param name="interruptHitStopOnStart">
+        /// 스테미나 지불 후 실제 가드 진입이 확정되면 활성 HitStop을 종료할지 여부입니다.
+        /// </param>
+        internal void GuardDown(bool interruptHitStopOnStart)
+        {
             if (actionCharacterBase == null) return;
             if (actionCharacterBase.IsStatusDead()) return;
 
@@ -273,7 +284,10 @@ namespace GGemCo2DControl
             // 이미 가드 중이면 유지 (중복 호출 방지)
             if (IsGuarding) return;
 
-            TryBeginGuardWithCost(ResolveCurrentGuardStartStaminaCost(), cancelGuardBreakAnimation: false);
+            TryBeginGuardWithCost(
+                ResolveCurrentGuardStartStaminaCost(),
+                cancelGuardBreakAnimation: false,
+                interruptHitStopOnStart: interruptHitStopOnStart);
         }
 
         /// <summary>
@@ -514,13 +528,24 @@ namespace GGemCo2DControl
         /// </summary>
         /// <param name="guardStartStaminaCost">이번 가드 시작에 필요한 스테미나 비용입니다.</param>
         /// <param name="cancelGuardBreakAnimation">진행 중인 가드 브레이크 연출을 취소할지 여부입니다.</param>
+        /// <param name="interruptHitStopOnStart">가드 진입 확정 시 활성 HitStop을 종료할지 여부입니다.</param>
         /// <returns>가드 시작에 성공하면 true입니다.</returns>
-        private bool TryBeginGuardWithCost(long guardStartStaminaCost, bool cancelGuardBreakAnimation)
+        private bool TryBeginGuardWithCost(
+            long guardStartStaminaCost,
+            bool cancelGuardBreakAnimation,
+            bool interruptHitStopOnStart = false)
         {
             if (!TrySpendStamina(Math.Max(0L, guardStartStaminaCost)))
             {
                 // 스테미나가 부족하면 Guard 진입 자체를 막고, 브레이크 중이면 해당 연출을 유지합니다.
                 return false;
+            }
+
+            if (interruptHitStopOnStart)
+            {
+                // 가드 진입이 확정된 뒤 이전 상태와 속도를 복원하지 않고 HitStop을 종료해야
+                // 정지된 Animator와 Rigidbody2D가 가드 시작 상태를 덮어쓰지 않습니다.
+                actionCharacterBase.HitStopController.TerminateForExternalActionOverride();
             }
 
             // 새 가드 입력이 정상 진입하면 이전 CC 예약 상태는 더 이상 유효하지 않습니다.

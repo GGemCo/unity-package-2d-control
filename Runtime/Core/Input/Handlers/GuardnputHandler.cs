@@ -24,13 +24,13 @@ namespace GGemCo2DControl
         {
             if (_character == null || _guard == null || _policy == null) return;
 
-            if (!_policy.TryPrepareGuard(out var deny))
+            if (!_policy.TryPrepareGuard(out var deny, out bool interruptHitStopOnStart))
             {
                 if (!string.IsNullOrEmpty(deny)) GcLogger.Log(deny);
                 return;
             }
 
-            _guard.GuardDown();
+            _guard.GuardDown(interruptHitStopOnStart);
         }
 
         public void HandleRelease()
