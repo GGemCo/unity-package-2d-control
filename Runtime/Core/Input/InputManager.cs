@@ -438,7 +438,7 @@ namespace GGemCo2DControl
             {
                 _policy.AttackGuardCancelPolicy = _playerGuardSettings != null
                     ? _playerGuardSettings.attackGuardCancelPolicy
-                    : AttackGuardCancelPolicy.AttackAndComboWait;
+                    : AttackGuardCancelPolicy.None;
                 _policy.GuardDuringHitStopPolicy = _playerGuardSettings != null
                     ? _playerGuardSettings.guardDuringHitStopPolicy
                     : GuardDuringHitStopPolicy.Block;
@@ -534,7 +534,6 @@ namespace GGemCo2DControl
             // === Input Policy / Handlers ===
             _policy = new PlayerInputPolicy(
                 _characterBase,
-                _actionAttack,
                 _actionDash,
                 _actionJump,
                 _actionClimb,

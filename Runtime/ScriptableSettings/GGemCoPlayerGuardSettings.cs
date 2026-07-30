@@ -60,7 +60,7 @@ namespace GGemCo2DControl
     public enum AttackGuardCancelPolicy
     {
         /// <summary>
-        /// 공격 상태에서는 가드 입력으로 공격을 취소하지 않습니다.
+        /// 기본 정책입니다. 공격 본 애니메이션과 콤보 대기 구간 모두에서 가드 입력으로 공격을 취소하지 않습니다.
         /// </summary>
         None = 0,
 
@@ -245,8 +245,8 @@ namespace GGemCo2DControl
         public long guardStaminaTickCost;
 
         [Header("가드 입력 캔슬")]
-        [Tooltip("공격 중 가드 입력을 허용할 구간입니다. 기본값은 기존 동작 유지를 위해 공격 본 애니메이션과 콤보 대기 구간 모두에서 허용합니다.")]
-        public AttackGuardCancelPolicy attackGuardCancelPolicy = AttackGuardCancelPolicy.AttackAndComboWait;
+        [Tooltip("공격 중 가드 입력을 허용할 구간입니다. 기본값은 공격 본 애니메이션과 콤보 대기 구간 모두에서 가드 입력을 차단합니다.")]
+        public AttackGuardCancelPolicy attackGuardCancelPolicy = AttackGuardCancelPolicy.None;
 
         [Tooltip("HitStop 중 가드 입력 처리 정책입니다. 즉시 가드 정책은 HitStop 외의 CC 또는 전체 조작 잠금이 없어야 적용됩니다.")]
         public GuardDuringHitStopPolicy guardDuringHitStopPolicy = GuardDuringHitStopPolicy.Block;
@@ -480,6 +480,7 @@ namespace GGemCo2DControl
             guardStartStaminaCostPolicy = GuardStartStaminaCostPolicy.FreeWhenJustGuardSuccessPolicyNone;
             justGuardSuccessStaminaCostPolicy = JustGuardStaminaCostPolicy.None;
             justGuardSuccessStaminaCostValue = 0f;
+            attackGuardCancelPolicy = AttackGuardCancelPolicy.None;
             guardDuringHitStopPolicy = GuardDuringHitStopPolicy.Block;
             guardAttackTypeRules = new List<GuardAttackTypeRule>
             {

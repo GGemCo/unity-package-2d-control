@@ -587,6 +587,9 @@ namespace GGemCo2DControl
 
             // 이동 멈춤
             actionCharacterBase.directionNormalize = Vector3.zero;
+
+            // 스테미나 지불이 성공한 뒤에만 현재 액션을 정지합니다.
+            // 기본 공격 중이었다면 ActionAttack.OnStop에서 콤보 대기 코루틴과 런타임 콤보 상태를 함께 정리합니다.
             actionCharacterBase.Stop(true);
 
             // Start → Wait로 이어지는 구간

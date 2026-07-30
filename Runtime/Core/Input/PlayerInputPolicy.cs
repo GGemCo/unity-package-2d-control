@@ -47,7 +47,6 @@ namespace GGemCo2DControl
     internal sealed class PlayerInputPolicy
     {
         private readonly CharacterBase _character;
-        private readonly ActionAttack _attack;
         private readonly ActionDash _dash;
         private readonly ActionJump _jump;
         private readonly ActionClimb _climb;
@@ -67,12 +66,22 @@ namespace GGemCo2DControl
         public bool CanJumpUseSkill { get; set; }
         public bool CanDashUseSkill { get; set; }
         public bool CanAttackPlayJump { get; set; }
-        public AttackGuardCancelPolicy AttackGuardCancelPolicy { get; set; } = AttackGuardCancelPolicy.AttackAndComboWait;
+        public AttackGuardCancelPolicy AttackGuardCancelPolicy { get; set; } = AttackGuardCancelPolicy.None;
         public GuardDuringHitStopPolicy GuardDuringHitStopPolicy { get; set; } = GuardDuringHitStopPolicy.Block;
 
+        /// <summary>
+        /// 플레이어 입력 정책을 생성합니다.
+        /// </summary>
+        /// <param name="character">입력 정책을 적용할 플레이어 캐릭터입니다.</param>
+        /// <param name="dash">대시 액션입니다.</param>
+        /// <param name="jump">점프 액션입니다.</param>
+        /// <param name="climb">등반 액션입니다.</param>
+        /// <param name="pushPull">밀기·당기기 액션입니다.</param>
+        /// <param name="wall">벽 액션입니다.</param>
+        /// <param name="getSkillCancelable">현재 스킬 취소 드라이버를 조회하는 함수입니다.</param>
+        /// <param name="getMoveInput">현재 이동 입력값을 조회하는 함수입니다.</param>
         public PlayerInputPolicy(
             CharacterBase character,
-            ActionAttack attack,
             ActionDash dash,
             ActionJump jump,
             ActionClimb climb,
@@ -82,7 +91,6 @@ namespace GGemCo2DControl
             System.Func<Vector2> getMoveInput)
         {
             _character = character;
-            _attack = attack;
             _dash = dash;
             _jump = jump;
             _climb = climb;
@@ -201,7 +209,7 @@ namespace GGemCo2DControl
                 return false;
             }
 
-            if (!TryCancelAttackForGuard(out denyLog, out bool cancelAttackMoveForceOnStart))
+            if (!TryPrepareAttackInterruptionForGuard(out denyLog, out bool cancelAttackMoveForceOnStart))
             {
                 return false;
             }
@@ -239,14 +247,19 @@ namespace GGemCo2DControl
         }
 
         /// <summary>
-        /// 현재 공격 상태가 가드 입력으로 취소 가능한지 확인하고, 가능하면 공격 예약 작업을 정리합니다.
+        /// 현재 공격 상태가 가드 입력으로 중단 가능한지 확인하고, 가드 시작 후 적용할 후속 처리를 준비합니다.
         /// </summary>
         /// <param name="denyLog">가드 입력을 거부할 때 출력할 로그입니다.</param>
         /// <param name="cancelAttackMoveForceOnStart">
-        /// 가드 시작이 확정된 뒤 기본 공격의 전진 이동을 취소해야 하면 <see langword="true"/>입니다.
+        /// 가드 시작이 확정되면 기본 공격의 전진 이동을 취소해야 하는지 여부입니다.
         /// </param>
-        /// <returns>가드 입력을 계속 진행할 수 있으면 <see langword="true"/>입니다.</returns>
-        private bool TryCancelAttackForGuard(
+        /// <returns>가드 입력을 계속 준비할 수 있으면 <see langword="true"/>입니다.</returns>
+        /// <remarks>
+        /// 이 단계에서는 공격 상태와 예약 코루틴을 변경하지 않습니다.
+        /// 가드 시작 스테미나 지불에 성공한 뒤 <see cref="ActionGuard"/>의 강제 정지 흐름에서
+        /// 기존 <see cref="CharacterBase.OnStop"/> 이벤트를 통해 공격 예약을 정리합니다.
+        /// </remarks>
+        private bool TryPrepareAttackInterruptionForGuard(
             out string denyLog,
             out bool cancelAttackMoveForceOnStart)
         {
@@ -280,8 +293,7 @@ namespace GGemCo2DControl
                     return false;
             }
 
-            _attack?.CancelAttackByActionInterrupt();
-            // 공격 예약은 준비 단계에서 정리하되, 이동 힘은 스테미나 지불이 성공한 뒤에만 무효화합니다.
+            // 공격 상태 정리와 이동 취소는 가드 시작 스테미나 지불이 성공한 뒤에만 실행합니다.
             cancelAttackMoveForceOnStart = true;
             return true;
         }
