@@ -4,6 +4,40 @@ using UnityEngine;
 namespace GGemCo2DControl
 {
     /// <summary>
+    /// 가드 입력 준비 단계에서 확정한 후속 처리 정보를 전달합니다.
+    /// </summary>
+    internal readonly struct GuardPreparationContext
+    {
+        /// <summary>
+        /// 별도의 후속 처리가 필요하지 않은 기본 컨텍스트입니다.
+        /// </summary>
+        public static GuardPreparationContext None => default;
+
+        /// <summary>
+        /// 가드 시작이 확정된 시점에 활성 HitStop을 종료해야 하는지 여부입니다.
+        /// </summary>
+        public bool InterruptHitStopOnStart { get; }
+
+        /// <summary>
+        /// 가드 시작이 확정된 시점에 기본 공격의 전진 이동을 취소해야 하는지 여부입니다.
+        /// </summary>
+        public bool CancelAttackMoveForceOnStart { get; }
+
+        /// <summary>
+        /// 가드 입력 준비 결과를 생성합니다.
+        /// </summary>
+        /// <param name="interruptHitStopOnStart">가드 시작 시 활성 HitStop을 종료할지 여부입니다.</param>
+        /// <param name="cancelAttackMoveForceOnStart">가드 시작 시 기본 공격의 전진 이동을 취소할지 여부입니다.</param>
+        public GuardPreparationContext(
+            bool interruptHitStopOnStart,
+            bool cancelAttackMoveForceOnStart)
+        {
+            InterruptHitStopOnStart = interruptHitStopOnStart;
+            CancelAttackMoveForceOnStart = cancelAttackMoveForceOnStart;
+        }
+    }
+
+    /// <summary>
     /// 입력 허용/차단 및 상충 상태 정리(캔슬/취소 요청) 정책을 한 곳으로 모은 클래스.
     /// 
     /// 목적:
@@ -114,16 +148,15 @@ namespace GGemCo2DControl
         /// 현재 캐릭터 상태에서 가드 입력을 시작할 수 있는지 확인하고 필요한 선행 상태를 정리합니다.
         /// </summary>
         /// <param name="denyLog">가드 입력이 거부된 경우 출력할 로그입니다.</param>
-        /// <param name="interruptHitStopOnStart">
-        /// 가드 시작이 확정된 시점에 활성 HitStop을 종료해야 하면 <see langword="true"/>입니다.
-        /// </param>
+        /// <param name="preparationContext">가드 시작이 확정된 뒤 적용할 후속 처리 정보입니다.</param>
         /// <returns>가드 입력을 계속 처리할 수 있으면 <see langword="true"/>를 반환합니다.</returns>
-        public bool TryPrepareGuard(out string denyLog, out bool interruptHitStopOnStart)
+        public bool TryPrepareGuard(out string denyLog, out GuardPreparationContext preparationContext)
         {
             denyLog = null;
-            interruptHitStopOnStart = false;
+            preparationContext = GuardPreparationContext.None;
             if (_character.IsStatusDead()) return false;
 
+            bool interruptHitStopOnStart = false;
             if (_character.IsDontControl())
             {
                 if (!CanStartGuardByInterruptingHitStop())
@@ -168,7 +201,7 @@ namespace GGemCo2DControl
                 return false;
             }
 
-            if (!TryCancelAttackForGuard(out denyLog))
+            if (!TryCancelAttackForGuard(out denyLog, out bool cancelAttackMoveForceOnStart))
             {
                 return false;
             }
@@ -177,6 +210,9 @@ namespace GGemCo2DControl
             // var skill = _getSkillCancelable?.Invoke();
             // if (skill != null && skill.IsSkillRunning) { ... }
 
+            preparationContext = new GuardPreparationContext(
+                interruptHitStopOnStart,
+                cancelAttackMoveForceOnStart);
             return true;
         }
 
@@ -206,10 +242,16 @@ namespace GGemCo2DControl
         /// 현재 공격 상태가 가드 입력으로 취소 가능한지 확인하고, 가능하면 공격 예약 작업을 정리합니다.
         /// </summary>
         /// <param name="denyLog">가드 입력을 거부할 때 출력할 로그입니다.</param>
+        /// <param name="cancelAttackMoveForceOnStart">
+        /// 가드 시작이 확정된 뒤 기본 공격의 전진 이동을 취소해야 하면 <see langword="true"/>입니다.
+        /// </param>
         /// <returns>가드 입력을 계속 진행할 수 있으면 <see langword="true"/>입니다.</returns>
-        private bool TryCancelAttackForGuard(out string denyLog)
+        private bool TryCancelAttackForGuard(
+            out string denyLog,
+            out bool cancelAttackMoveForceOnStart)
         {
             denyLog = null;
+            cancelAttackMoveForceOnStart = false;
 
             if (!_character.IsStatusAttack() && !_character.IsStatusAttackComboWait())
             {
@@ -239,6 +281,8 @@ namespace GGemCo2DControl
             }
 
             _attack?.CancelAttackByActionInterrupt();
+            // 공격 예약은 준비 단계에서 정리하되, 이동 힘은 스테미나 지불이 성공한 뒤에만 무효화합니다.
+            cancelAttackMoveForceOnStart = true;
             return true;
         }
 

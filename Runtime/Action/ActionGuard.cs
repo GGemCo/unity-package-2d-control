@@ -256,16 +256,14 @@ namespace GGemCo2DControl
         /// </summary>
         public void GuardDown()
         {
-            GuardDown(interruptHitStopOnStart: false);
+            GuardDown(GuardPreparationContext.None);
         }
 
         /// <summary>
-        /// Guard 버튼 Down 입력을 처리하고, 가드 시작 성공 시 필요에 따라 활성 HitStop을 종료합니다.
+        /// Guard 버튼 Down 입력을 처리하고, 가드 시작 성공 시 준비된 후속 처리를 적용합니다.
         /// </summary>
-        /// <param name="interruptHitStopOnStart">
-        /// 스테미나 지불 후 실제 가드 진입이 확정되면 활성 HitStop을 종료할지 여부입니다.
-        /// </param>
-        internal void GuardDown(bool interruptHitStopOnStart)
+        /// <param name="preparationContext">가드 시작이 확정된 뒤 적용할 후속 처리 정보입니다.</param>
+        internal void GuardDown(GuardPreparationContext preparationContext)
         {
             if (actionCharacterBase == null) return;
             if (actionCharacterBase.IsStatusDead()) return;
@@ -287,7 +285,7 @@ namespace GGemCo2DControl
             TryBeginGuardWithCost(
                 ResolveCurrentGuardStartStaminaCost(),
                 cancelGuardBreakAnimation: false,
-                interruptHitStopOnStart: interruptHitStopOnStart);
+                preparationContext: preparationContext);
         }
 
         /// <summary>
@@ -524,16 +522,32 @@ namespace GGemCo2DControl
         }
 
         /// <summary>
+        /// 지정한 스테미나 비용을 지불한 뒤 별도의 후속 처리 없이 가드 시작 상태로 진입합니다.
+        /// </summary>
+        /// <param name="guardStartStaminaCost">이번 가드 시작에 필요한 스테미나 비용입니다.</param>
+        /// <param name="cancelGuardBreakAnimation">진행 중인 가드 브레이크 연출을 취소할지 여부입니다.</param>
+        /// <returns>가드 시작에 성공하면 <see langword="true"/>입니다.</returns>
+        private bool TryBeginGuardWithCost(
+            long guardStartStaminaCost,
+            bool cancelGuardBreakAnimation)
+        {
+            return TryBeginGuardWithCost(
+                guardStartStaminaCost,
+                cancelGuardBreakAnimation,
+                GuardPreparationContext.None);
+        }
+
+        /// <summary>
         /// 지정한 스테미나 비용을 지불한 뒤 가드 시작 상태로 진입합니다.
         /// </summary>
         /// <param name="guardStartStaminaCost">이번 가드 시작에 필요한 스테미나 비용입니다.</param>
         /// <param name="cancelGuardBreakAnimation">진행 중인 가드 브레이크 연출을 취소할지 여부입니다.</param>
-        /// <param name="interruptHitStopOnStart">가드 진입 확정 시 활성 HitStop을 종료할지 여부입니다.</param>
-        /// <returns>가드 시작에 성공하면 true입니다.</returns>
+        /// <param name="preparationContext">가드 진입 확정 후 적용할 후속 처리 정보입니다.</param>
+        /// <returns>가드 시작에 성공하면 <see langword="true"/>입니다.</returns>
         private bool TryBeginGuardWithCost(
             long guardStartStaminaCost,
             bool cancelGuardBreakAnimation,
-            bool interruptHitStopOnStart = false)
+            GuardPreparationContext preparationContext)
         {
             if (!TrySpendStamina(Math.Max(0L, guardStartStaminaCost)))
             {
@@ -541,11 +555,18 @@ namespace GGemCo2DControl
                 return false;
             }
 
-            if (interruptHitStopOnStart)
+            if (preparationContext.InterruptHitStopOnStart)
             {
                 // 가드 진입이 확정된 뒤 이전 상태와 속도를 복원하지 않고 HitStop을 종료해야
                 // 정지된 Animator와 Rigidbody2D가 가드 시작 상태를 덮어쓰지 않습니다.
                 actionCharacterBase.HitStopController.TerminateForExternalActionOverride();
+            }
+
+            if (preparationContext.CancelAttackMoveForceOnStart)
+            {
+                // 기본 공격에서 예약한 전진 이동은 가드 시작과 같은 프레임에 무효화합니다.
+                // 스테미나 지불 전에 취소하면 가드 실패 시에도 공격 이동이 끊기므로 이 위치를 유지합니다.
+                actionCharacterBase.CancelMoveForce();
             }
 
             // 새 가드 입력이 정상 진입하면 이전 CC 예약 상태는 더 이상 유효하지 않습니다.
