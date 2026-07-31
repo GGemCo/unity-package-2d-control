@@ -256,18 +256,31 @@ namespace GGemCo2DControl
             actionCharacterBase.CharacterAnimationController?.PlayAttackEndAnimation();
         }
 
+        /// <summary>
+        /// 기본 공격 시작을 요청합니다.
+        /// 기존 호출부와의 호환성을 유지하기 위해 공격 시작 결과는 반환하지 않습니다.
+        /// </summary>
         public void Attack()
         {
-            if (IsHitStopped()) return;
-            if (actionCharacterBase.IsStatusAttack()) return;
-            if (actionCharacterBase.IsStatusDead()) return;
-            if (_countCombo <= 0) return;
+            TryAttack();
+        }
+
+        /// <summary>
+        /// 현재 캐릭터와 콤보 상태를 검증한 뒤 기본 공격을 시작합니다.
+        /// </summary>
+        /// <returns>공격 상태와 애니메이션이 실제로 시작되었으면 <see langword="true"/>입니다.</returns>
+        internal bool TryAttack()
+        {
+            if (IsHitStopped()) return false;
+            if (actionCharacterBase.IsStatusAttack()) return false;
+            if (actionCharacterBase.IsStatusDead()) return false;
+            if (_countCombo <= 0) return false;
 
             // 콤보 리스트가 1개 초과 일때만 콤보 처리 
             if (_countCombo > 1)
             {
                 // 마지막 모션이면 처리하지 않기
-                if (IsLastAttackCombo()) return;
+                if (IsLastAttackCombo()) return false;
             
                 if (actionCharacterBase.IsStatusAttackComboWait())
                 {
@@ -282,7 +295,7 @@ namespace GGemCo2DControl
             else
             {
                 // wait 타임이 있을때는 대기 한다.
-                if (actionCharacterBase.IsStatusAttackComboWait()) return;
+                if (actionCharacterBase.IsStatusAttackComboWait()) return false;
                 SetAttackCombo(0);
             }
             
@@ -301,6 +314,7 @@ namespace GGemCo2DControl
             MoveForward(attackAnimName);
 
             actionCharacterBase.CharacterAnimationController?.PlayAttackAnimation(attackAnimName);
+            return true;
         }
         /// <summary>
         /// 공격 애니메이션 종료 되었을때,

@@ -546,7 +546,7 @@ namespace GGemCo2DControl
             ApplySettings();
             ApplyGuardSettings();
 
-            _attackHandler = new AttackInputHandler(_characterBase, _actionAttack, _policy);
+            _attackHandler = new AttackInputHandler(_characterBase, _actionAttack, _actionGuard, _policy);
             _guardHandler = new GuardInputHandler(_characterBase, _actionGuard, _policy);
             _jumpHandler = new JumpInputHandler(_characterBase, _actionJump, _actionWall, _policy);
             _dashHandler = new DashInputHandler(_characterBase, _actionDash, _policy);
@@ -1058,7 +1058,7 @@ namespace GGemCo2DControl
             _actionPushPull?.Cancel();
             _toolAction?.Cancel();
             _actionWall?.CancelWall(restorePrevious: false);
-            _actionGuard?.CancelGuard(true);
+            _actionGuard?.CancelForConflictingAction();
 
             _autoMove?.ReleaseAll();
         }

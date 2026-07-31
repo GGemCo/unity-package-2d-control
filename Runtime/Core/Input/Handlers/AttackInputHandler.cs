@@ -11,15 +11,24 @@ namespace GGemCo2DControl
     {
         private readonly CharacterBase _character;
         private readonly ActionAttack _attack;
+        private readonly ActionGuard _guard;
         private readonly PlayerInputPolicy _policy;
 
-        public AttackInputHandler(CharacterBase character, ActionAttack attack, PlayerInputPolicy policy)
+        public AttackInputHandler(
+            CharacterBase character,
+            ActionAttack attack,
+            ActionGuard guard,
+            PlayerInputPolicy policy)
         {
             _character = character;
             _attack = attack;
+            _guard = guard;
             _policy = policy;
         }
 
+        /// <summary>
+        /// 공격 정책을 검증하고 기본 공격이 실제 시작된 경우 충돌 중인 가드 상태를 즉시 종료합니다.
+        /// </summary>
         public void Handle()
         {
             if (_character == null || _attack == null || _policy == null) return;
@@ -29,7 +38,11 @@ namespace GGemCo2DControl
                 return;
             }
 
-            _attack.Attack();
+            if (_attack.TryAttack())
+            {
+                // 공격이 거부되거나 버퍼 처리만 된 경우에는 기존 가드를 유지해야 하므로 시작 성공 후 정리합니다.
+                _guard?.CancelForConflictingAction();
+            }
         }
     }
 }

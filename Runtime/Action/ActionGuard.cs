@@ -316,6 +316,12 @@ namespace GGemCo2DControl
                 return;
             }
 
+            // 가드 종료 애니메이션 단계에서는 실제 방어 판정과 유지 비용을 적용하지 않습니다.
+            if (!IsActivelyGuarding)
+            {
+                return;
+            }
+
             // 스테미나 0이면 입력과 무관하게 즉시 해제
             if (actionCharacterBase.CurrentStamina.Value <= 0)
             {
@@ -1508,6 +1514,20 @@ namespace GGemCo2DControl
             }
 
             BeginEnd(isStop);
+        }
+
+        /// <summary>
+        /// 공격이나 스킬처럼 가드와 동시에 유지할 수 없는 다른 액션이 시작되었을 때 가드를 즉시 종료합니다.
+        /// 새 액션이 캐릭터 상태와 애니메이션을 점유했거나 직후 점유하므로 가드 종료 애니메이션과 캐릭터 Stop 처리는 실행하지 않습니다.
+        /// </summary>
+        internal void CancelForConflictingAction()
+        {
+            if (!IsGuarding)
+            {
+                return;
+            }
+
+            CancelGuard(skipEndAnimation: true, isStop: false);
         }
 
         private bool TrySpendStamina(long amount)
