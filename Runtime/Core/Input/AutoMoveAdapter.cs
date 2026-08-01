@@ -18,10 +18,12 @@ namespace GGemCo2DControl
         private AutoMoveSuspendToken _guardSuspendToken;
         private AutoMoveSuspendToken _playerAttackRangeSuspendToken;
         private AutoMoveSuspendToken _controlLockedSuspendToken;
+        private AutoMoveSuspendToken _landingSuspendToken;
         private bool _isSuspendedByWall;
         private bool _isSuspendedByGuard;
         private bool _isSuspendedByPlayerAttackRange;
         private bool _isSuspendedByControlLocked;
+        private bool _isSuspendedByLanding;
 
         public AutoMoveAdapter(IAutoMoveVectorProvider provider, IAutoMoveSuspendService suspend)
         {
@@ -31,10 +33,12 @@ namespace GGemCo2DControl
             _guardSuspendToken = AutoMoveSuspendToken.None;
             _playerAttackRangeSuspendToken = AutoMoveSuspendToken.None;
             _controlLockedSuspendToken = AutoMoveSuspendToken.None;
+            _landingSuspendToken = AutoMoveSuspendToken.None;
             _isSuspendedByWall = false;
             _isSuspendedByGuard = false;
             _isSuspendedByPlayerAttackRange = false;
             _isSuspendedByControlLocked = false;
+            _isSuspendedByLanding = false;
         }
 
         public bool IsAutoMoveActive => _provider is { IsAutoMoveActive: true };
@@ -170,6 +174,36 @@ namespace GGemCo2DControl
             }
         }
 
+        /// <summary>
+        /// 착지 1회성 애니메이션이 재생되는 동안 AutoMove를 일시정지합니다.
+        /// </summary>
+        /// <param name="landingActive">착지 애니메이션 단계가 활성 상태이면 <see langword="true"/>입니다.</param>
+        public void TickSuspendByLanding(bool landingActive)
+        {
+            if (_suspend == null) return;
+
+            if (landingActive)
+            {
+                if (!_isSuspendedByLanding)
+                {
+                    _landingSuspendToken = _suspend.AcquireSuspend(AutoMoveSuspendReason.LandingAction);
+                    _isSuspendedByLanding = _landingSuspendToken.IsValid;
+                }
+
+                return;
+            }
+
+            if (_isSuspendedByLanding)
+            {
+                _suspend.ReleaseSuspend(_landingSuspendToken);
+                _landingSuspendToken = AutoMoveSuspendToken.None;
+                _isSuspendedByLanding = false;
+            }
+        }
+
+        /// <summary>
+        /// 이 어댑터가 획득한 모든 AutoMove 일시정지 토큰을 해제합니다.
+        /// </summary>
         public void ReleaseAll()
         {
             if (_suspend == null) return;
@@ -193,9 +227,16 @@ namespace GGemCo2DControl
 
             ForceReleaseControlLockedSuspendToken();
 
+            if (_landingSuspendToken.IsValid)
+            {
+                _suspend.ReleaseSuspend(_landingSuspendToken);
+                _landingSuspendToken = AutoMoveSuspendToken.None;
+            }
+
             _isSuspendedByWall = false;
             _isSuspendedByGuard = false;
             _isSuspendedByPlayerAttackRange = false;
+            _isSuspendedByLanding = false;
         }
 
         /// <summary>

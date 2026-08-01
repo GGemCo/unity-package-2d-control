@@ -1374,6 +1374,16 @@ namespace GGemCo2DControl
             _actionJump.Update();
             _actionDash.Update();
 
+            bool isLanding = _actionJump.IsLanding;
+            _autoMove?.TickSuspendByLanding(isLanding);
+            if (isLanding)
+            {
+                // Stop()은 Jump 상태와 착지 애니메이션을 Idle로 덮을 수 있으므로 호출하지 않습니다.
+                // 이동 방향만 초기화하고 입력 해석 전에 종료하여 수동 이동과 AutoMove를 함께 차단합니다.
+                _characterBase.directionNormalize = Vector2.zero;
+                return;
+            }
+
             // 2) 이동 입력 읽기
             // ActionClimb 에서 사용하고 있음
             // ActionPushPull 에서 사용하고 있음

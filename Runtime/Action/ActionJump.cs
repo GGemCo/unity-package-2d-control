@@ -14,6 +14,14 @@ namespace GGemCo2DControl
         // 클래스 상단 필드/프로퍼티 섹션 인근
         public bool IsJumping => _phase != JumpPhase.None;
 
+        /// <summary>
+        /// 현재 점프 FSM이 착지 1회성 애니메이션 단계인지 확인합니다.
+        /// </summary>
+        /// <remarks>
+        /// 착지 단계에서는 Jump 상태가 유지되지만 수동 이동과 자동 이동은 잠시 중단해야 합니다.
+        /// </remarks>
+        public bool IsLanding => _phase == JumpPhase.LandOneShot;
+
         // --- 캐시 ---
         private Rigidbody2D _rb;
         private Collider2D _col;
