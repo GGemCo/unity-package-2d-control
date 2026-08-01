@@ -118,6 +118,12 @@ namespace GGemCo2DControl
         private readonly List<MonoBehaviour> _attackInputOverrideComponentBuffer = new();
         private readonly List<IPlayerAttackInputOverrideHandler> _attackInputOverrideHandlers = new();
 
+        // 물리 공격 버튼을 현재 문맥의 논리 입력으로 변환하는 Provider 캐시
+        private readonly List<MonoBehaviour> _attackInputRouteProviderComponentBuffer = new();
+        private readonly List<IPlayerAttackInputRouteProvider> _attackInputRouteProviders = new();
+        private PlayerAttackInputRoute _pressedAttackInputRoute = PlayerAttackInputRoute.Attack;
+        private bool _hasPressedAttackInputRoute;
+
         // 프로젝트 전용 가드 입력 override 핸들러 캐시
         private readonly List<MonoBehaviour> _guardInputOverrideComponentBuffer = new();
         private readonly List<IPlayerGuardInputOverrideHandler> _guardInputOverrideHandlers = new();
@@ -673,7 +679,7 @@ namespace GGemCo2DControl
 
             _bindings?.Unbind();
             _bindings = null;
-            _releaseResolver?.Clear();
+            ClearBufferedButtonInputs();
             _simulationToolPressCtx = default;
             _simulationToolReleaseCtx = default;
             ReleaseMapTransitionInputSuspend();
@@ -818,7 +824,7 @@ namespace GGemCo2DControl
         /// </summary>
         private void CancelActionsOnMapLoadStart()
         {
-            _releaseResolver?.Clear();
+            ClearBufferedButtonInputs();
             _simulationToolPressCtx = default;
             _simulationToolReleaseCtx = default;
 
@@ -1050,7 +1056,7 @@ namespace GGemCo2DControl
         /// </summary>
         public void CancelActionsOnSkillStart()
         {
-            _releaseResolver?.Clear();
+            ClearBufferedButtonInputs();
 
             _actionJump?.CancelJump(skipLandAnimation: true, restoreGravity: true);
             _actionDash?.CancelDash(skipEndAnimation: true);
@@ -1096,7 +1102,7 @@ namespace GGemCo2DControl
         /// </summary>
         public void CancelActionsOnMapClear()
         {
-            _releaseResolver?.Clear();
+            ClearBufferedButtonInputs();
             _simulationToolPressCtx = default;
             _simulationToolReleaseCtx = default;
 
@@ -1129,7 +1135,7 @@ namespace GGemCo2DControl
         /// </summary>
         public void CancelActionsOnInteractionStart()
         {
-            _releaseResolver?.Clear();
+            ClearBufferedButtonInputs();
             _simulationToolPressCtx = default;
             _simulationToolReleaseCtx = default;
 
@@ -1161,7 +1167,7 @@ namespace GGemCo2DControl
         /// <param name="reason">액션 취소 사유입니다.</param>
         public void CancelActionsOnIncomingHit(IncomingHitCancelReason reason)
         {
-            _releaseResolver?.Clear();
+            ClearBufferedButtonInputs();
 
             _actionJump?.CancelJump(skipLandAnimation: true, restoreGravity: true);
             _actionDash?.CancelDash(skipEndAnimation: true);
@@ -1222,7 +1228,7 @@ namespace GGemCo2DControl
 
         private void CancelActionsForExhaustion()
         {
-            _releaseResolver?.Clear();
+            ClearBufferedButtonInputs();
             _simulationToolPressCtx = default;
             _simulationToolReleaseCtx = default;
 
@@ -1466,24 +1472,143 @@ namespace GGemCo2DControl
         // Attack
         private void OnAttackPress(InputAction.CallbackContext ctx)
         {
-            if (!CanProcessInputCallback()) return;
-            if (_characterBase != null && _characterBase.IsDontControl()) return;
-            if (ShouldBlockInputByCharacterInputLock(AutoMoveInputType.Attack)) return;
-            if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Attack, Vector2.zero)) return;
-            if (ShouldBlockInputByProvider(AutoMoveInputType.Attack)) return;
-            _releaseResolver?.PushPress(PlayerButtonId.Attack, Time.unscaledTime);
+            if (!CanProcessInputCallback())
+            {
+                return;
+            }
+
+            PlayerAttackInputRoute route = ResolveAttackInputRoute();
+            if (!TryPushAttackRoutePress(route))
+            {
+                _hasPressedAttackInputRoute = false;
+                return;
+            }
+
+            // Press와 Release 사이에 전투 문맥이 바뀌어도 동일한 논리 버튼으로 입력 쌍을 완성합니다.
+            _pressedAttackInputRoute = route;
+            _hasPressedAttackInputRoute = true;
         }
 
         private void OnAttackRelease(InputAction.CallbackContext ctx)
         {
-            if (!CanProcessInputCallback()) return;
-            if (_characterBase != null && _characterBase.IsDontControl()) return;
-            if (ShouldBlockInputByCharacterInputLock(AutoMoveInputType.Attack)) return;
-            if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Attack, Vector2.zero)) return;
-            if (ShouldBlockInputByProvider(AutoMoveInputType.Attack)) return;
-            _releaseResolver?.PushRelease(PlayerButtonId.Attack, Time.unscaledTime);
+            if (!_hasPressedAttackInputRoute)
+            {
+                return;
+            }
+
+            PlayerAttackInputRoute route = _pressedAttackInputRoute;
+            _hasPressedAttackInputRoute = false;
+            TryPushAttackRouteRelease(route);
         }
-        
+
+        /// <summary>
+        /// 결정된 공격 입력 경로에 맞는 논리 버튼 Press를 입력 버퍼에 전달합니다.
+        /// </summary>
+        /// <param name="route">현재 공격 버튼에 적용할 논리 입력 경로입니다.</param>
+        /// <returns>입력 허용 조건을 통과하여 Press를 전달했으면 <see langword="true"/>입니다.</returns>
+        private bool TryPushAttackRoutePress(PlayerAttackInputRoute route)
+        {
+            return route == PlayerAttackInputRoute.Jump
+                ? TryPushButtonPress(
+                    PlayerButtonId.Jump,
+                    AutoMoveInputType.Jump,
+                    requireMovementUnlocked: true)
+                : TryPushButtonPress(
+                    PlayerButtonId.Attack,
+                    AutoMoveInputType.Attack,
+                    requireMovementUnlocked: false);
+        }
+
+        /// <summary>
+        /// Press 시점에 확정한 공격 입력 경로와 동일한 논리 버튼 Release를 입력 버퍼에 전달합니다.
+        /// </summary>
+        /// <param name="route">Press 시점에 확정한 논리 입력 경로입니다.</param>
+        /// <returns>입력 허용 조건을 통과하여 Release를 전달했으면 <see langword="true"/>입니다.</returns>
+        private bool TryPushAttackRouteRelease(PlayerAttackInputRoute route)
+        {
+            return route == PlayerAttackInputRoute.Jump
+                ? TryPushButtonRelease(
+                    PlayerButtonId.Jump,
+                    AutoMoveInputType.Jump,
+                    requireMovementUnlocked: true)
+                : TryPushButtonRelease(
+                    PlayerButtonId.Attack,
+                    AutoMoveInputType.Attack,
+                    requireMovementUnlocked: false);
+        }
+
+        /// <summary>
+        /// 지정한 논리 버튼의 공통 입력 허용 조건을 검사하고 Press를 입력 버퍼에 전달합니다.
+        /// </summary>
+        /// <param name="button">입력 버퍼에 전달할 논리 버튼입니다.</param>
+        /// <param name="inputType">잠금 및 프로젝트 정책 검사에 사용할 입력 타입입니다.</param>
+        /// <param name="requireMovementUnlocked">이동 입력 잠금도 함께 검사할지 여부입니다.</param>
+        /// <returns>Press를 입력 버퍼에 전달했으면 <see langword="true"/>입니다.</returns>
+        private bool TryPushButtonPress(
+            PlayerButtonId button,
+            AutoMoveInputType inputType,
+            bool requireMovementUnlocked)
+        {
+            if (!CanQueueButtonInput(inputType, requireMovementUnlocked))
+            {
+                return false;
+            }
+
+            _releaseResolver?.PushPress(button, Time.unscaledTime);
+            return _releaseResolver != null;
+        }
+
+        /// <summary>
+        /// 지정한 논리 버튼의 공통 입력 허용 조건을 검사하고 Release를 입력 버퍼에 전달합니다.
+        /// </summary>
+        /// <param name="button">입력 버퍼에 전달할 논리 버튼입니다.</param>
+        /// <param name="inputType">잠금 및 프로젝트 정책 검사에 사용할 입력 타입입니다.</param>
+        /// <param name="requireMovementUnlocked">이동 입력 잠금도 함께 검사할지 여부입니다.</param>
+        /// <returns>Release를 입력 버퍼에 전달했으면 <see langword="true"/>입니다.</returns>
+        private bool TryPushButtonRelease(
+            PlayerButtonId button,
+            AutoMoveInputType inputType,
+            bool requireMovementUnlocked)
+        {
+            if (!CanQueueButtonInput(inputType, requireMovementUnlocked))
+            {
+                return false;
+            }
+
+            _releaseResolver?.PushRelease(button, Time.unscaledTime);
+            return _releaseResolver != null;
+        }
+
+        /// <summary>
+        /// 물리 입력을 논리 버튼으로 변환한 뒤에도 기존 입력 잠금과 자동 이동 정책을 동일하게 적용합니다.
+        /// </summary>
+        /// <param name="inputType">검사할 논리 입력 타입입니다.</param>
+        /// <param name="requireMovementUnlocked">이동 입력 잠금도 함께 검사할지 여부입니다.</param>
+        /// <returns>입력 버퍼에 전달할 수 있으면 <see langword="true"/>입니다.</returns>
+        private bool CanQueueButtonInput(AutoMoveInputType inputType, bool requireMovementUnlocked)
+        {
+            if (!CanProcessInputCallback()) return false;
+            if (_characterBase != null && _characterBase.IsDontControl()) return false;
+            if (ShouldBlockInputByCharacterInputLock(inputType)) return false;
+            if (requireMovementUnlocked && IsMovementInputLocked()) return false;
+            if (_autoMove != null && _autoMove.ShouldBlockInput(inputType, Vector2.zero)) return false;
+            return !ShouldBlockInputByProvider(inputType);
+        }
+
+        /// <summary>
+        /// 릴리즈 기반 입력 버퍼와 Press 시점에 고정한 공격 입력 경로를 함께 초기화합니다.
+        /// </summary>
+        /// <remarks>
+        /// 맵 전환, 피격, 스킬 시작처럼 입력을 강제로 폐기하는 시점에 경로 상태도 정리하여
+        /// 이후 도착하는 Release가 새 입력 윈도우에 잘못 합류하지 않도록 합니다.
+        /// </remarks>
+        private void ClearBufferedButtonInputs()
+        {
+            _releaseResolver?.Clear();
+            _pressedAttackInputRoute = PlayerAttackInputRoute.Attack;
+            _hasPressedAttackInputRoute = false;
+        }
+
         // Guard
         private void OnGuardPress(InputAction.CallbackContext ctx)
         {
@@ -1521,24 +1646,18 @@ namespace GGemCo2DControl
         // Jump
         private void OnJumpPress(InputAction.CallbackContext ctx)
         {
-            if (!CanProcessInputCallback()) return;
-            if (_characterBase != null && _characterBase.IsDontControl()) return;
-            if (ShouldBlockInputByCharacterInputLock(AutoMoveInputType.Jump)) return;
-            if (IsMovementInputLocked()) return;
-            if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Jump, Vector2.zero)) return;
-            if (ShouldBlockInputByProvider(AutoMoveInputType.Jump)) return;
-            _releaseResolver?.PushPress(PlayerButtonId.Jump, Time.unscaledTime);
+            TryPushButtonPress(
+                PlayerButtonId.Jump,
+                AutoMoveInputType.Jump,
+                requireMovementUnlocked: true);
         }
 
         private void OnJumpRelease(InputAction.CallbackContext ctx)
         {
-            if (!CanProcessInputCallback()) return;
-            if (_characterBase != null && _characterBase.IsDontControl()) return;
-            if (ShouldBlockInputByCharacterInputLock(AutoMoveInputType.Jump)) return;
-            if (IsMovementInputLocked()) return;
-            if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Jump, Vector2.zero)) return;
-            if (ShouldBlockInputByProvider(AutoMoveInputType.Jump)) return;
-            _releaseResolver?.PushRelease(PlayerButtonId.Jump, Time.unscaledTime);
+            TryPushButtonRelease(
+                PlayerButtonId.Jump,
+                AutoMoveInputType.Jump,
+                requireMovementUnlocked: true);
         }
         
         // Dash
@@ -1905,6 +2024,58 @@ namespace GGemCo2DControl
                 if (component is IPlayerAttackInputOverrideHandler handler)
                 {
                     _attackInputOverrideHandlers.Add(handler);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 활성화된 프로젝트 입력 경로 제공자에게 현재 공격 버튼의 논리 입력 경로를 질의합니다.
+        /// </summary>
+        /// <returns>제공자가 결정한 입력 경로이며, 제공자가 없으면 기본 공격 경로입니다.</returns>
+        private PlayerAttackInputRoute ResolveAttackInputRoute()
+        {
+            RefreshAttackInputRouteProviders();
+
+            for (int i = 0; i < _attackInputRouteProviders.Count; i++)
+            {
+                IPlayerAttackInputRouteProvider provider = _attackInputRouteProviders[i];
+                if (provider == null || !provider.TryResolveAttackInputRoute(out PlayerAttackInputRoute route))
+                {
+                    continue;
+                }
+
+                return route == PlayerAttackInputRoute.Jump
+                    ? PlayerAttackInputRoute.Jump
+                    : PlayerAttackInputRoute.Attack;
+            }
+
+            return PlayerAttackInputRoute.Attack;
+        }
+
+        /// <summary>
+        /// 같은 GameObject에 부착된 활성 공격 입력 경로 제공자를 재사용 버퍼에 수집합니다.
+        /// </summary>
+        /// <remarks>
+        /// 상위 프로젝트 부트스트랩이 런타임에 구현체를 추가할 수 있으므로 공격 입력 시점에 목록을 갱신합니다.
+        /// 재사용 리스트 기반 <c>GetComponents</c>를 사용하여 입력 hot path의 배열 할당을 방지합니다.
+        /// </remarks>
+        private void RefreshAttackInputRouteProviders()
+        {
+            _attackInputRouteProviders.Clear();
+            _attackInputRouteProviderComponentBuffer.Clear();
+
+            GetComponents(_attackInputRouteProviderComponentBuffer);
+            for (int i = 0; i < _attackInputRouteProviderComponentBuffer.Count; i++)
+            {
+                MonoBehaviour component = _attackInputRouteProviderComponentBuffer[i];
+                if (component == null || !component.isActiveAndEnabled)
+                {
+                    continue;
+                }
+
+                if (component is IPlayerAttackInputRouteProvider provider)
+                {
+                    _attackInputRouteProviders.Add(provider);
                 }
             }
         }
