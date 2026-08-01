@@ -33,13 +33,20 @@ namespace GGemCo2DControl
                 return;
             }
 
+            // 점프 가능 여부를 먼저 확인하여, 공중 점프가 거부된 입력이 진행 중인 대시나 스킬을 취소하지 않게 합니다.
+            if (!_jump.CanStartJump(out var jumpDeny))
+            {
+                if (!string.IsNullOrEmpty(jumpDeny)) GcLogger.Log(jumpDeny);
+                return;
+            }
+
             if (!_policy.TryPrepareJump(out var deny))
             {
                 if (!string.IsNullOrEmpty(deny)) GcLogger.Log(deny);
                 return;
             }
 
-            _jump.Jump();
+            _jump.TryJump();
         }
     }
 }

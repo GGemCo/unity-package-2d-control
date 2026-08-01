@@ -25,6 +25,11 @@ namespace GGemCo2DControl
         // --- 파라미터(2개) ---
         private float _desiredJumpHeight; // 월드 유닛
         private float _timeToApex;       // 지면→정점까지 시간(초)
+        private GGemCoPlayerActionSettings.AirborneJumpPolicy _airborneJumpPolicy;
+        private int _maxAdditionalAirJumpCount = 1;
+        private int _usedAdditionalAirJumpCount;
+        private bool _isAirborneJumpSessionActive;
+        private bool _didAirborneJumpSessionLeaveGround;
 
         // --- 내부 계산치 ---
         private float _baseGravityScale;
@@ -116,6 +121,9 @@ namespace GGemCo2DControl
             _wasGrounded = IsGroundedByCollision();
             _airborneTime = 0f;
             _changedGravity = false;
+            _usedAdditionalAirJumpCount = 0;
+            _isAirborneJumpSessionActive = !_wasGrounded;
+            _didAirborneJumpSessionLeaveGround = !_wasGrounded;
         }
 
         public override void OnDestroy() 
@@ -132,6 +140,8 @@ namespace GGemCo2DControl
             {
                 _desiredJumpHeight = playerActionSettings.jumpHeight;
                 _timeToApex = playerActionSettings.jumpSpeed;
+                _airborneJumpPolicy = playerActionSettings.airborneJumpPolicy;
+                _maxAdditionalAirJumpCount = Mathf.Max(1, playerActionSettings.maxAdditionalAirJumpCount);
                 _groundProbeWidthScale = Mathf.Clamp(playerActionSettings.jumpGroundProbeWidthScale, 0.1f, 1f);
                 _groundProbeHeight = Mathf.Max(0.01f, playerActionSettings.jumpGroundProbeHeight);
                 _groundProbeExtraDistance = Mathf.Max(0f, playerActionSettings.jumpGroundProbeExtraDistance);
@@ -147,6 +157,8 @@ namespace GGemCo2DControl
                 _ceilingProbeWidthScale = 0.7f;
                 _ceilingProbeHeight = 0.06f;
                 _ceilingProbeExtraDistance = 0.02f;
+                _airborneJumpPolicy = GGemCoPlayerActionSettings.AirborneJumpPolicy.Disabled;
+                _maxAdditionalAirJumpCount = 1;
             }
 
             RefreshCollisionMasks();
@@ -227,6 +239,7 @@ namespace GGemCo2DControl
 
             AcquireJumpAirborneState("ActionJump.External");
             ApplyJumpGravityOverride();
+            BeginAirborneJumpSession(IsGroundedByCollision());
 
             // Height/Speed에 맞춘 최소 vy를 보장
             float vy = Mathf.Max(initialVelocity.y, _jumpVelocityY);
@@ -261,20 +274,83 @@ namespace GGemCo2DControl
         }
 
         /// <summary>
-        /// InputManager에서 Jump.started로 호출
+        /// 현재 접지 상태와 공중 점프 정책을 기준으로 새 점프를 시작할 수 있는지 확인합니다.
         /// </summary>
-        /// <param name="ctx"></param>
-        public void Jump()
+        /// <param name="denyLog">점프가 거부된 경우 원인을 설명하는 로그입니다.</param>
+        /// <returns>점프를 시작할 수 있으면 <see langword="true"/>입니다.</returns>
+        public bool CanStartJump(out string denyLog)
         {
-            if (_rb == null) return;
-            if (IsHitStopped()) return;
+            denyLog = null;
 
-            if (actionCharacterBase.IsStatusAttack()) return;
-            if (actionCharacterBase.IsStatusAttackComboWait()) return;
-            if (actionCharacterBase.IsStatusJump()) return;
+            if (_rb == null)
+            {
+                denyLog = "점프에 필요한 Rigidbody2D가 없습니다.";
+                return false;
+            }
+
+            if (IsHitStopped())
+            {
+                return false;
+            }
+
+            if (actionCharacterBase == null ||
+                actionCharacterBase.IsStatusDead() ||
+                actionCharacterBase.IsStatusAttack() ||
+                actionCharacterBase.IsStatusAttackComboWait())
+            {
+                return false;
+            }
+
+            bool grounded = IsGroundedByCollision();
+            RefreshAirborneJumpUsage(grounded);
+            if (grounded && !_isAirborneJumpSessionActive)
+            {
+                return true;
+            }
+
+            switch (_airborneJumpPolicy)
+            {
+                case GGemCoPlayerActionSettings.AirborneJumpPolicy.Disabled:
+                    denyLog = "공중 추가 점프 정책이 Disabled이므로 점프할 수 없습니다.";
+                    return false;
+
+                case GGemCoPlayerActionSettings.AirborneJumpPolicy.Limited:
+                    if (_usedAdditionalAirJumpCount < _maxAdditionalAirJumpCount)
+                    {
+                        return true;
+                    }
+
+                    denyLog = $"공중 추가 점프 가능 횟수({_maxAdditionalAirJumpCount})를 모두 사용했습니다.";
+                    return false;
+
+                case GGemCoPlayerActionSettings.AirborneJumpPolicy.Unlimited:
+                    return true;
+
+                default:
+                    denyLog = "알 수 없는 공중 추가 점프 정책입니다.";
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// 현재 접지 상태와 공중 점프 정책을 확인한 뒤 점프를 시작합니다.
+        /// </summary>
+        /// <returns>실제로 점프를 시작했으면 <see langword="true"/>입니다.</returns>
+        public bool TryJump()
+        {
+            if (!CanStartJump(out _))
+            {
+                return false;
+            }
+
+            bool grounded = IsGroundedByCollision();
+            bool isAdditionalAirJump = !grounded || _isAirborneJumpSessionActive;
 
             ClearAirDashFallAnimationState();
-            actionCharacterBase.SetStatusJump();
+            if (!actionCharacterBase.IsStatusJump())
+            {
+                actionCharacterBase.SetStatusJump();
+            }
 
             AcquireJumpAirborneState("ActionJump.Jump");
             ApplyJumpGravityOverride();
@@ -282,7 +358,28 @@ namespace GGemCo2DControl
             float vy = Mathf.Max(_rb.GetLinearVelocity().y, _jumpVelocityY);
             _rb.SetLinearVelocity(new Vector2(_rb.GetLinearVelocity().x, vy));
 
-            EnterPhase(JumpPhase.StartOneShot); // jump(1회) 시작
+            // 이미 진행 중인 점프 FSM도 새 점프 시작 단계로 되돌려 공중 점프 애니메이션과 물리를 일관되게 재생합니다.
+            EnterPhase(JumpPhase.StartOneShot);
+
+            if (isAdditionalAirJump)
+            {
+                _usedAdditionalAirJumpCount++;
+            }
+            else
+            {
+                // 지상 점프 직후 지면 Probe가 잠시 겹치더라도 다음 입력을 새 지상 점프로 오인하지 않도록 체공 구간을 즉시 엽니다.
+                BeginAirborneJumpSession(grounded);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 기존 호출부와의 호환성을 유지하면서 점프를 시도합니다.
+        /// </summary>
+        public void Jump()
+        {
+            TryJump();
         }
 
         /// <summary>
@@ -315,12 +412,15 @@ namespace GGemCo2DControl
         {
             if (_rb == null) return;
 
+            bool grounded = IsGroundedByCollision();
+            RefreshAirborneJumpUsage(grounded);
+
             // 벽 액션(매달림/미끄러짐)이 활성 상태면 Jump FSM의 낙하/착지 전이를 강제하지 않는다.
             // (벽 액션이 velocity/gravity를 별도 제어하기 때문)
             if (_isWallActionActive != null && _isWallActionActive())
             {
                 _airborneTime = 0f;
-                _wasGrounded = IsGroundedByCollision();
+                _wasGrounded = grounded;
                 return;
             }
 
@@ -331,11 +431,9 @@ namespace GGemCo2DControl
             {
                 // 낙하 누적 타이머를 초기화하여 대시가 끝난 즉시 Jump 전환이 폭발하지 않도록 함
                 _airborneTime = 0f;
-                _wasGrounded = IsGroundedByCollision();
+                _wasGrounded = grounded;
                 return;
             }
-
-            bool grounded = IsGroundedByCollision();
 
             if (allowPassiveFallDetection)
                 TryEnterPassiveFall(grounded);
@@ -725,6 +823,55 @@ namespace GGemCo2DControl
         {
             if (!TryGetGroundProbeBounds(out var center, out var size, out _)) return false;
             return Physics2D.OverlapBox(center, size, 0f, _groundMask) != null;
+        }
+
+        /// <summary>
+        /// 현재 체공 구간에서 사용한 추가 점프 횟수를 초기화합니다.
+        /// 맵 전환이나 캐릭터 재초기화처럼 착지 판정을 기다릴 수 없는 흐름에서 호출합니다.
+        /// </summary>
+        public void ResetAirborneJumpUsage()
+        {
+            _usedAdditionalAirJumpCount = 0;
+            _isAirborneJumpSessionActive = false;
+            _didAirborneJumpSessionLeaveGround = false;
+        }
+
+        /// <summary>
+        /// 실제 접지가 확인된 경우에만 체공 구간의 추가 점프 사용량을 초기화합니다.
+        /// 점프 FSM 취소나 공중 대시 종료는 착지가 아니므로 초기화 조건으로 사용하지 않습니다.
+        /// </summary>
+        /// <param name="grounded">현재 물리 충돌 기준 접지 여부입니다.</param>
+        private void RefreshAirborneJumpUsage(bool grounded)
+        {
+            if (!grounded)
+            {
+                _isAirborneJumpSessionActive = true;
+                _didAirborneJumpSessionLeaveGround = true;
+                return;
+            }
+
+            // 지상 점프 직후에는 Probe가 잠시 지면과 겹칠 수 있으므로, 실제로 지면을 떠난 체공 구간만 착지로 종료합니다.
+            if (_isAirborneJumpSessionActive && _didAirborneJumpSessionLeaveGround)
+            {
+                ResetAirborneJumpUsage();
+                return;
+            }
+
+            // 점프가 실제 이륙 전에 다른 액션으로 취소된 경우에는 지상에 남은 체공 구간 예약을 정리합니다.
+            if (_isAirborneJumpSessionActive && _phase == JumpPhase.None)
+            {
+                ResetAirborneJumpUsage();
+            }
+        }
+
+        /// <summary>
+        /// 지상 점프 또는 외부 점프가 시작된 시점에 새 체공 구간을 등록합니다.
+        /// </summary>
+        /// <param name="groundedAtStart">점프가 시작된 프레임의 물리 접지 여부입니다.</param>
+        private void BeginAirborneJumpSession(bool groundedAtStart)
+        {
+            _isAirborneJumpSessionActive = true;
+            _didAirborneJumpSessionLeaveGround = !groundedAtStart;
         }
 
         private bool IsCeilingHit()

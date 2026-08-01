@@ -10,6 +10,27 @@ namespace GGemCo2DControl
     [CreateAssetMenu(fileName = ConfigScriptableObjectControl.PlayerAction.FileName, menuName = ConfigScriptableObjectControl.PlayerAction.MenuName, order = ConfigScriptableObjectControl.PlayerAction.Ordering)]
     public class GGemCoPlayerActionSettings : ScriptableObject, ISettingsChangeNotifier
     {
+        /// <summary>
+        /// 캐릭터가 지면을 떠난 뒤 추가 점프 입력을 허용하는 정책입니다.
+        /// </summary>
+        public enum AirborneJumpPolicy
+        {
+            /// <summary>
+            /// 공중에서는 추가 점프를 허용하지 않습니다.
+            /// </summary>
+            Disabled = 0,
+
+            /// <summary>
+            /// 한 번의 체공 구간에서 설정된 횟수만큼 추가 점프를 허용합니다.
+            /// </summary>
+            Limited = 1,
+
+            /// <summary>
+            /// 한 번의 체공 구간에서 추가 점프 횟수를 제한하지 않습니다.
+            /// </summary>
+            Unlimited = 2,
+        }
+
         public enum HangAnimationAssetFacing
         {
             Left = -1,
@@ -55,6 +76,11 @@ namespace GGemCo2DControl
         public bool canJumpUseSkill;
         [Tooltip("점프 중 공격 가능 여부")]
         public bool canAttackPlayJump;
+        [Tooltip("공중에서 추가 점프 입력을 허용하는 정책입니다.")]
+        public AirborneJumpPolicy airborneJumpPolicy = AirborneJumpPolicy.Disabled;
+        [Tooltip("공중 점프 정책이 Limited일 때 한 번의 체공 구간에서 허용할 추가 점프 횟수입니다.")]
+        [Min(1)]
+        public int maxAdditionalAirJumpCount = 1;
         [Tooltip("일반 지형 레이어 외에 One Way Platform으로 사용할 추가 레이어 이름입니다.\n비어 있으면 일반 지형 레이어만 사용합니다.")]
         public ConfigLayer.Keys jumpOneWayPlatformLayerName = ConfigLayer.Keys.TileMapOneWayPlatform;
         
@@ -202,6 +228,8 @@ namespace GGemCo2DControl
             jumpCeilingProbeWidthScale = 0.7f;
             jumpCeilingProbeHeight = 0.06f;
             jumpCeilingProbeExtraDistance = 0.02f;
+            airborneJumpPolicy = AirborneJumpPolicy.Disabled;
+            maxAdditionalAirJumpCount = 1;
         }
     }
 }

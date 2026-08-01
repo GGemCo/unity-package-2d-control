@@ -829,6 +829,7 @@ namespace GGemCo2DControl
             _simulationToolReleaseCtx = default;
 
             _actionJump?.CancelJump(skipLandAnimation: true, restoreGravity: true);
+            _actionJump?.ResetAirborneJumpUsage();
             _actionDash?.CancelDash(skipEndAnimation: true);
             _actionClimb?.CancelClimb(skipEndAnimation: true, restoreGravity: true);
             _actionPushPull?.Cancel();
@@ -1182,6 +1183,7 @@ namespace GGemCo2DControl
 
             if (reason == IncomingHitCancelReason.Death)
             {
+                _actionJump?.ResetAirborneJumpUsage();
                 _simulationToolPressCtx = default;
                 _simulationToolReleaseCtx = default;
             }
