@@ -76,6 +76,8 @@ namespace GGemCo2DControl
         public bool canJumpUseSkill;
         [Tooltip("점프 중 공격 가능 여부")]
         public bool canAttackPlayJump;
+        [Tooltip("가드 입력을 유지한 상태에서 점프할 때 가드를 일시 중단하고, 정상 착지 애니메이션이 끝난 뒤 가드를 복귀할지 여부입니다.")]
+        public bool resumeHeldGuardAfterJumpLanding;
         [Tooltip("공중에서 추가 점프 입력을 허용하는 정책입니다.")]
         public AirborneJumpPolicy airborneJumpPolicy = AirborneJumpPolicy.Disabled;
         [Tooltip("공중 점프 정책이 Limited일 때 한 번의 체공 구간에서 허용할 추가 점프 횟수입니다.")]

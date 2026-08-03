@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using GGemCo2DCore;
 using UnityEngine;
@@ -11,6 +12,16 @@ namespace GGemCo2DControl
     /// </summary>
     public class ActionJump : ActionBase
     {
+        /// <summary>
+        /// 정상 착지 애니메이션과 점프 상태 정리가 모두 완료되었을 때 발생합니다.
+        /// </summary>
+        public event Action LandingFinished;
+
+        /// <summary>
+        /// 착지가 아닌 즉시 취소 경로로 점프가 종료되었을 때 발생합니다.
+        /// </summary>
+        public event Action JumpCanceled;
+
         // 클래스 상단 필드/프로퍼티 섹션 인근
         public bool IsJumping => _phase != JumpPhase.None;
 
@@ -820,6 +831,8 @@ namespace GGemCo2DControl
 
             if (!_suppressStatusRelease)
                 actionCharacterBase.Stop();
+
+            LandingFinished?.Invoke();
         }
 
         private void PlayAnimSafe(string stateName)
@@ -997,6 +1010,8 @@ namespace GGemCo2DControl
 
                 if (!_suppressStatusRelease)
                     actionCharacterBase.Stop();   // 프로젝트 표준 상태 복귀(Idle/Run 등)
+
+                JumpCanceled?.Invoke();
                 return;
             }
 

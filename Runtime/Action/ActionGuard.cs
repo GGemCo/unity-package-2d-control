@@ -132,6 +132,11 @@ namespace GGemCo2DControl
         /// </summary>
         private bool _pendingResumeGuardWaitAfterControlUnlock;
 
+        /// <summary>
+        /// 점프가 가드를 중단했으며 정상 착지 완료 후 홀드 가드를 복귀해야 하는지 여부입니다.
+        /// </summary>
+        private bool _isSuspendedUntilJumpLanding;
+
         public override void Initialize(InputManager inputManager, CharacterBase characterBase, CharacterBaseController characterBaseController)
         {
             // ApplySettings에서 playerGuardSettings 사용
@@ -640,6 +645,7 @@ namespace GGemCo2DControl
         public void GuardUp()
         {
             _isGuardInputHeld = false;
+            _isSuspendedUntilJumpLanding = false;
 
             // 가드 브레이크 이후 재가드 잠금은 Release 입력이 들어온 시점에 해제합니다.
             _requiresReleaseBeforeReGuard = false;
@@ -777,6 +783,7 @@ namespace GGemCo2DControl
         private void FinishGuard(bool isStop = true)
         {
             _phase = GuardPhase.None;
+            _isSuspendedUntilJumpLanding = false;
             _staminaTickElapsed = 0f;
             _guardStartedTime = -999f;
             ClearControlUnlockGuardReservations();
@@ -1528,6 +1535,75 @@ namespace GGemCo2DControl
             }
 
             CancelGuard(skipEndAnimation: true, isStop: false);
+        }
+
+        /// <summary>
+        /// 가드 입력을 유지한 채 점프가 실행될 수 있도록 현재 가드 액션을 일시 중단합니다.
+        /// </summary>
+        /// <remarks>
+        /// 가드 종료 애니메이션과 캐릭터 정지 처리를 생략하여 같은 프레임에 점프 애니메이션이
+        /// 상태를 온전히 점유하도록 합니다. 물리 입력 홀드 정보는 유지되므로 정상 착지 후 복귀할 수 있습니다.
+        /// </remarks>
+        /// <returns>복귀 가능한 가드를 실제로 일시 중단했으면 <see langword="true"/>입니다.</returns>
+        internal bool TrySuspendUntilJumpLanding()
+        {
+            if (!IsGuarding || !_isGuardInputHeld)
+            {
+                return false;
+            }
+
+            CancelForConflictingAction();
+            _isSuspendedUntilJumpLanding = true;
+            return true;
+        }
+
+        /// <summary>
+        /// 점프로 일시 중단된 가드를 현재 홀드 입력과 캐릭터 상태를 재검증한 뒤 복귀합니다.
+        /// </summary>
+        /// <remarks>
+        /// 동일한 가드 홀드의 연속 동작이므로 가드 시작 비용과 저스트 가드 입력 시간을 새로 부여하지 않고
+        /// 대기 단계부터 재개합니다. 이를 통해 착지 반복으로 저스트 가드 판정을 갱신하는 문제를 방지합니다.
+        /// </remarks>
+        /// <returns>가드 대기 상태로 복귀했으면 <see langword="true"/>입니다.</returns>
+        internal bool TryResumeSuspendedGuard()
+        {
+            if (!_isSuspendedUntilJumpLanding)
+            {
+                return false;
+            }
+
+            _isSuspendedUntilJumpLanding = false;
+
+            if (!_isGuardInputHeld ||
+                actionCharacterBase == null ||
+                actionCharacterBase.IsStatusDead() ||
+                actionCharacterBase.IsDontControl() ||
+                actionCharacterBase.CurrentStamina.Value <= 0 ||
+                _requiresReleaseBeforeReGuard)
+            {
+                return false;
+            }
+
+            ClearControlUnlockGuardReservations();
+            ClearGuardSuccessAnimationState();
+            ClearGuardBreakAnimationState();
+            ClearGuardBreakReGuardState();
+            _staminaTickElapsed = 0f;
+
+            // 연속 홀드 복귀에서는 저스트 가드 시작 시간을 갱신하지 않습니다.
+            _guardStartedTime = -999f;
+            actionCharacterBase.directionNormalize = Vector3.zero;
+            actionCharacterBase.Stop(true);
+            BeginWait();
+            return true;
+        }
+
+        /// <summary>
+        /// 점프 취소 또는 다른 강제 전이로 인해 더 이상 유효하지 않은 가드 복귀 예약을 해제합니다.
+        /// </summary>
+        internal void ClearJumpLandingResumeReservation()
+        {
+            _isSuspendedUntilJumpLanding = false;
         }
 
         private bool TrySpendStamina(long amount)

@@ -4,6 +4,31 @@ using UnityEngine;
 namespace GGemCo2DControl
 {
     /// <summary>
+    /// 점프 입력 준비 단계에서 확정된 후속 액션 처리 정보를 전달합니다.
+    /// </summary>
+    internal readonly struct JumpPreparationContext
+    {
+        /// <summary>
+        /// 별도의 후속 처리가 필요하지 않은 기본 컨텍스트입니다.
+        /// </summary>
+        public static JumpPreparationContext None => default;
+
+        /// <summary>
+        /// 점프가 시작될 때 현재 가드를 일시 중단하고 정상 착지 후 복귀해야 하는지 여부입니다.
+        /// </summary>
+        public bool SuspendGuardUntilLanding { get; }
+
+        /// <summary>
+        /// 점프 입력 준비 결과를 생성합니다.
+        /// </summary>
+        /// <param name="suspendGuardUntilLanding">가드를 정상 착지까지 일시 중단할지 여부입니다.</param>
+        public JumpPreparationContext(bool suspendGuardUntilLanding)
+        {
+            SuspendGuardUntilLanding = suspendGuardUntilLanding;
+        }
+    }
+
+    /// <summary>
     /// 가드 입력 준비 단계에서 확정한 후속 처리 정보를 전달합니다.
     /// </summary>
     internal readonly struct GuardPreparationContext
@@ -66,6 +91,7 @@ namespace GGemCo2DControl
         public bool CanJumpUseSkill { get; set; }
         public bool CanDashUseSkill { get; set; }
         public bool CanAttackPlayJump { get; set; }
+        public bool ResumeHeldGuardAfterJumpLanding { get; set; }
         public AttackGuardCancelPolicy AttackGuardCancelPolicy { get; set; } = AttackGuardCancelPolicy.None;
         public GuardDuringHitStopPolicy GuardDuringHitStopPolicy { get; set; } = GuardDuringHitStopPolicy.Block;
 
@@ -298,9 +324,16 @@ namespace GGemCo2DControl
             return true;
         }
 
-        public bool TryPrepareJump(out string denyLog)
+        /// <summary>
+        /// 현재 캐릭터 상태에서 점프를 시작할 수 있도록 충돌 액션을 정리하고 후속 처리 정보를 반환합니다.
+        /// </summary>
+        /// <param name="denyLog">점프가 거부된 경우 원인을 설명하는 로그입니다.</param>
+        /// <param name="preparationContext">점프 시작 확정 후 적용할 후속 처리 정보입니다.</param>
+        /// <returns>점프 준비가 완료되었으면 <see langword="true"/>입니다.</returns>
+        public bool TryPrepareJump(out string denyLog, out JumpPreparationContext preparationContext)
         {
             denyLog = null;
+            preparationContext = JumpPreparationContext.None;
             if (_character.IsStatusDead()) return false;
 
             // 벽 매달림/미끄러짐 중에는 handler에서 라우팅
@@ -348,6 +381,7 @@ namespace GGemCo2DControl
                 }
             }
 
+            preparationContext = new JumpPreparationContext(ResumeHeldGuardAfterJumpLanding);
             return true;
         }
 

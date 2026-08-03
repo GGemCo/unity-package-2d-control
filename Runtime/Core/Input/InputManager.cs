@@ -427,6 +427,8 @@ namespace GGemCo2DControl
                 _policy.CanJumpUseSkill = _canJumpUseSkill;
                 _policy.CanDashUseSkill = _canDashUseSkill;
                 _policy.CanAttackPlayJump = _canAttackPlayJump;
+                _policy.ResumeHeldGuardAfterJumpLanding = _playerActionSettings != null &&
+                                                          _playerActionSettings.resumeHeldGuardAfterJumpLanding;
             }
 
         }
@@ -476,6 +478,8 @@ namespace GGemCo2DControl
 
             _actionJump = new ActionJump();
             _actionJump.Initialize(this, _characterBase, _characterBaseController);
+            _actionJump.LandingFinished += OnJumpLandingFinished;
+            _actionJump.JumpCanceled += OnJumpCanceled;
 
             _actionDash = new ActionDash();
             _actionDash.Initialize(this, _characterBase, _characterBaseController);
@@ -554,7 +558,7 @@ namespace GGemCo2DControl
 
             _attackHandler = new AttackInputHandler(_characterBase, _actionAttack, _actionGuard, _policy);
             _guardHandler = new GuardInputHandler(_characterBase, _actionGuard, _policy);
-            _jumpHandler = new JumpInputHandler(_characterBase, _actionJump, _actionWall, _policy);
+            _jumpHandler = new JumpInputHandler(_characterBase, _actionJump, _actionGuard, _actionWall, _policy);
             _dashHandler = new DashInputHandler(_characterBase, _actionDash, _policy);
 
             // === Release 기반 입력 버퍼 ===
@@ -697,7 +701,12 @@ namespace GGemCo2DControl
             _actionAttack?.OnDestroy();
             _actionGuard?.OnDestroy();
             _actionMove?.OnDestroy();
-            _actionJump?.OnDestroy();
+            if (_actionJump != null)
+            {
+                _actionJump.LandingFinished -= OnJumpLandingFinished;
+                _actionJump.JumpCanceled -= OnJumpCanceled;
+                _actionJump.OnDestroy();
+            }
             if (_actionDash != null)
             {
                 _actionDash.DashFinished -= OnDashFinished;
@@ -1204,6 +1213,22 @@ namespace GGemCo2DControl
         }
 
         /// <summary>
+        /// 정상 착지 애니메이션이 완료되면 점프로 일시 중단했던 홀드 가드의 복귀를 시도합니다.
+        /// </summary>
+        private void OnJumpLandingFinished()
+        {
+            _actionGuard?.TryResumeSuspendedGuard();
+        }
+
+        /// <summary>
+        /// 점프가 정상 착지 없이 취소되면 남아 있는 가드 복귀 예약을 해제합니다.
+        /// </summary>
+        private void OnJumpCanceled()
+        {
+            _actionGuard?.ClearJumpLandingResumeReservation();
+        }
+
+        /// <summary>
         /// 공중 대시가 끝난 뒤 이어지는 passive fall에서 전용 하강 애니메이션을 한 번 사용하도록 예약합니다.
         /// </summary>
         /// <remarks>
@@ -1373,6 +1398,12 @@ namespace GGemCo2DControl
             //    - 점프 입력 유무와 관계없이 클리프 폴, 정점 전환, 착지 엔딩 등을 내부에서 처리
             _actionJump.Update();
             _actionDash.Update();
+
+            // 착지 완료 콜백에서 가드가 복귀했다면 같은 물리 프레임의 이동 처리가 가드 애니메이션을 덮지 않도록 종료합니다.
+            if (_actionGuard is { IsGuarding: true })
+            {
+                return;
+            }
 
             bool isLanding = _actionJump.IsLanding;
             _autoMove?.TickSuspendByLanding(isLanding);
