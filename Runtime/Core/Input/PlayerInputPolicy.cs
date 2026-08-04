@@ -49,16 +49,24 @@ namespace GGemCo2DControl
         public bool CancelAttackMoveForceOnStart { get; }
 
         /// <summary>
+        /// 가드 시작 비용 지불 후 취소해야 하는 현재 스킬 드라이버입니다.
+        /// </summary>
+        public ISkillCancelableDriver SkillCancelableDriver { get; }
+
+        /// <summary>
         /// 가드 입력 준비 결과를 생성합니다.
         /// </summary>
         /// <param name="interruptHitStopOnStart">가드 시작 시 활성 HitStop을 종료할지 여부입니다.</param>
         /// <param name="cancelAttackMoveForceOnStart">가드 시작 시 기본 공격의 전진 이동을 취소할지 여부입니다.</param>
+        /// <param name="skillCancelableDriver">가드 시작 확정 후 현재 스킬을 취소할 드라이버입니다.</param>
         public GuardPreparationContext(
             bool interruptHitStopOnStart,
-            bool cancelAttackMoveForceOnStart)
+            bool cancelAttackMoveForceOnStart,
+            ISkillCancelableDriver skillCancelableDriver)
         {
             InterruptHitStopOnStart = interruptHitStopOnStart;
             CancelAttackMoveForceOnStart = cancelAttackMoveForceOnStart;
+            SkillCancelableDriver = skillCancelableDriver;
         }
     }
 
@@ -94,6 +102,7 @@ namespace GGemCo2DControl
         public bool ResumeHeldGuardAfterJumpLanding { get; set; }
         public AttackGuardCancelPolicy AttackGuardCancelPolicy { get; set; } = AttackGuardCancelPolicy.None;
         public GuardDuringHitStopPolicy GuardDuringHitStopPolicy { get; set; } = GuardDuringHitStopPolicy.Block;
+        public GuardDuringSkillPolicy GuardDuringSkillPolicy { get; set; } = GuardDuringSkillPolicy.Block;
 
         /// <summary>
         /// 플레이어 입력 정책을 생성합니다.
@@ -240,13 +249,37 @@ namespace GGemCo2DControl
                 return false;
             }
 
-            // 스킬 사용 중 가드: 정책 미정이면 보수적으로 허용(원하면 차단 조건 추가)
-            // var skill = _getSkillCancelable?.Invoke();
-            // if (skill != null && skill.IsSkillRunning) { ... }
+            ISkillCancelableDriver skillCancelableDriver = null;
+            if (_character.IsStatusCastingSkill() || _character.IsStatusUseSkill())
+            {
+                switch (GuardDuringSkillPolicy)
+                {
+                    case GuardDuringSkillPolicy.Block:
+                        denyLog = "스킬 실행 중 가드는 불가능합니다.";
+                        return false;
+
+                    case GuardDuringSkillPolicy.CancelSkillAndStartGuard:
+                        skillCancelableDriver = _getSkillCancelable?.Invoke();
+                        if (skillCancelableDriver == null)
+                        {
+                            denyLog = "현재 스킬을 취소할 드라이버가 없어 가드를 시작할 수 없습니다.";
+                            return false;
+                        }
+                        break;
+
+                    case GuardDuringSkillPolicy.AllowWithoutCancel:
+                        break;
+
+                    default:
+                        denyLog = "알 수 없는 스킬 실행 중 가드 정책입니다.";
+                        return false;
+                }
+            }
 
             preparationContext = new GuardPreparationContext(
                 interruptHitStopOnStart,
-                cancelAttackMoveForceOnStart);
+                cancelAttackMoveForceOnStart,
+                skillCancelableDriver);
             return true;
         }
 

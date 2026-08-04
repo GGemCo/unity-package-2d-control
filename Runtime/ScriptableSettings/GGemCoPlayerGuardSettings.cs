@@ -92,6 +92,27 @@ namespace GGemCo2DControl
     }
 
     /// <summary>
+    /// 스킬 실행 중 가드 입력을 처리하는 정책을 정의합니다.
+    /// </summary>
+    public enum GuardDuringSkillPolicy
+    {
+        /// <summary>
+        /// 스킬 실행 중에는 가드 시작을 차단합니다.
+        /// </summary>
+        Block = 0,
+
+        /// <summary>
+        /// 실행 중인 스킬을 취소한 뒤 가드를 시작합니다.
+        /// </summary>
+        CancelSkillAndStartGuard = 1,
+
+        /// <summary>
+        /// 스킬 실행을 유지한 채 가드를 시작합니다. 런타임 이벤트가 계속 진행되므로 명시적인 동시 실행 용도로만 사용합니다.
+        /// </summary>
+        AllowWithoutCancel = 2,
+    }
+
+    /// <summary>
     /// 가드 판정 디버그 피드백을 화면에 표시하는 방식을 정의합니다.
     /// </summary>
     public enum GuardDebugFeedbackDisplayMode
@@ -250,6 +271,9 @@ namespace GGemCo2DControl
 
         [Tooltip("HitStop 중 가드 입력 처리 정책입니다. 즉시 가드 정책은 HitStop 외의 CC 또는 전체 조작 잠금이 없어야 적용됩니다.")]
         public GuardDuringHitStopPolicy guardDuringHitStopPolicy = GuardDuringHitStopPolicy.Block;
+
+        [Tooltip("스킬 실행 중 가드 입력 처리 정책입니다. 스킬 취소 후 가드 시작 정책은 SkillExecutor의 남은 런타임 이벤트도 함께 중단합니다.")]
+        public GuardDuringSkillPolicy guardDuringSkillPolicy = GuardDuringSkillPolicy.Block;
 
         [Header("방어(가드) - 피드백 연출")]
         [Tooltip("가드/저스트 가드 피드백 표시 여부")]
@@ -482,6 +506,7 @@ namespace GGemCo2DControl
             justGuardSuccessStaminaCostValue = 0f;
             attackGuardCancelPolicy = AttackGuardCancelPolicy.None;
             guardDuringHitStopPolicy = GuardDuringHitStopPolicy.Block;
+            guardDuringSkillPolicy = GuardDuringSkillPolicy.Block;
             guardAttackTypeRules = new List<GuardAttackTypeRule>
             {
                 new GuardAttackTypeRule

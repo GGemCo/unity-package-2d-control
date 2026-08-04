@@ -560,9 +560,17 @@ namespace GGemCo2DControl
             bool cancelGuardBreakAnimation,
             GuardPreparationContext preparationContext)
         {
-            if (!TrySpendStamina(Math.Max(0L, guardStartStaminaCost)))
+            long safeGuardStartStaminaCost = Math.Max(0L, guardStartStaminaCost);
+            if (!TrySpendStamina(safeGuardStartStaminaCost))
             {
                 // 스테미나가 부족하면 Guard 진입 자체를 막고, 브레이크 중이면 해당 연출을 유지합니다.
+                return false;
+            }
+
+            if (!TryCancelSkillForGuardStart(preparationContext.SkillCancelableDriver))
+            {
+                // 가드가 시작되지 않았으므로 이미 지불한 시작 비용을 복구해 자원과 행동 상태를 원자적으로 유지합니다.
+                actionCharacterBase.RestoreStamina(safeGuardStartStaminaCost);
                 return false;
             }
 
@@ -616,6 +624,32 @@ namespace GGemCo2DControl
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// 가드 시작이 확정된 뒤 현재 스킬 실행을 취소합니다.
+        /// </summary>
+        /// <remarks>
+        /// 취소 드라이버가 스킬 종료 리포트를 동기적으로 처리하면서 캐릭터의 스킬 상태를 먼저 해제할 수 있습니다.
+        /// 취소 요청이 실패했더라도 이미 스킬 상태가 끝났다면 가드 시작을 계속 허용합니다.
+        /// </remarks>
+        /// <param name="skillCancelableDriver">현재 스킬을 취소할 드라이버입니다.</param>
+        /// <returns>취소가 필요 없거나 스킬 실행을 안전하게 종료했으면 <see langword="true"/>입니다.</returns>
+        private bool TryCancelSkillForGuardStart(ISkillCancelableDriver skillCancelableDriver)
+        {
+            if (skillCancelableDriver == null)
+            {
+                return true;
+            }
+
+            if (skillCancelableDriver.RequestCancelSkill(SkillCancelReason.GuardInput))
+            {
+                return true;
+            }
+
+            return actionCharacterBase != null &&
+                   !actionCharacterBase.IsStatusCastingSkill() &&
+                   !actionCharacterBase.IsStatusUseSkill();
         }
 
         /// <summary>

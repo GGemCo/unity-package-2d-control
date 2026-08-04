@@ -450,6 +450,9 @@ namespace GGemCo2DControl
                 _policy.GuardDuringHitStopPolicy = _playerGuardSettings != null
                     ? _playerGuardSettings.guardDuringHitStopPolicy
                     : GuardDuringHitStopPolicy.Block;
+                _policy.GuardDuringSkillPolicy = _playerGuardSettings != null
+                    ? _playerGuardSettings.guardDuringSkillPolicy
+                    : GuardDuringSkillPolicy.Block;
             }
         }
 
