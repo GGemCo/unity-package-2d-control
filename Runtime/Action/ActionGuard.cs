@@ -261,33 +261,33 @@ namespace GGemCo2DControl
         /// </summary>
         public void GuardDown()
         {
-            GuardDown(GuardPreparationContext.None);
+            TryGuardDown(GuardPreparationContext.None);
         }
 
         /// <summary>
         /// Guard 버튼 Down 입력을 처리하고, 가드 시작 성공 시 준비된 후속 처리를 적용합니다.
         /// </summary>
         /// <param name="preparationContext">가드 시작이 확정된 뒤 적용할 후속 처리 정보입니다.</param>
-        internal void GuardDown(GuardPreparationContext preparationContext)
+        /// <returns>가드 시작 또는 가드 브레이크 후 재진입에 성공하면 <see langword="true"/>입니다.</returns>
+        internal bool TryGuardDown(GuardPreparationContext preparationContext)
         {
-            if (actionCharacterBase == null) return;
-            if (actionCharacterBase.IsStatusDead()) return;
+            if (actionCharacterBase == null) return false;
+            if (actionCharacterBase.IsStatusDead()) return false;
 
             _isGuardInputHeld = true;
 
             // 가드 브레이크 이후에는 사용자가 가드 키를 한 번 뗀 뒤 다시 눌러야 합니다.
-            if (_requiresReleaseBeforeReGuard) return;
+            if (_requiresReleaseBeforeReGuard) return false;
 
             if (_phase == GuardPhase.Break)
             {
-                TryBeginGuardAfterGuardBreakReInput();
-                return;
+                return TryBeginGuardAfterGuardBreakReInput();
             }
 
             // 이미 가드 중이면 유지 (중복 호출 방지)
-            if (IsGuarding) return;
+            if (IsGuarding) return false;
 
-            TryBeginGuardWithCost(
+            return TryBeginGuardWithCost(
                 ResolveCurrentGuardStartStaminaCost(),
                 cancelGuardBreakAnimation: false,
                 preparationContext: preparationContext);

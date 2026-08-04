@@ -22,15 +22,49 @@ namespace GGemCo2DControl
 
         public void HandlePress()
         {
-            if (_character == null || _guard == null || _policy == null) return;
-
-            if (!_policy.TryPrepareGuard(out var deny, out GuardPreparationContext preparationContext))
+            if (TryHandlePress(out string denyLog))
             {
-                if (!string.IsNullOrEmpty(deny)) GcLogger.Log(deny);
                 return;
             }
 
-            _guard.GuardDown(preparationContext);
+            if (!string.IsNullOrEmpty(denyLog))
+            {
+                GcLogger.Log(denyLog);
+            }
+        }
+
+        /// <summary>
+        /// 현재 입력 정책을 적용해 가드 시작을 시도합니다.
+        /// </summary>
+        /// <param name="denyLog">가드 시작이 거부된 경우의 설명입니다.</param>
+        /// <returns>가드 액션이 실제로 시작되면 <see langword="true"/>입니다.</returns>
+        public bool TryHandlePress(out string denyLog)
+        {
+            denyLog = null;
+            if (_character == null || _guard == null || _policy == null)
+            {
+                denyLog = "가드 입력 시스템이 아직 초기화되지 않았습니다.";
+                return false;
+            }
+
+            // 동일한 홀드 입력이 중복 전달된 경우에는 기존 가드를 유지하고 실패 로그를 만들지 않습니다.
+            if (_guard.IsGuarding)
+            {
+                return true;
+            }
+
+            if (!_policy.TryPrepareGuard(out denyLog, out GuardPreparationContext preparationContext))
+            {
+                return false;
+            }
+
+            if (_guard.TryGuardDown(preparationContext))
+            {
+                return true;
+            }
+
+            denyLog = "현재 캐릭터 상태 또는 스테미나 조건으로 가드를 시작할 수 없습니다.";
+            return false;
         }
 
         public void HandleRelease()

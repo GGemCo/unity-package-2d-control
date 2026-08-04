@@ -980,6 +980,54 @@ namespace GGemCo2DControl
         }
 
         /// <summary>
+        /// 상위 계층에서 보류했던 가드 입력을 현재 Control 입력 정책으로 다시 검증한 뒤 시작합니다.
+        /// </summary>
+        /// <remarks>
+        /// 프로젝트 전용 입력 조합이 가드 시작을 잠시 보류한 경우에 사용합니다.
+        /// 재귀적인 입력 override 호출을 피하기 위해 외부 규칙은 다시 호출하지 않지만,
+        /// 캐릭터 입력 잠금, AutoMove, 입력 차단 Provider와 기본 가드 정책은 현재 상태로 재검증합니다.
+        /// </remarks>
+        /// <param name="denyLog">가드 시작이 거부된 경우의 설명입니다.</param>
+        /// <returns>가드 액션이 실제로 시작되면 <see langword="true"/>입니다.</returns>
+        public bool TryBeginGuardFromExternal(out string denyLog)
+        {
+            denyLog = null;
+            if (!CanProcessInputCallback() || _guardHandler == null)
+            {
+                denyLog = "가드 입력 시스템이 활성화되지 않았습니다.";
+                return false;
+            }
+
+            if (_characterBase != null &&
+                _characterBase.IsDontControl() &&
+                (_policy == null || !_policy.CanStartGuardByInterruptingHitStop()))
+            {
+                denyLog = "현재 조작 불가 상태에서는 가드를 시작할 수 없습니다.";
+                return false;
+            }
+
+            if (ShouldBlockInputByCharacterInputLock(AutoMoveInputType.Guard))
+            {
+                denyLog = "현재 캐릭터 입력 잠금이 가드 입력을 차단하고 있습니다.";
+                return false;
+            }
+
+            if (_autoMove != null && _autoMove.ShouldBlockInput(AutoMoveInputType.Guard, Vector2.zero))
+            {
+                denyLog = "현재 자동 이동 정책이 가드 입력을 차단하고 있습니다.";
+                return false;
+            }
+
+            if (ShouldBlockInputByProvider(AutoMoveInputType.Guard))
+            {
+                denyLog = "현재 입력 차단 규칙이 가드 입력을 차단하고 있습니다.";
+                return false;
+            }
+
+            return _guardHandler.TryHandlePress(out denyLog);
+        }
+
+        /// <summary>
         /// 상위 계층의 프로젝트 전용 규칙에서 대시를 직접 시작합니다.
         /// </summary>
         /// <param name="postDashWaitSeconds">대시 이동 후 기존 <c>PlayLoop</c> 상태를 유지하며 머무를 시간입니다.</param>
