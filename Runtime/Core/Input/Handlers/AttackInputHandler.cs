@@ -29,20 +29,24 @@ namespace GGemCo2DControl
         /// <summary>
         /// 공격 정책을 검증하고 기본 공격이 실제 시작된 경우 충돌 중인 가드 상태를 즉시 종료합니다.
         /// </summary>
-        public void Handle()
+        /// <returns>기본 공격이 실제로 시작되었으면 <see langword="true"/>입니다.</returns>
+        public bool Handle()
         {
-            if (_character == null || _attack == null || _policy == null) return;
+            if (_character == null || _attack == null || _policy == null) return false;
             if (!_policy.TryPrepareAttack(out var deny))
             {
                 if (!string.IsNullOrEmpty(deny)) GcLogger.Log(deny);
-                return;
+                return false;
             }
 
             if (_attack.TryAttack())
             {
                 // 공격이 거부되거나 버퍼 처리만 된 경우에는 기존 가드를 유지해야 하므로 시작 성공 후 정리합니다.
                 _guard?.CancelForConflictingAction();
+                return true;
             }
+
+            return false;
         }
     }
 }

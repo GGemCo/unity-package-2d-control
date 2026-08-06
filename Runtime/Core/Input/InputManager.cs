@@ -2003,14 +2003,31 @@ namespace GGemCo2DControl
         /// 공격 입력을 처리합니다.
         /// 프로젝트 전용 override 핸들러가 입력을 소비하면 기본 공격 액션을 실행하지 않습니다.
         /// </summary>
-        private void HandleAttackInput()
+        /// <returns>프로젝트 override가 입력을 소비했거나 기본 공격이 시작되었으면 <see langword="true"/>입니다.</returns>
+        private bool HandleAttackInput()
         {
             if (TryHandleAttackInputOverride())
             {
-                return;
+                return true;
             }
 
-            _attackHandler?.Handle();
+            return _attackHandler?.Handle() == true;
+        }
+
+        /// <summary>
+        /// 자동 전투와 런타임 도구에서 플레이어의 기본 공격을 요청합니다.
+        /// 물리 입력과 동일한 입력 잠금 및 자동 이동 차단 정책을 검사하지만,
+        /// 프로젝트 전용 공격 버튼 override는 거치지 않아 스킬 대신 기본 공격만 실행합니다.
+        /// </summary>
+        /// <returns>입력 정책을 통과하여 기본 공격이 실제로 시작되었으면 <see langword="true"/>입니다.</returns>
+        public bool TryRequestBasicAttack()
+        {
+            if (!CanQueueButtonInput(AutoMoveInputType.Attack, requireMovementUnlocked: false))
+            {
+                return false;
+            }
+
+            return _attackHandler?.Handle() == true;
         }
 
         /// <summary>
