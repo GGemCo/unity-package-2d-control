@@ -2031,6 +2031,22 @@ namespace GGemCo2DControl
         }
 
         /// <summary>
+        /// 자동화 도구와 외부 런타임 시스템에서 물리 공격 입력과 같은 경로로 공격을 요청합니다.
+        /// 프로젝트 전용 공격 입력 재정의가 있으면 먼저 실행하고, 소비되지 않은 경우 기본 공격을 실행합니다.
+        /// </summary>
+        /// <returns>입력 정책을 통과하고 프로젝트 재정의가 입력을 소비했거나 기본 공격이 시작되었으면 <see langword="true"/>입니다.</returns>
+        public bool TryRequestAttack()
+        {
+            if (!CanQueueButtonInput(AutoMoveInputType.Attack, requireMovementUnlocked: false))
+            {
+                return false;
+            }
+
+            // 실제 공격 버튼과 동일한 처리 함수를 사용하여 게임별 입력 재정의 규칙도 함께 검증합니다.
+            return HandleAttackInput();
+        }
+
+        /// <summary>
         /// 현재 플레이어 오브젝트에 부착된 공격 입력 override 핸들러를 순서대로 호출합니다.
         /// </summary>
         /// <returns>어느 하나의 핸들러가 공격 입력을 소비하면 true입니다.</returns>
