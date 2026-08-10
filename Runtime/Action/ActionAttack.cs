@@ -253,6 +253,19 @@ namespace GGemCo2DControl
                 yield return null;
             }
 
+            // 스킬 등 다른 액션이 기본 콤보를 점유한 경우, 오래된 예약이 새 애니메이션을 덮지 않도록 종료합니다.
+            if (actionCharacterBase == null ||
+                !actionCharacterBase.IsStatusAttackComboWait() ||
+                _currentCombo < 0 ||
+                _currentCombo >= _countCombo)
+            {
+                _coroutineDontAttack = null;
+                _attackWaitElapsedSeconds = 0f;
+                yield break;
+            }
+
+            _coroutineDontAttack = null;
+            _attackWaitElapsedSeconds = 0f;
             actionCharacterBase.CharacterAnimationController?.PlayAttackEndAnimation();
         }
 

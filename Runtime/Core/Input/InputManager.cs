@@ -1112,13 +1112,15 @@ namespace GGemCo2DControl
         }
 
         /// <summary>
-        /// 플레이어 스킬 시작 직전에 점프/대시 등 잔존 중인 입력 액션을 정리합니다.
+        /// 플레이어 스킬 시작 직전에 기본 공격과 점프/대시 등 잔존 중인 입력 액션을 정리합니다.
         /// Ground Slam 같은 공중 스킬이 시작된 뒤에도 이전 Jump FSM이 살아남아 Fall 애니메이션을 다시 점유하는 문제를 방지합니다.
         /// </summary>
         public void CancelActionsOnSkillStart()
         {
             ClearBufferedButtonInputs();
 
+            // 기본 콤보의 attack_end 예약이 새 스킬 애니메이션을 뒤늦게 덮지 않도록 가장 먼저 정리합니다.
+            _actionAttack?.CancelAttackByActionInterrupt();
             _actionJump?.CancelJump(skipLandAnimation: true, restoreGravity: true);
             _actionDash?.CancelDash(skipEndAnimation: true);
             _actionClimb?.CancelClimb(skipEndAnimation: true, restoreGravity: true);
@@ -1134,7 +1136,7 @@ namespace GGemCo2DControl
         /// 강제 발동 스킬이 시작되기 직전에 플레이어의 모든 입력 액션과 잔여 이동을 취소합니다.
         /// </summary>
         /// <remarks>
-        /// 일반 스킬의 시작 정책과 달리 기본 공격, 시뮬레이션 입력, 자동 이동과 공격 이동 힘까지 정리합니다.
+        /// 일반 스킬 시작 정리에 더해 HitStop, 시뮬레이션 입력, 자동 이동과 공격 이동 힘까지 정리합니다.
         /// 캐릭터 상태는 직후 시작되는 Skill 실행기가 점유하므로 여기에서 Idle 상태로 변경하지 않습니다.
         /// </remarks>
         public void CancelAllActionsOnForcedSkillStart()
@@ -1146,7 +1148,6 @@ namespace GGemCo2DControl
 
             _simulationToolPressCtx = default;
             _simulationToolReleaseCtx = default;
-            _actionAttack?.CancelAttackByActionInterrupt();
 
             if (_autoMoveProvider is PlayerAutoMoveController autoMoveController)
             {
